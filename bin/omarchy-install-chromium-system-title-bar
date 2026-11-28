@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# omarchy:summary=Set Chromium browser profiles that never chose a frame to use the system title bar
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# A Chromium browser on the system title bar drops its own frame and gets
+# Omarchy's titlebar when it floats. A new profile starts that way; this gives
+# the same to a profile that already exists and never chose. One that chose,
+# either way, is left alone.
+#
+# A running browser holds its Preferences in memory and writes them back when
+# it exits, which would undo the change. So a browser that is running is
+# skipped: its profile directory is printed and the command fails, for the
+# caller to ask for it to be closed and run this again.
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+
+browser_dirs=(
+  "$config_home/chromium"
+  "$config_home/google-chrome"
+  "$config_home/google-chrome-beta"
+  "$config_home/google-chrome-unstable"
+  "$config_home/BraveSoftware/Brave-Browser"
+  "$config_home/BraveSoftware/Brave-Browser-Beta"
+  "$config_home/BraveSoftware/Brave-Browser-Nightly"
+  "$config_home/BraveSoftware/Brave-Origin"
+  "$config_home/BraveSoftware/Brave-Origin-Beta"
+  "$config_home/BraveSoftware/Brave-Origin-Nightly"
+  "$config_home/microsoft-edge"
+  "$config_home/microsoft-edge-dev"
+)
+
+running=()
+
+for dir in "${browser_dirs[@]}"; do
+  for preferences in "$dir"/*/Preferences; do
+    # A profile that chose, a file that is not valid JSON, and the unmatched
+    # glob of a browser that is not installed all fail this and are passed over.
+    jq -e '(.browser // {}) | has("custom_chrome_frame") | not' "$preferences" >/dev/null 2>&1 || continue
+
+    # A browser attached to a profile directory holds a SingletonLock in it,
+    # which can be a dangling symlink, and a socket beside it.
+    if [[ -L $dir/SingletonLock || -e $dir/SingletonLock || -S $dir/SingletonSocket ]]; then
+      running+=("$dir")
+      break
+    fi
+
+    updated=$(mktemp "$preferences.XXXXXX")
+    jq -c '.browser.custom_chrome_frame = false' "$preferences" >"$updated"
+    chmod --reference="$preferences" "$updated"
+    mv "$updated" "$preferences"
+  done
+done
+
+if (( ${#running[@]} )); then
+  printf '%s\n' "${running[@]}"
+  exit 1
+fi

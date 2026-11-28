@@ -1,8 +1,8 @@
 # Common tweaks
 
-This is a collection of common tailorings to the Omarchy setup. Know that it might occasionally be necessary for system updates to restore certain configs to their original condition. If this happens, your changes won't be lost, but put in a `.bak` file in the same directory.
+This is a collection of common tailorings to the Omarchy setup. Know that it might occasionally be necessary for system updates to restore certain configs to their original condition. If this happens, your changes won't be lost, but put in a `.bak.<timestamp>` file next to the original.
 
-If you screw something up, you can restore individual configs to their original setup via _Update > Config_ in the Omarchy menu. If you _really_ screw everything up, you can reset all configs via `omarchy-reinstall`.
+If you screw something up, you can restore individual configs to their original setup via _Update > Config_ in the Omarchy menu. If you _really_ screw everything up, you can reset all configs via `omarchy reinstall configs`, or reinstall every default package and config with `omarchy reinstall`.
 
 ### Reveal all tray icons all the time
 
@@ -10,7 +10,7 @@ By default, tray icons, like Dropbox, 1password, or Steam, are hidden behind the
 
 ### Rounded window corners
 
-Omarchy's default design is one of square corners, but if you like to soften that up a bit, you can change `~/.config/hypr/looknfeel.lua` so rounding is no longer commented out:
+Omarchy's default design is one of square corners, but if you like to soften that up a bit, pick _Appearance > Windows > Window Corners > Rounded Corners_ in the Omarchy menu, or run `omarchy hyprland corners rounded`. _Theme Corners_ goes back to whatever the theme uses. To pick your own radius, stay on _Theme Corners_ (`omarchy hyprland corners theme`), since Rounded and Sharp load after your config and override it, and uncomment rounding in `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({

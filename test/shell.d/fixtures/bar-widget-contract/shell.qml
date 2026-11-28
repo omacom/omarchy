@@ -62,6 +62,78 @@ ShellRoot {
     return isFinite(n) && n >= 0
   }
 
+  function calendarOf(item) {
+    for (var i = 0; i < item.children.length; i++) {
+      var child = item.children[i]
+      if (child && child.item && ("viewMonth" in child.item)) return child.item
+    }
+    return null
+  }
+
+  // The WallClock a QML object declares, found by the properties only it has.
+  function wallClockOf(item) {
+    for (var i = 0; i < item.data.length; i++) {
+      var child = item.data[i]
+      if (child && ("step" in child) && ("date" in child) && typeof child.arm === "function") return child
+    }
+    return null
+  }
+
+  function trayChevronOf(item) {
+    if (!item) return null
+    if (typeof item.triggerPress === "function" && (item.text === "\uf054" || item.text === "\uf053")) return item
+    var hit = item.item ? trayChevronOf(item.item) : null
+    if (hit) return hit
+    for (var i = 0; i < (item.children || []).length; i++) {
+      hit = trayChevronOf(item.children[i])
+      if (hit) return hit
+    }
+    return null
+  }
+
+  function assertTrayChevronTogglesManage(item, label) {
+    var chevron = trayChevronOf(item)
+    root.assertTrue(chevron !== null, label + " exposes its expand chevron")
+    if (!chevron) return
+    var buttons = [Qt.LeftButton, Qt.RightButton]
+    for (var i = 0; i < buttons.length; i++) {
+      chevron.triggerPress(buttons[i])
+      root.assertEqual(item.managePopupOpen, true, label + " button " + buttons[i] + " opens manage popup")
+      chevron.triggerPress(buttons[i])
+      root.assertEqual(item.managePopupOpen, false, label + " button " + buttons[i] + " closes manage popup")
+    }
+  }
+
+  // A wake leaves WallClock counting down an interval it started before the
+  // sleep. Resyncing is what re-reads the time, so the catch-up the system
+  // clock timer asks for has to update both the label's clock and the
+  // calendar's, and has to do it without sending a browsed month back to today.
+  function assertClockResyncs(item) {
+    var calendar = calendarOf(item)
+    root.assertTrue(calendar !== null, "omarchy.clock loads its calendar")
+    if (!calendar) return
+
+    var labelClock = wallClockOf(item)
+    var calendarClock = wallClockOf(calendar)
+    root.assertTrue(labelClock !== null && calendarClock !== null, "omarchy.clock and its calendar each run a WallClock")
+    if (!labelClock || !calendarClock) return
+
+    root.assertTrue(typeof item.resync === "function", "omarchy.clock answers a resync request")
+    if (typeof item.resync !== "function") return
+
+    calendar.viewMonth = (calendar.viewMonth + 3) % 12
+    var browsed = calendar.viewMonth
+
+    var stale = new Date(Date.now() - 5 * 60 * 1000)
+    labelClock.date = stale
+    calendarClock.date = stale
+    item.resync()
+
+    root.assertTrue(Math.abs(labelClock.date.getTime() - Date.now()) < 2000, "omarchy.clock catches its label up when the system clock jumps")
+    root.assertTrue(Math.abs(calendarClock.date.getTime() - Date.now()) < 2000, "omarchy.clock catches its calendar up when the system clock jumps")
+    root.assertEqual(calendar.viewMonth, browsed, "omarchy.clock leaves a browsed month alone when the system clock jumps")
+  }
+
   function loadWidget(entry) {
     var component = Qt.createComponent(entry.url, Component.PreferSynchronous)
     if (component.status !== Component.Ready) {
@@ -162,6 +234,10 @@ ShellRoot {
           var id = root.createdIds[j]
           root.assertTrue(root.finiteDimension(item.implicitWidth), id + " has a finite implicitWidth")
           root.assertTrue(root.finiteDimension(item.implicitHeight), id + " has a finite implicitHeight")
+          if (id === "omarchy.clock") root.assertClockResyncs(item)
+          if (id === "omarchy.active-window")
+            root.assertTrue("tooltipHovered" in item && item.tooltipHovered === false, id + " exposes tooltipHovered for bar tooltips")
+          if (id === "omarchy.tray") root.assertTrayChevronTogglesManage(item, id + " horizontal")
         }
 
         fakeBar.vertical = true
@@ -175,6 +251,8 @@ ShellRoot {
               root.assertEqual(verticalItem.implicitHeight, Style.bar.iconSlot * 3, verticalId + " uses one slot per line")
             else if (verticalId === "omarchy.weather" || verticalId === "omarchy.system-update")
               root.assertEqual(verticalItem.implicitHeight, Style.bar.statusSlot, verticalId + " uses one compact status slot")
+            else if (verticalId === "omarchy.tray")
+              root.assertTrayChevronTogglesManage(verticalItem, verticalId + " vertical")
             if (verticalItem && typeof verticalItem.destroy === "function") verticalItem.destroy()
           }
           root.assertTrue(root.createdIds.length === entries.length, "all bar widgets instantiate")

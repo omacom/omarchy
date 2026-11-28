@@ -1,0 +1,347 @@
+#!/usr/bin/env python3
+
+# omarchy:summary=Run the live-tunable userland webcam relay daemon
+# omarchy:hidden=true
+
+"""Live-tunable userland webcam relay for Omarchy (libcamera -> v4l2loopback).
+
+Keeps the v4l2loopback writer pipeline open continuously so consumers (PipeWire
+and direct V4L2 apps like Monologue) never lose /dev/videoN, starts the
+libcamerasrc input pipeline on demand via V4L2_EVENT_PRI_CLIENT_USAGE (0% CPU
+when idle), and accepts real-time gamma/contrast/saturation updates over a
+user-private Unix datagram socket with zero restarts or dropped frames.
+"""
+
+import errno
+import fcntl
+import math
+import os
+import select
+import signal
+import socket
+import struct
+import sys
+import threading
+
+import gi
+
+gi.require_version("Gst", "1.0")
+from gi.repository import Gst  # noqa: E402
+
+VIDIOC_SUBSCRIBE_EVENT = 0x4020565A
+VIDIOC_DQEVENT = 0x80885659
+V4L2_EVENT_PRI_CLIENT_USAGE = 0x10E00001
+V4L2_EVENT_SUB_FL_SEND_INITIAL = 1
+
+
+def parse_float(value: str | None, fallback: float, lo: float, hi: float) -> float:
+    if value is None or value == "":
+        return fallback
+    try:
+        num = float(value)
+    except ValueError:
+        return fallback
+    if not math.isfinite(num):
+        return fallback
+    return max(lo, min(hi, num))
+
+
+class LiveCameraRelay:
+    def __init__(self) -> None:
+        self.dev_path = os.environ["OMARCHY_CAMERA_DEVICE"]
+        self.camera_name = os.environ["CAMERA_NAME"]
+        self.width = int(os.environ.get("WIDTH") or "1920")
+        self.height = int(os.environ.get("HEIGHT") or "1080")
+        self.fmt = os.environ.get("FORMAT") or "NV12"
+        self.fps = os.environ.get("FRAMERATE") or "30/1"
+
+        self.gamma = parse_float(os.environ.get("GAMMA"), 1.5, 0.5, 3.0)
+        self.base_gamma = parse_float(
+            os.environ.get("BASE_GAMMA"), self.gamma, 0.5, 3.0
+        )
+        self.contrast = parse_float(os.environ.get("CONTRAST"), 1.0, 0.0, 2.0)
+        self.saturation = parse_float(os.environ.get("SATURATION"), 1.0, 0.0, 2.0)
+        self.brightness = parse_float(os.environ.get("BRIGHTNESS"), 0.0, -1.0, 1.0)
+        self.warmth = parse_float(os.environ.get("WARMTH"), 0.0, -1.0, 1.0)
+        self.tint = parse_float(os.environ.get("TINT"), 0.0, -1.0, 1.0)
+        self.uv_luts: tuple[bytes, bytes] | None = self._build_uv_luts()
+
+        runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+        self.sock_path = os.environ.get(
+            "OMARCHY_CAMERA_RELAY_SOCKET",
+            os.path.join(runtime_dir, "omarchy-camera-relay.sock"),
+        )
+
+        self.lock = threading.Lock()
+        self.stop_requested = False
+        self.exit_code = 0
+        self.wake_r, self.wake_w = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+        self.input_pipe = None
+        self.input_bus = None
+        self.gamma_elem = None
+        self.balance_elem = None
+        self.running_input = False
+
+        Gst.init(None)
+
+        # Keep the output pipeline alive for the lifetime of the service so
+        # consumers never see /dev/videoN disappear.
+        out_desc = (
+            f"appsrc name=appsrc is-live=true format=time do-timestamp=true "
+            f"caps=video/x-raw,format=I420,width={self.width},height={self.height},framerate={self.fps} ! "
+            f"videoconvert n-threads=4 ! video/x-raw,format={self.fmt} ! "
+            f"v4l2sink name=v4l2sink device={self.dev_path} sync=false"
+        )
+        self.out_pipe = Gst.parse_launch(out_desc)
+        self.appsrc = self.out_pipe.get_by_name("appsrc")
+        self.out_pipe.set_state(Gst.State.PLAYING)
+
+        # Push one black I420 frame so v4l2sink calls VIDIOC_S_FMT and switches
+        # v4l2loopback to Video Capture immediately without waking libcamera.
+        y_size = self.width * self.height
+        uv_size = y_size // 2
+        blank = bytes(y_size) + bytes([128] * uv_size)
+        self.appsrc.emit("push-buffer", Gst.Buffer.new_wrapped(blank))
+        self.out_pipe.get_state(2 * Gst.SECOND)
+
+        # Subscribe to v4l2loopback reader count push events.
+        self.ev_fd = os.open(self.dev_path, os.O_RDONLY | os.O_NONBLOCK)
+        sub = struct.pack(
+            "III5I",
+            V4L2_EVENT_PRI_CLIENT_USAGE,
+            0,
+            V4L2_EVENT_SUB_FL_SEND_INITIAL,
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+        fcntl.ioctl(self.ev_fd, VIDIOC_SUBSCRIBE_EVENT, sub)
+
+        # User-private Unix datagram socket for 0ms live property updates.
+        os.makedirs(os.path.dirname(self.sock_path), exist_ok=True)
+        try:
+            os.unlink(self.sock_path)
+        except FileNotFoundError:
+            pass
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        old_umask = os.umask(0o177)
+        try:
+            self.sock.bind(self.sock_path)
+        finally:
+            os.umask(old_umask)
+        os.chmod(self.sock_path, 0o600)
+        self.sock.setblocking(False)
+
+    def _rel_gamma(self) -> float:
+        return max(0.05, min(10.0, self.gamma / self.base_gamma))
+
+    def _build_uv_luts(self) -> tuple[bytes, bytes] | None:
+        # In I420 YCbCr, U (Cb) is the blue-yellow axis and V (Cr) is the
+        # red-cyan axis. Shifting (-22*warmth, +14*warmth) sweeps cool blue to
+        # warm amber with minimal green/magenta cast; (+14*tint, +18*tint)
+        # sweeps green to magenta along the orthogonal axis.
+        if abs(self.warmth) < 0.001 and abs(self.tint) < 0.001:
+            return None
+        du = round(-22.0 * self.warmth + 14.0 * self.tint)
+        dv = round(14.0 * self.warmth + 18.0 * self.tint)
+        if du == 0 and dv == 0:
+            return None
+        u_lut = bytes(max(16, min(240, i + du)) for i in range(256))
+        v_lut = bytes(max(16, min(240, i + dv)) for i in range(256))
+        return (u_lut, v_lut)
+
+    def _apply_live_props(self) -> None:
+        self.uv_luts = self._build_uv_luts()
+        if self.gamma_elem is not None:
+            self.gamma_elem.set_property("gamma", self._rel_gamma())
+        if self.balance_elem is not None:
+            self.balance_elem.set_property("brightness", self.brightness)
+            self.balance_elem.set_property("contrast", self.contrast)
+            self.balance_elem.set_property("saturation", self.saturation)
+
+    def _on_new_sample(self, appsink):
+        sample = appsink.emit("pull-sample")
+        if sample is None:
+            return Gst.FlowReturn.OK
+        buf = sample.get_buffer()
+        if buf is not None:
+            luts = self.uv_luts
+            out_buf = None
+            if luts is not None:
+                u_lut, v_lut = luts
+                ok, info = buf.map(Gst.MapFlags.READ)
+                if ok:
+                    try:
+                        y_size = self.width * self.height
+                        uv_size = y_size // 4
+                        if info.size == y_size + 2 * uv_size:
+                            raw = info.data
+                            framed = (
+                                raw[:y_size]
+                                + raw[y_size : y_size + uv_size].translate(u_lut)
+                                + raw[y_size + uv_size :].translate(v_lut)
+                            )
+                            out_buf = Gst.Buffer.new_wrapped(framed)
+                    finally:
+                        buf.unmap(info)
+            if out_buf is None:
+                out_buf = buf.copy()
+            out_buf.pts = Gst.CLOCK_TIME_NONE
+            out_buf.dts = Gst.CLOCK_TIME_NONE
+            out_buf.duration = Gst.CLOCK_TIME_NONE
+            self.appsrc.emit("push-buffer", out_buf)
+        return Gst.FlowReturn.OK
+
+    def start_input(self) -> None:
+        with self.lock:
+            if self.running_input:
+                return
+            in_desc = (
+                f"libcamerasrc camera-name={self.camera_name} "
+                f"gamma={self.base_gamma:.3f} contrast=1.0 saturation=1.0 ! "
+                f"video/x-raw,width={self.width},height={self.height} ! "
+                f"videoconvert n-threads=4 ! video/x-raw,format=I420 ! "
+                f"gamma name=gamma gamma={self._rel_gamma():.4f} ! "
+                f"videobalance name=balance brightness={self.brightness:.4f} "
+                f"contrast={self.contrast:.4f} saturation={self.saturation:.4f} ! "
+                f"appsink name=sink emit-signals=true max-buffers=1 drop=true sync=false"
+            )
+            self.input_pipe = Gst.parse_launch(in_desc)
+            self.input_bus = self.input_pipe.get_bus()
+            self.gamma_elem = self.input_pipe.get_by_name("gamma")
+            self.balance_elem = self.input_pipe.get_by_name("balance")
+            sink = self.input_pipe.get_by_name("sink")
+            sink.connect("new-sample", self._on_new_sample)
+            self.input_pipe.set_state(Gst.State.PLAYING)
+            self.running_input = True
+
+    def stop_input(self) -> None:
+        with self.lock:
+            if not self.running_input:
+                return
+            if self.input_pipe is not None:
+                self.input_pipe.set_state(Gst.State.NULL)
+            self.input_pipe = None
+            self.input_bus = None
+            self.gamma_elem = None
+            self.balance_elem = None
+            self.running_input = False
+
+    def handle_control(self, message: str) -> None:
+        with self.lock:
+            for token in message.strip().split():
+                if "=" not in token:
+                    continue
+                key, raw_val = token.split("=", 1)
+                if key == "gamma":
+                    self.gamma = parse_float(raw_val, self.gamma, 0.5, 3.0)
+                elif key == "contrast":
+                    self.contrast = parse_float(raw_val, self.contrast, 0.0, 2.0)
+                elif key == "saturation":
+                    self.saturation = parse_float(raw_val, self.saturation, 0.0, 2.0)
+                elif key == "brightness":
+                    self.brightness = parse_float(raw_val, self.brightness, -1.0, 1.0)
+                elif key == "warmth":
+                    self.warmth = parse_float(raw_val, self.warmth, -1.0, 1.0)
+                elif key == "tint":
+                    self.tint = parse_float(raw_val, self.tint, -1.0, 1.0)
+            self._apply_live_props()
+
+    def _drain_input_bus(self) -> None:
+        bus = self.input_bus
+        if bus is None:
+            return
+        while True:
+            msg = bus.pop()
+            if msg is None:
+                break
+            if msg.type == Gst.MessageType.ERROR:
+                err, dbg = msg.parse_error()
+                sys.stderr.write(f"omarchy-camera-relay: input error: {err} ({dbg})\n")
+                sys.stderr.flush()
+                self.stop_input()
+                self.exit_code = 1
+                self.stop_requested = True
+                break
+
+    def request_stop(self, *_args) -> None:
+        self.stop_requested = True
+        try:
+            os.write(self.wake_w, b"x")
+        except OSError:
+            pass
+
+    def run(self) -> int:
+        poller = select.poll()
+        poller.register(self.wake_r, select.POLLIN)
+        poller.register(self.ev_fd, select.POLLPRI | select.POLLERR | select.POLLHUP)
+        poller.register(self.sock.fileno(), select.POLLIN)
+
+        event_buf = bytearray(136)
+
+        try:
+            while not self.stop_requested:
+                try:
+                    events = poller.poll(500 if self.running_input else -1)
+                except InterruptedError:
+                    continue
+
+                for fd, mask in events:
+                    if fd == self.wake_r:
+                        return 0
+                    if fd == self.ev_fd:
+                        if mask & (select.POLLERR | select.POLLHUP):
+                            return 1
+                        if mask & select.POLLPRI:
+                            while True:
+                                try:
+                                    fcntl.ioctl(self.ev_fd, VIDIOC_DQEVENT, event_buf)
+                                except OSError as exc:
+                                    if exc.errno in (errno.EAGAIN, errno.ENOENT):
+                                        break
+                                    return 1
+                                ev_type = struct.unpack_from("I", event_buf, 0)[0]
+                                if ev_type != V4L2_EVENT_PRI_CLIENT_USAGE:
+                                    continue
+                                count = struct.unpack_from("I", event_buf, 8)[0]
+                                if count > 0:
+                                    self.start_input()
+                                else:
+                                    self.stop_input()
+                    elif fd == self.sock.fileno() and (mask & select.POLLIN):
+                        while True:
+                            try:
+                                payload = self.sock.recv(1024)
+                            except BlockingIOError:
+                                break
+                            except OSError:
+                                break
+                            self.handle_control(payload.decode("utf-8", errors="ignore"))
+
+                if self.running_input:
+                    self._drain_input_bus()
+        finally:
+            self.stop_input()
+            self.out_pipe.set_state(Gst.State.NULL)
+            os.close(self.ev_fd)
+            os.close(self.wake_r)
+            os.close(self.wake_w)
+            self.sock.close()
+            try:
+                os.unlink(self.sock_path)
+            except FileNotFoundError:
+                pass
+        return self.exit_code
+
+
+def main() -> int:
+    relay = LiveCameraRelay()
+    signal.signal(signal.SIGTERM, relay.request_stop)
+    signal.signal(signal.SIGINT, relay.request_stop)
+    return relay.run()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

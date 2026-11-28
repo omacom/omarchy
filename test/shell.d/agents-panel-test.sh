@@ -12,7 +12,7 @@ const signInFunctions = ['supportsSignIn', 'signedOut', 'needsSignIn', 'usageNot
   const match = panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))
   return match ? match[0] : ''
 }).join('\n')
-const signIn = new Function('addProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, signedOut, usageNote}')(
+const signIn = new Function('signInProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, signedOut, usageNote}')(
   [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'grok'}], text => text, status => status
 )
 for (const id of ['claude', 'codex', 'grok']) {
@@ -106,334 +106,34 @@ assertDeepEqual(
 )
 JS
 
-# A rewrite may briefly leave an incomplete file; lifecycle state must survive it.
+# The saved order keeps agents where they were put, including ones hidden now.
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const state = { localModel: {}, noteReadyModels: () => {}, noteLaunchableModels: () => {} }
-const parse = new Function('root', source.match(/function parseLocalModel\([^]*?\n  \}/)[0] + '\nreturn parseLocalModel')(state)
-const running = { models: { 'model-a': { recipe: 'model-a', unit: 'active', endpoint: 'http://127.0.0.1:11435/v1' }, 'model-b': { recipe: 'model-b', unit: 'activating' } }, ram_total_gib: 125.1 }
-parse(JSON.stringify(running))
-assertDeepEqual(state.localModel, running, 'lifecycle state loads without any usage record')
-for (const raw of ['{', 'null', '[]', '{}', '{"models":[]}', '{"models":{"model-a":{"recipe":false,"unit":"active"}}}', '{"models":{"model-a":{"recipe":"model-a","unit":"unknown"}}}']) {
-  parse(raw)
-  assertDeepEqual(state.localModel, running, 'invalid lifecycle state keeps the last good value: ' + raw)
-}
-parse('{"models":{"model-a":{"recipe":"model-a","unit":"failed","result":"exit-code"}}}')
-assertEqual(state.localModel.models['model-a'].result, 'exit-code', 'a server failure replaces the running state')
-parse('{"models":{}}')
-assertDeepEqual(state.localModel.models, {}, 'an empty models map clears the local lines')
-parse('{"models":{"model-a":{"recipe":"model-a","unit":"installing","install":{"phase":"downloading","done_bytes":5,"total_bytes":10}}}}')
-assertEqual(state.localModel.models['model-a'].unit, 'installing', 'a setup in progress loads, so its download shows')
-JS
-
-# The recommended model is offered on the first page until a local model
-# exists or the offer is hidden.
-run_node_test <<'JS'
-const fs = require('fs')
-const main = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const localOffer = new Function(main.match(/function localOffer\([^]*?\n  \}/)[0] + '\nreturn localOffer')()
-const recipes = [{ id: 'qwen', available: true }, { id: 'nemotron', best: true, available: true }]
-const everyone = () => true
-assertEqual(localOffer(recipes, {}, everyone).id, 'nemotron', 'a machine without local models is offered the best recipe')
-assertEqual(localOffer(recipes, { qwen: { unit: 'inactive' } }, everyone), null, 'a machine with a local model gets no offer')
-assertEqual(localOffer(recipes, {}, id => id !== 'local:nemotron'), null, 'a hidden offer stays hidden')
-assertEqual(localOffer([{ id: 'nemotron', best: true, available: false }], {}, everyone), null, 'a best recipe that does not fit is not offered')
-JS
-
-# The tailnet survey can be rewritten under the panel; models whose host is
-# away keep their lines, and only a well-formed survey replaces the last one.
-run_node_test <<'JS'
-const fs = require('fs')
-const main = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const state = { networkModels: {} }
-const parse = new Function('root', main.match(/function parseNetwork\([^]*?\n  \}/)[0] + '\nreturn parseNetwork')(state)
-const survey = { models: {
-  'box/big': { id: 'box/big', host: 'box', recipe: 'big', unit: 'active', paired: true, offline: '' },
-  'away/small': { id: 'away/small', host: 'away', recipe: 'small', unit: 'inactive', paired: true, offline: 'offline', last_seen_ms: 5 },
-} }
-parse(JSON.stringify(survey))
-assertDeepEqual(state.networkModels, survey.models, 'a survey loads its running and offline models')
-for (const raw of ['{', 'null', '[]', '{"models":[]}', '{"models":{"box/big":{"id":"box/other","host":"box","recipe":"big","unit":"active"}}}', '{"models":{"box/big":{"id":"box/big","host":"box","recipe":"big","unit":"rebooting"}}}']) {
-  parse(raw)
-  assertDeepEqual(state.networkModels, survey.models, 'an invalid survey keeps the last good one: ' + raw)
-}
-const loaded = state.networkModels
-parse(JSON.stringify({ models: { ...survey.models, 'box/big': { ...survey.models['box/big'], last_seen_ms: 99 } } }))
-assert(state.networkModels === loaded, 'a survey that only moves last seen leaves the lines alone')
-parse(JSON.stringify({ models: { 'away/small': survey.models['away/small'] } }))
-assertDeepEqual(state.networkModels, { 'away/small': survey.models['away/small'] }, 'a model that stops being shared goes at the next survey')
-parse(JSON.stringify(survey))
-assertDeepEqual(state.networkModels, survey.models, 'a newly shared model appears at the next survey')
-assertEqual(state.canShare, false, 'a survey without can_share does not offer sharing')
-parse('{"models":{},"can_share":true}')
-assertDeepEqual(state.networkModels, {}, 'an empty survey clears the network lines')
-assertEqual(state.canShare, true, 'a survey that can share offers sharing')
-
-const parseClients = new Function(main.match(/function parseClients\([^]*?\n  \}/)[0] + '\nreturn parseClients')()
-assertDeepEqual(parseClients('{"models":{"m":2,"idle":0,"odd":"3","half":1.5}}'), { m: 2 }, 'only whole, positive machine counts are kept')
-for (const raw of ['{', 'null', '[]', '{"models":[]}'])
-  assertDeepEqual(parseClients(raw), {}, 'an unreadable count file counts nobody: ' + raw)
-
-// A failed pairing's line is the reason's first line, not ssh's noise above
-// it or the remedy below it.
-const pairFailureMessage = new Function(main.match(/function pairFailureMessage\([^]*?\n  \}/)[0] + '\nreturn pairFailureMessage')()
-assertEqual(pairFailureMessage("Pairing with box.tail.ts.net over SSH\nalice@box.tail.ts.net: Permission denied (publickey).\nError: box refused this machine's SSH keys\nStart the SSH agent that holds your key\n"),
-  "box refused this machine's SSH keys", 'a failed pairing shows the first line of its reason')
-assertEqual(pairFailureMessage('Traceback (most recent call last):\n  ...\n'), '', 'a pairing that gave no reason leaves the line to say it failed')
-
-const panel = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
-const localActions = new Function(panel.match(/function localActions\([^]*?\n  \}/)[0] + '\nreturn localActions')()
-assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle', 'launch'], 'a running local model can be shared, stopped and launched')
-assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, false), ['toggle', 'launch'], 'without Tailscale set up, sharing is not offered')
-assertDeepEqual(localActions({ recipe: 'm', unit: 'active', shared: true }, false), ['share', 'toggle', 'launch'], 'a running shared model can always stop sharing')
-assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', shared: true }, true), ['toggle'], 'a stopped shared model does not say it is shared')
-assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive' }, true), ['toggle'], 'a local model that has not been started is not offered for sharing')
-assertDeepEqual(localActions({ recipe: 'm', unit: 'installing' }, true), [], 'a model being set up offers nothing yet')
-const stale = { image: true, weights: false, settings: false }
-assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', update: stale }, true), ['update', 'toggle'], 'a stopped model the catalog has moved on from offers its update')
-assertDeepEqual(localActions({ recipe: 'm', unit: 'active', update: stale }, true), ['update', 'share', 'toggle', 'launch'], 'a running model offers its update before its other actions')
-assertDeepEqual(localActions({ recipe: 'm', unit: 'activating', update: stale }, true), ['toggle'], 'a model that is loading does not offer its update')
-assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', update: stale, updating: true }, true), ['toggle'], 'a model being updated does not offer its update again')
-assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '', update: stale }), ['disconnect', 'launch'], 'another machine\'s model is never updated from here')
-const updateTip = new Function('Commons', panel.match(/function updateTip\([^]*?\n  \}/)[0] + '\nreturn updateTip')({ I18n: { t: (key) => ({ arg: (value) => key + ' ' + value, toString: () => key }), formatNumber: (value, decimals) => value.toFixed(decimals) } })
-assertEqual(String(updateTip({ update: Object.assign({ download_bytes: 601000000 }, stale) })), 'agents.localUpdateDownloadGb 0.6', 'an update says how much it downloads')
-assertEqual(String(updateTip({ update: Object.assign({ download_bytes: 42000000 }, stale) })), 'agents.localUpdateDownloadMb 42', 'a small update is sized in megabytes')
-assertEqual(String(updateTip({ update: Object.assign({ download_bytes: null }, stale) })), 'agents.localUpdate', 'an update not sized yet, or with nothing to fetch, names no size')
-assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' }), ['disconnect', 'launch'], 'a paired network model launches or disconnects, never stops its host\'s model')
-assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'inactive', paired: true, offline: '' }), [], 'a paired network model that is not running offers nothing, not even disconnecting')
-assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: false, offline: '' }), ['pair'], 'an unpaired network model offers pairing only')
-assertDeepEqual(localActions({ host: 'away', recipe: 'm', unit: 'inactive', paired: true, offline: 'offline' }), [], 'an offline network model offers nothing until its host is back')
-
-// A model paired from the panel that is still starting on its host has no
-// terminal yet: the cursor waits for one rather than giving up.
-const modelId = new Function(panel.match(/function modelId\([^]*?\n  \}/)[0] + '\nreturn modelId')()
-// Opening an error's logs dismisses it: the engine forgets a model's failure after printing it, and a failed pairing, which lives in the panel, is forgotten there.
-const showLocalLogs = new Function('Util', 'usage', 'root', 'pairFailure', 'modelId', panel.match(/function showLocalLogs\([^]*?\n  \}/)[0] + '\nreturn showLocalLogs')
-const logRuns = [], dismissedPairs = []
-const logsOf = (failure) => showLocalLogs({ shellQuote: (text) => "'" + text + "'", execArgv: (argv) => logRuns.push(argv[1]) }, { dismissPairFailure: (id) => dismissedPairs.push(id) }, { close() {} }, () => failure, modelId)
-logsOf(null)({ recipe: 'm', unit: 'failed', error: 'Stopped unexpectedly' })
-assertEqual(logRuns[0], "omarchy-agent-local logs 'm'; logs=$?; omarchy-agent-local dismiss 'm' >/dev/null 2>&1; (exit $logs)", 'a model\'s logs print its failure before it is dismissed, and keep their own status')
-assertDeepEqual(dismissedPairs, [], 'a model\'s failure is the engine\'s to forget')
-logsOf({ output: 'refused' })({ host: 'box', recipe: 'm', unit: 'inactive' })
-assertDeepEqual(dismissedPairs, ['box/m'], 'a failed pairing is forgotten once its output has been opened')
-// An image model's launch opens Fantasi on it, here or on a paired host; a text model's starts an agent.
-const makesInFantasi = new Function(panel.match(/function makesInFantasi\([^]*?\n  \}/)[0] + '\nreturn makesInFantasi')()
-const runLocalAction = new Function('Util', 'modelId', 'root', 'makesInFantasi', panel.match(/function runLocalAction\([^]*?\n  \}/)[0] + '\nreturn runLocalAction')
-const launched = []
-const launch = runLocalAction({ execArgv: argv => launched.push(argv), shellQuote: value => `'${value}'` }, modelId, { close() {} }, makesInFantasi)
-launch({ recipe: 'pic', kind: 'image', unit: 'active' }, 'launch')
-launch({ host: 'box', recipe: 'pic', kind: 'image', unit: 'active', paired: true, offline: '' }, 'launch')
-launch({ recipe: 'clip', kind: 'video', unit: 'active' }, 'launch')
-launch({ recipe: 'song', kind: 'music', unit: 'active' }, 'launch')
-launch({ recipe: 'm', unit: 'active' }, 'launch')
-assertDeepEqual(launched, [
-  ['uwsm-app', '--', 'fantasi', 'open', '--model', 'pic'],
-  ['uwsm-app', '--', 'fantasi', 'open', '--model', 'box/pic'],
-  ['uwsm-app', '--', 'fantasi', 'open', '--model', 'clip'],
-  ['uwsm-app', '--', 'fantasi', 'open', '--model', 'song'],
-  ['omarchy-agent', '--local-model', 'm']
-], 'an image, video or music model opens Fantasi on itself, a paired host\'s too, and a text model starts an agent')
-assertDeepEqual(localActions({ host: 'box', recipe: 'pic', kind: 'image', unit: 'active', paired: true, offline: '' }), ['disconnect', 'launch'], 'a paired host\'s image model can be opened in Fantasi')
-const landing = { landAfterPair: 'box/m', usage: { pairingId: '', pairFailures: {}, canShare: false }, root: { opened: true }, providers: [], localActions, modelId, pointed: null }
-landing.pointAt = (kind, index) => { landing.pointed = [kind, index] }
-const landOnPaired = new Function('scope', 'with (scope) { ' + panel.match(/function landOnPaired\([^]*?\n  \}/)[0] + '\nreturn landOnPaired }')(landing)
-landing.providers = [{ localModel: { host: 'box', recipe: 'm', unit: 'activating', paired: true, offline: '' } }]
-landOnPaired()
-assert(landing.pointed === null && landing.landAfterPair === 'box/m', 'a paired model still starting keeps the cursor waiting for its terminal')
-landing.providers = [{ localModel: { host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' } }]
-landOnPaired()
-assertDeepEqual(landing.pointed, ['modelLaunch', 0], 'the cursor lands on its terminal once it runs')
-assertEqual(landing.landAfterPair, '', 'and stops waiting')
-
-// A running network model shows what it is and how fast its host runs it,
-// not that host's memory.
-const i18n = { t: key => ({ text: key, arg(value) { this.text += '(' + value + ')'; return this }, toString() { return this.text } }), formatNumber: value => String(value) }
-const remoteStats = new Function('Commons', panel.match(/function remoteStats\([^]*?\n  \}/)[0] + '\nreturn remoteStats')({ I18n: i18n })
-assertEqual(remoteStats({ architecture: 'moe', decode_tok_s: 41.6, prefill_tok_s: 812.2, ctx: 262144 }),
-  'agents.localSpeedFact(42) · agents.localContextFact(256)', 'a network model lists its output speed and context, never prefill')
-assertEqual(remoteStats({ architecture: 'dense', decode_tok_s: null, prefill_tok_s: null, ctx: 0 }), '', 'unmeasured speeds and an unknown context are left out, and the architecture never shows')
-assertEqual(remoteStats({}), '', 'a host that reports nothing gives no stats line')
-JS
-
-# The panel has no terminal for sudo: a detached setup missing its packages
-# installs them through polkit first, and otherwise starts at once.
-wrapper_dir=$(mktemp -d)
-trap 'rm -rf "$wrapper_dir"' EXIT
-for stub in omarchy-hw-nvidia omarchy-pkg-add omarchy-local-ai omarchy-agent-local-launchers omarchy-launch-floating-terminal-with-presentation; do
-  printf '#!/bin/bash\nprintf "%%s\\n" "%s $*" >>"%s/calls"\n' "$stub" "$wrapper_dir" >"$wrapper_dir/$stub"
-done
-printf '#!/bin/bash\nexit 1\n' >"$wrapper_dir/omarchy-hw-nvidia"
-# pkexec installs the packages unless its dialog is dismissed (126).
-printf '#!/bin/bash\nprintf "%%s\\n" "pkexec $*" >>"%s/calls"\nstatus=$(cat "%s/pkexec-status")\n(( status == 0 )) && touch "%s/installed"\nexit $status\n' "$wrapper_dir" "$wrapper_dir" "$wrapper_dir" >"$wrapper_dir/pkexec"
-chmod +x "$wrapper_dir"/omarchy-* "$wrapper_dir/pkexec"
-run_wrapper() {
-  rm -f "$wrapper_dir/calls" "$wrapper_dir/installed"
-  printf '#!/bin/bash\n[[ -e "%s/installed" ]] && exit 1\nexit %s\n' "$wrapper_dir" "$1" >"$wrapper_dir/omarchy-pkg-missing"
-  chmod +x "$wrapper_dir/omarchy-pkg-missing"
-  shift
-  PATH="$wrapper_dir:$PATH" "$ROOT/bin/omarchy-agent-local" "$@" >/dev/null || printf 'exit %s\n' "$?" >>"$wrapper_dir/calls"
-  cat "$wrapper_dir/calls"
-}
-echo 0 >"$wrapper_dir/pkexec-status"
-calls=$(run_wrapper 0 use --detach nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- podman crun\nomarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "a detached setup missing its packages installs them through polkit first" "$calls"
-pass "a detached setup missing its packages installs them through polkit first"
-echo 126 >"$wrapper_dir/pkexec-status"
-calls=$(run_wrapper 0 use --detach nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- podman crun\nexit 126' ]] || fail "a dismissed password dialog stops the setup as cancelled" "$calls"
-pass "a dismissed password dialog stops the setup as cancelled"
-calls=$(run_wrapper 1 use --detach nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'omarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "a detached setup with its packages starts without a terminal" "$calls"
-pass "a detached setup with its packages starts without a terminal"
-calls=$(run_wrapper 1 use nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "a setup in a terminal installs its packages there" "$calls"
-pass "a setup in a terminal installs its packages there"
-
-# A model set up gets a launcher of its own and one removed loses it, so the
-# launchers are brought up to date after either; the other commands leave them.
-calls=$(run_wrapper 1 remove nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'omarchy-local-ai remove nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "removing a model brings the launchers up to date" "$calls"
-calls=$(run_wrapper 1 stop nemotron-3.5-bolt-tensorfold)
-[[ $calls == "omarchy-local-ai stop nemotron-3.5-bolt-tensorfold" ]] || fail "stopping a model leaves the launchers alone" "$calls"
-printf '#!/bin/bash\nexit 7\n' >"$wrapper_dir/omarchy-local-ai"
-calls=$(run_wrapper 1 remove nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'omarchy-agent-local-launchers \nexit 7' ]] || fail "a removal that fails still reports its own exit status" "$calls"
-printf '#!/bin/bash\nprintf "%%s\\n" "omarchy-local-ai $*" >>"%s/calls"\n' "$wrapper_dir" >"$wrapper_dir/omarchy-local-ai"
-pass "setting up or removing a model brings its launcher up to date"
-
-# Sharing needs the SSH server other machines pair over: the panel's Share
-# sets it up in a terminal first, until it runs.
-printf '#!/bin/bash\nexit %s\n' 3 >"$wrapper_dir/systemctl"
-chmod +x "$wrapper_dir/systemctl"
-calls=$(run_wrapper 1 share nemotron-3.5-bolt-tensorfold </dev/null)
-[[ $calls == "omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-sshd && omarchy-local-ai 'share' 'nemotron-3.5-bolt-tensorfold'" ]] || fail "sharing without an SSH server sets one up in a terminal first" "$calls"
-pass "sharing without an SSH server sets one up in a terminal first"
-calls=$(run_wrapper 1 share nemotron-3.5-bolt-tensorfold --off </dev/null)
-[[ $calls == "omarchy-local-ai share nemotron-3.5-bolt-tensorfold --off" ]] || fail "stopping a share never asks for an SSH server" "$calls"
-pass "stopping a share never asks for an SSH server"
-printf '#!/bin/bash\nexit 0\n' >"$wrapper_dir/systemctl"
-calls=$(run_wrapper 1 share nemotron-3.5-bolt-tensorfold </dev/null)
-[[ $calls == "omarchy-local-ai share nemotron-3.5-bolt-tensorfold" ]] || fail "sharing with the SSH server running shares at once" "$calls"
-pass "sharing with the SSH server running shares at once"
-
-# A setup from the panel has its line before status.json lists it: starting,
-# then installing Podman once the command says so, and a failure stays with
-# its reason, while a dismissed password dialog just brings the offer back.
-# One chosen while another starts waits its turn instead of being dropped.
-run_node_test <<'JS'
-const fs = require('fs')
-const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const names = ['setUp', 'startSetup', 'unqueueSetup', 'setupLine', 'finishSetup', 'setupRows', 'pairFailureMessage']
-const scope = { I18n: { t: key => key }, setupProcess: {} }
-for (const name of names)
-  scope[name] = new Function('scope', 'with (scope) { return ' + source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0] + ' }')(scope)
-const start = id => {
-  Object.assign(scope, { settingUp: null, setupFailure: null, setupQueue: [], setupOutput: '' })
-  scope.setUp({ id, name: id.toUpperCase(), vendor: 'v' })
-}
-const phases = () => scope.setupRows().map(row => row.recipe + ':' + row.install.phase)
-
-start('m')
-assertDeepEqual(phases(), ['m:starting'], 'a setup starts out as starting, never claiming an install it may not need')
-scope.setupLine('Installing podman crun')
-assertDeepEqual(phases(), ['m:dependencies'], 'it shows the install once the command announces it')
-assertEqual(scope.finishSetup(126), null, 'a dismissed password dialog starts nothing')
-assertDeepEqual(phases(), [], 'and leaves no line, so the offer comes back')
-
-start('m')
-scope.setupLine('Installing podman crun')
-scope.setupLine("Error: Couldn't install podman crun")
-scope.finishSetup(1)
-const failed = scope.setupRows()[0]
-assertEqual(failed.install.phase, 'failed', 'a failed install keeps its line')
-assertEqual(failed.error, "Couldn't install podman crun", 'with the reason the command gave')
-
-start('m')
-assertEqual(scope.finishSetup(0), null, 'a setup handed to the background starts nothing more')
-assertDeepEqual(phases(), [], 'and leaves its line to status.json')
-
-start('m')
-scope.setUp({ id: 'n' })
-scope.setUp({ id: 'n' })
-scope.setUp({ id: 'o' })
-assertDeepEqual(phases(), ['m:starting', 'n:waiting', 'o:waiting'], 'setups chosen meanwhile wait their turn, once each')
-scope.unqueueSetup('o')
-assertDeepEqual(phases(), ['m:starting', 'n:waiting'], 'one waiting can be dropped')
-assertEqual(scope.finishSetup(0).recipe, 'n', 'the next one starts once the first hands off')
-scope.setUp({ id: 'o' })
-scope.finishSetup(126)
-assertDeepEqual(phases(), [], 'a declined password drops those waiting, which would stop there too')
-JS
-
-# A model set up here announces itself once it has loaded, and only then:
-# starting one already set up is quiet, and one left stopped isn't ready.
-run_node_test <<'JS'
-const fs = require('fs')
-const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const ready = []
-const scope = { installingModels: {}, notifyModelReady: model => ready.push(model.recipe) }
-scope.noteReadyModels = new Function('scope', 'with (scope) { return ' + source.match(/function noteReadyModels\([^]*?\n  \}/)[0] + ' }')(scope)
-const model = (recipe, unit, sub_state) => ({ [recipe]: { recipe, unit, sub_state } })
-scope.noteReadyModels(model('m', 'installing'))
-scope.noteReadyModels(model('m', 'activating', 'start'))
-assertDeepEqual(ready, [], 'a model still loading is not ready yet')
-scope.noteReadyModels(model('m', 'active', 'running'))
-assertDeepEqual(ready, ['m'], 'a model set up here is ready once it runs')
-scope.noteReadyModels(model('m', 'inactive', 'dead'))
-scope.noteReadyModels(model('m', 'active', 'running'))
-assertDeepEqual(ready, ['m'], 'starting it again later says nothing')
-scope.noteReadyModels(model('n', 'installing'))
-scope.noteReadyModels(model('n', 'inactive', 'dead'))
-scope.noteReadyModels(model('n', 'active', 'running'))
-assertDeepEqual(ready, ['m'], 'one installed but left stopped is not announced when started by hand')
-JS
-
-# A setup the panel started finishes in the background, so the panel has the
-# launchers redrawn when the models that can be opened change: one done
-# installing, or one gone. A setup that finished while the shell wasn't
-# watching is caught by the first reading; no models at startup syncs nothing.
-run_node_test <<'JS'
-const fs = require('fs')
-const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-let syncs = 0
-const fresh = () => {
-  const scope = { launchableModels: '', syncLaunchers: () => syncs++ }
-  scope.noteLaunchableModels = new Function('scope', 'with (scope) { return ' + source.match(/function noteLaunchableModels\([^]*?\n  \}/)[0] + ' }')(scope)
-  return scope
-}
-const models = units => Object.fromEntries(Object.entries(units).map(([recipe, unit]) => [recipe, { recipe, unit }]))
-fresh().noteLaunchableModels(models({}))
-assertEqual(syncs, 0, 'a shell starting with no models has no launchers to sync')
-const scope = fresh()
-scope.noteLaunchableModels(models({ m: 'inactive' }))
-assertEqual(syncs, 1, 'a model set up while the shell was away gets its launcher at startup')
-syncs = 0
-scope.noteLaunchableModels(models({ m: 'active' }))
-scope.noteLaunchableModels(models({ m: 'active', n: 'installing' }))
-assertEqual(syncs, 0, 'starting a model, or one still installing, changes no launcher')
-scope.noteLaunchableModels(models({ m: 'active', n: 'activating' }))
-assertEqual(syncs, 1, 'a model done installing gets its launcher')
-scope.noteLaunchableModels(models({ m: 'removing', n: 'active' }))
-assertEqual(syncs, 2, 'a model being removed loses its launcher')
-scope.noteLaunchableModels(models({ n: 'active' }))
-assertEqual(syncs, 2, 'and nothing more once it is gone')
-JS
-
-# Hosted and local rows share ordering, including positions saved while hidden.
-run_node_test <<'JS'
-const fs = require('fs')
-const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const functions = ['orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
-let providerOrder = ['codex', 'local:a', 'claude', 'hidden']
-let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'local:a'}, {providerId: 'local:b'}]
+const functions = ['accountLines', 'lineId', 'orderedProviders', 'moveProvider'].map(name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+let providerOrder = ['codex', 'kimi', 'claude', 'hidden']
+let panelProviders = [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'kimi'}, {providerId: 'grok'}]
 let saved = ''
 const orderFile = {setText: text => { saved = text }}
 eval(functions)
+const split = accountLines([{
+  providerId: 'claude', accountName: 'main@example.com',
+  accounts: [{id: 'main', email: 'main@example.com', plan: 'Max 20x'}, {id: 'side', email: '', plan: 'Pro'}]
+}])
+assertDeepEqual(split.map(p => p.accountName), ['main@example.com', ''], 'each split account line carries only its own email')
 panelProviders = orderedProviders(panelProviders)
-assertDeepEqual(panelProviders.map(p => p.providerId), ['codex', 'local:a', 'claude', 'local:b'], 'saved order interleaves local models and puts new models last')
-moveProvider('local:b', 0)
-assertDeepEqual(JSON.parse(saved), ['local:b', 'codex', 'local:a', 'claude', 'hidden'], 'moving a local model saves the shared order and retains hidden ids')
+assertDeepEqual(panelProviders.map(p => p.providerId), ['codex', 'kimi', 'claude', 'grok'], 'saved order keeps its agents in place and puts new ones last')
+moveProvider('grok', 0)
+assertDeepEqual(JSON.parse(saved), ['grok', 'codex', 'kimi', 'claude', 'hidden'], 'moving an agent saves the order and retains hidden ids')
+
+
+// Each account is a line of its own: its lines take the place saved for the
+// agent until one is moved, and then that line moves alone.
+providerOrder = ['codex', 'claude']
+panelProviders = orderedProviders([{providerId: 'claude', lineId: 'claude/main'}, {providerId: 'claude', lineId: 'claude/work'}, {providerId: 'codex'}])
+assertDeepEqual(panelProviders.map(lineId), ['codex', 'claude/main', 'claude/work'], 'account lines keep the place saved for their agent')
+moveProvider('claude/work', 0)
+assertDeepEqual(JSON.parse(saved).slice(0, 3), ['claude/work', 'codex', 'claude/main'], 'an account line moves on its own')
 JS
 
 # Exercise the panel's drag lifecycle with Elsewhen's real variable-height math.
@@ -445,7 +145,7 @@ const Reorder = {}
 vm.runInNewContext(fs.readFileSync(root + '/shell/plugins/panels/elsewhen/Model.js', 'utf8').replace(/^\.pragma.*$/mg, ''), Reorder)
 const state = {
   dragIndex: 0, dragTarget: 0, dragOffset: 0, dragPressY: 100,
-  rowPitches: [80, 140, 60], providers: [{providerId: 'codex'}, {providerId: 'local:a'}, {providerId: 'claude'}],
+  rowPitches: [80, 140, 60], providers: [{providerId: 'codex'}, {providerId: 'kimi'}, {providerId: 'claude'}],
   dragProviderId: 'codex', dragProviders: [], settling: false
 }
 let writes = []
@@ -474,12 +174,475 @@ assertEqual(writes.length, 1, 'cancel saves no order')
 assertDeepEqual([0, 1, 2].map(i => Reorder.rowShift(i, state.dragIndex, state.dragTarget, state.dragOffset, 60)), [0, 0, 0], 'cancel clears every offset')
 JS
 
-# A start that runs past its last duration must keep moving, never fill up.
+
+# Local coding models: a line for each set up here in any state, or set up
+# from the panel, and each a paired, online machine runs; never a media model.
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
-const progress = new Function(source.match(/function phaseProgress\([^]*?\n  \}/)[0] + '\nreturn phaseProgress')()
-assertEqual(progress(10, 10), 0.9, 'a start reaches 90% at the time the last one took')
-assert(progress(20, 10) > progress(15, 10) && progress(15, 10) > 0.9, 'a start that runs long keeps creeping')
-assert(progress(1000, 10) < 0.99, 'the bar never fills before the model is ready')
+const fn = name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]
+const build = new Function(fn('buildLocalModelLines') + '\nreturn buildLocalModelLines')()
+const targets = (models, setups, network) => build(models, setups, network, []).map(line => line.localModel.target)
+assertDeepEqual(targets({
+  q: { recipe: 'q', kind: 'text', unit: 'inactive' },
+  f: { recipe: 'f', kind: 'text', unit: 'failed' },
+  pic: { recipe: 'pic', kind: 'image', unit: 'active' }
+}, [{ recipe: 'n', kind: 'text', unit: 'installing' }, { recipe: 'q', kind: 'text', unit: 'installing' }], {
+  'box/d': { recipe: 'd', host: 'box', kind: 'text', unit: 'active', paired: true, offline: '' },
+  'box/s': { recipe: 's', host: 'box', kind: 'text', unit: 'inactive', paired: true, offline: '' },
+  'box/u': { recipe: 'u', host: 'box', kind: 'text', unit: 'active', paired: false, offline: '' },
+  'away/a': { recipe: 'a', host: 'away', kind: 'text', unit: 'active', paired: true, offline: 'offline' }
+}), ['q', 'f', 'n', 'box/d'], 'every coding model here and each setup gets a line, a paired machine\'s only while it runs there')
+
+const builtWithBest = build(
+  { n: { recipe: 'n', kind: 'text', unit: 'inactive' }, q: { recipe: 'q', kind: 'text', unit: 'inactive' } },
+  [],
+  { 'box/n': { recipe: 'n', host: 'box', kind: 'text', unit: 'active', paired: true, offline: '' } },
+  [{ id: 'n', best: true }, { id: 'q', best: false }]
+)
+assertDeepEqual(builtWithBest.map(line => [line.localModel.target, line.localModel.best]),
+  [['n', true], ['q', false], ['box/n', false]],
+  'local model lines carry best from this machine\'s catalog and never for a network model')
+
+const offerRecommended = new Function(fn('offerRecommended') + '\nreturn offerRecommended')()
+assertEqual(offerRecommended({ host: '', best: true }, 2), true, 'the best model gets the recommended pill when multiple local models are offered')
+assertEqual(offerRecommended({ host: '', best: true }, 1), false, 'a single offered local model gets no recommended pill')
+assertEqual(offerRecommended({ host: '', best: false }, 2), false, 'a non-best model gets no recommended pill')
+assertEqual(offerRecommended({ host: 'spark', best: true }, 2), false, 'a network model never gets the recommended pill')
+assertEqual(offerRecommended({ host: '', best: true, link: { state: 'available' } }, 2), false, 'a cabled Spark link offer never gets the recommended pill')
+
+const sortLocalOffers = new Function(fn('sortLocalOffers') + '\nreturn sortLocalOffers')()
+assertDeepEqual(
+  sortLocalOffers([
+    { target: 'qwen', best: false },
+    { target: 'other', best: false },
+    { target: 'nemotron', best: true }
+  ]).map(o => o.target),
+  ['nemotron', 'qwen', 'other'],
+  'the recommended model sorts at the top even when another model is already installed'
+)
+
+const localMeter = new Function('Commons', 'nowMs', 'downloadRate', fn('phaseProgress') + fn('expectedLoadSeconds') + fn('expectedStopSeconds') + fn('localMeter') + '\nreturn localMeter')(
+  { I18n: { t: key => key } },
+  10000,
+  rate => rate > 0 ? Math.round(rate / 1e6) + ' MB/s' : ''
+)
+assertDeepEqual(
+  localMeter({ unit: 'installing', install: { phase: 'downloading', done_bytes: 20e9, total_bytes: 40e9, rate_bytes_s: 84e6 } }, false),
+  { title: '', value: 0.5, rate: '84 MB/s', downloading: true },
+  'a downloading model shows a titleless progress bar with speed and marks downloading'
+)
+assertEqual(
+  localMeter({ unit: 'installing', install: { phase: 'dependencies' } }, false).downloading,
+  undefined,
+  'dependency installation keeps its titled meter'
+)
+
+const localActions = new Function(fn('localActions') + '\nreturn localActions')()
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle'], 'a running model can be shared and stopped')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, false), ['toggle'], 'without Tailscale set up, sharing is not offered')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active', shared: true }, false), ['share', 'toggle'], 'a running shared model can always stop sharing')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', shared: true }, true), ['toggle'], 'a stopped model is not offered for sharing')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'installing' }, true), [], 'a model being set up offers nothing yet')
+const stale = { image: true, weights: false, settings: false }
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active', update: stale }, true), ['update', 'share', 'toggle'], 'a model the catalog has moved on from offers its update')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'activating', update: stale }, true), ['toggle'], 'a model that is loading does not offer its update')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', update: stale, updating: true }, true), ['toggle'], 'a model being updated does not offer its update again')
+
+const updateTip = new Function('Commons', fn('updateTip') + '\nreturn updateTip')({ I18n: { t: (key) => ({ arg: (value) => key + ' ' + value, toString: () => key }), formatNumber: (value, decimals) => value.toFixed(decimals) } })
+assertEqual(String(updateTip({ update: Object.assign({ download_bytes: 601000000 }, stale) })), 'localModels.updateDownloadGb 0.6', 'an update says how much it downloads')
+assertEqual(String(updateTip({ update: Object.assign({ download_bytes: 42000000 }, stale) })), 'localModels.updateDownloadMb 42', 'a small update is sized in megabytes')
+assertEqual(String(updateTip({ update: Object.assign({ download_bytes: null }, stale) })), 'localModels.update', 'an update not sized yet names no size')
+
+// Opening a failure's logs dismisses it once printed; a setup that failed
+// before its download has only what it printed.
+const showLocalLogs = new Function('Util', 'root', fn('showLocalLogs') + '\nreturn showLocalLogs')
+const runs = []
+const logs = showLocalLogs({ shellQuote: text => "'" + text + "'", execArgv: argv => runs.push(argv[1]) }, { close() {} })
+logs({ recipe: 'm', unit: 'failed', error: 'Stopped unexpectedly' })
+logs({ recipe: 'n', unit: 'installing', panelSetup: true, output: 'refused' })
+assertDeepEqual(runs, ["omarchy-models logs 'm'; logs=$?; omarchy-models dismiss 'm' >/dev/null 2>&1; (exit $logs)", "printf %s 'refused'; false"],
+  'a model\'s logs print its failure before it is dismissed, and a failed setup prints what it said')
+
+// A start that runs long keeps creeping, and an update's bar runs one way:
+// its turn, its download, then the old model stopping and the new one loading.
+const progress = new Function(['phaseProgress', 'expectedLoadSeconds', 'expectedStopSeconds', 'updateProgress'].map(fn).join('\n') + '\nreturn { phaseProgress, updateProgress }')()
+assertEqual(progress.phaseProgress(10, 10), 0.9, 'a start reaches 90% at the time the last one took')
+assert(progress.phaseProgress(20, 10) > progress.phaseProgress(15, 10) && progress.phaseProgress(1000, 10) < 0.99, 'a start that runs long keeps creeping, never filling')
+const now = 100000
+const update = model => progress.updateProgress(Object.assign({ updating: true }, model), now - 5000, now)
+const waiting = update({ unit: 'active', update_progress: { phase: 'waiting' } })
+const half = update({ unit: 'active', update_progress: { phase: 'downloading', done_bytes: 5, total_bytes: 10 } })
+const fetched = update({ unit: 'active', update_progress: { phase: 'downloading', done_bytes: 10, total_bytes: 10 } })
+const stopping = update({ unit: 'deactivating', since_ms: now - 1000, expected_stop_seconds: 2 })
+const loading = update({ unit: 'activating', since_ms: now - 30000, expected_load_seconds: 60 })
+assert(waiting > 0 && waiting < half && half < fetched && fetched <= stopping && stopping < loading && loading < 1, 'an update fills one way through its phases', [waiting, half, fetched, stopping, loading])
+
+// A CLI package install fills one way too: gentle creep before the first byte,
+// then real download bytes, verification, and extraction/hooks, with stage titles.
+const cliProgress = new Function('Commons', 'clamp', ['phaseProgress', 'cliInstallProgress', 'cliInstallTitle'].map(fn).join('\n') + '\nreturn { cliInstallProgress, cliInstallTitle }')(
+  { I18n: { t: key => key } },
+  (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+)
+const cliStart = cliProgress.cliInstallProgress('', 0, 0, now, now)
+const cliCreep = cliProgress.cliInstallProgress('', 0, 0, now - 4000, now)
+const cliDlHalf = cliProgress.cliInstallProgress('downloading', 50, 100, now - 5000, now)
+const cliDlDone = cliProgress.cliInstallProgress('downloading', 100, 100, now - 8000, now)
+const cliVerify = cliProgress.cliInstallProgress('verifying', 50, 100, now - 9000, now)
+const cliExtract = cliProgress.cliInstallProgress('installing', 50, 100, now - 11000, now)
+const cliHooks = cliProgress.cliInstallProgress('installing', 98, 100, now - 12000, now)
+assert(cliStart > 0 && cliStart < cliCreep && cliCreep < cliDlHalf && cliDlHalf < cliDlDone && cliDlDone < cliVerify && cliVerify < cliExtract && cliExtract < cliHooks && cliHooks < 1,
+  'a CLI install fills one way across its stages', [cliStart, cliCreep, cliDlHalf, cliDlDone, cliVerify, cliExtract, cliHooks])
+assertDeepEqual(
+  ['', 'downloading', 'verifying', 'installing'].map(cliProgress.cliInstallTitle),
+  ['agents.installingMeter', 'agents.downloadingMeter', 'agents.verifyingMeter', 'agents.installingMeter'],
+  'a CLI install labels each stage'
+)
+
+// A model the memory free can't start is held back: one set up when the
+// engine says so, a recipe when it needs more than is free.
+const short = new Function('settingUpLocal', 'localModelsService', fn('localSettingUp') + fn('memoryShort') + '\nreturn memoryShort')('', { memoryFreeGib: 18 })
+assertDeepEqual(short('q', 42, { unit: 'inactive', fits: false }), { needs: 42, free: 18 }, 'a stopped model the engine says won\'t fit is short')
+assertEqual(short('q', 42, { unit: 'inactive', fits: true }), null, 'a stopped model the engine says fits can start')
+assertEqual(short('q', 42, { unit: 'active', fits: false }), null, 'a running model is never short')
+assertDeepEqual(short('r', 42, null), { needs: 42, free: 18 }, 'a recipe needing more than is free can\'t be set up')
+assertEqual(short('r', 8, null), null, 'a recipe that fits can be set up')
+assertEqual(short('r', 42, { unit: 'installing' }), null, 'one already being set up goes on')
+
+// Up and Down land on a line's last stop, so a model that isn't running
+// yet ends on Play, which Enter starts, rather than its mark.
+const lineStop = (launches, actions) => new Function('providers', 'launches', 'localLineActions', fn('lineStop') + '\nreturn lineStop')([{}], () => launches, () => actions)(0)
+assertEqual(lineStop(true, ['share', 'toggle']), 'providerLaunch', 'a running model lands on its terminal button')
+assertEqual(lineStop(false, ['update', 'toggle']), 'localToggle', 'a stopped model lands on its play button')
+assertEqual(lineStop(false, []), 'provider', 'a line with nothing to press lands on its mark')
+
+// A coding model set up on this machine always gets a line on the panel,
+// even when set up from the CLI and absent from local-models.json; paired
+// machine models still wait to be added (unless pinned as the local default).
+const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const localModelAddedFn = mainSource.match(/function localModelAdded\([^]*?\n  \}/)[0]
+const isAdded = (addedLocalModels, defaultAgent, localDefaultTarget) =>
+  new Function('addedLocalModels', 'defaultAgent', 'localDefaultTarget', localModelAddedFn + '\nreturn localModelAdded')(
+    addedLocalModels, defaultAgent, localDefaultTarget
+  )
+assertEqual(isAdded([], 'agy', '')({ localModel: { target: 'inkling-2-mini-tensorfold', host: '' } }), true,
+  'a local model set up on this machine appears on the panel even when not in local-models.json')
+assertEqual(isAdded([], 'agy', '')({ localModel: { target: 'spark/deepseek', host: 'spark' } }), false,
+  'a paired machine model stays off the panel until added')
+assertEqual(isAdded(['spark/deepseek'], 'agy', '')({ localModel: { target: 'spark/deepseek', host: 'spark' } }), true,
+  'an added paired machine model appears on the panel')
+assertEqual(isAdded([], 'local', 'spark/deepseek')({ localModel: { target: 'spark/deepseek', host: 'spark' } }), true,
+  'the default paired machine model stays on the panel')
+
+// A model being set up or handing off to status.json isn't dropped from the
+// panel's added list even before status.json reloads with it.
+const findRemoved = new Function(fn('findRemovedLocalModels') + '\nreturn findRemovedLocalModels')()
+const uninst = [{ id: 'm', installed: false }, { id: 'n', installed: false }, { id: 'gone', installed: false }]
+assertDeepEqual(
+  findRemoved(['m', 'n', 'gone', 'spark/d'], {}, [], uninst, 'm', ['n']),
+  ['gone'],
+  'setups in progress or handing off stay added until status.json lists them, while uninstalled models drop'
+)
+
+// Adding a running network model returns to the panel index instead of
+// closing the panel and launching a terminal.
+const added = []
+const execs = []
+let closed = false, cancelled = false, focused = false, selectedDefault = ''
+const chooseModel = new Function(
+  'ownModelOffers', 'offerMeter', 'localModelState', 'localRunning', 'usage', 'selectLocalDefault',
+  'settingUpLocal', 'pairingLocal', 'addStage', 'cancelAdd', 'root', 'Util',
+  fn('chooseOwnModel') + '\nreturn chooseOwnModel'
+)(
+  [{ target: 'spark/deepseek', host: 'spark' }],
+  () => null,
+  () => null,
+  () => true,
+  { addedLocalModels: [], defaultAgent: 'codex', addLocalModel: t => added.push(t) },
+  t => { selectedDefault = t },
+  '', '', 'pick',
+  () => { cancelled = true },
+  { close: () => { closed = true }, focusKeys: () => { focused = true } },
+  { execArgv: argv => execs.push(argv) }
+)
+chooseModel(0)
+assertDeepEqual(added, ['spark/deepseek'], 'choosing a network model adds it to the panel')
+assertEqual(cancelled, true, 'choosing a network model returns to the panel index')
+assertEqual(closed, false, 'choosing a network model keeps the panel open')
+assertDeepEqual(execs, [], 'choosing a network model does not launch a terminal')
+assertEqual(selectedDefault, '', 'choosing a network model leaves an existing default agent alone')
+
+// Pasting a sign-in code hides the field and switches to checking for both
+// Claude and Gemini; a later re-prompt brings the field back.
+const writes = []
+let refocused = 0
+const pasteState = {
+  addProcess: { running: true, write: s => writes.push(s) },
+  addNeedsPaste: true,
+  addPasteHint: '',
+  addKeyEntry: false,
+  addCheckingCode: false,
+  addStatus: '',
+  addCode: '',
+  addUrl: '',
+  addDownloading: false,
+  addPhase: 'signin',
+  addFetched: false,
+  addHeldStatus: '',
+  addResult: '',
+  addStage: 'running',
+  addProvider: 'claude',
+  addProviderEntry: null,
+  addFetchTimer: { stop() {}, restart() {} },
+  beginSignIn(s) { this.addStatus = s; this.addPhase = 'signin' },
+  reopenSignIn() {},
+  setProviderShown() {},
+  usage: { refreshLimits() {}, enabledProviders: [{}] },
+  checkProcess: { running: false },
+  root: { focusKeys() { refocused++ } }
+}
+const submitPaste = new Function('with (this) { ' + fn('submitPaste') + '\nreturn submitPaste }').call(pasteState)
+const handleAddLine = new Function('with (this) { ' + fn('handleAddLine') + '\nreturn handleAddLine }').call(pasteState)
+submitPaste('secret-code')
+assertDeepEqual(writes, ['secret-code\n'], 'submitting a code sends it to the login process')
+assertEqual(pasteState.addNeedsPaste, false, 'submitting a Claude code hides the paste field like Gemini and API keys')
+assertEqual(pasteState.addCheckingCode, true, 'submitting a code enters the checking state')
+assertEqual(refocused, 1, 'submitting a code returns keyboard focus to the panel')
+handleAddLine('Paste code here:')
+assertEqual(pasteState.addNeedsPaste, true, 'a re-prompt brings the paste field back')
+assertEqual(pasteState.addCheckingCode, false, 'a re-prompt leaves the checking state')
+
+// CLI install progress lines update stage, rate, and monotonic bar fill.
+Object.assign(pasteState, {
+  addPhase: '', addRateBytes: 0,
+  addInstallStage: '', addInstallStartedMs: 0, addInstallFill: 0,
+  nowMs: 0,
+  cliInstallProgress: cliProgress.cliInstallProgress
+})
+handleAddLine('@@omarchy progress 0 0 0')
+const initialFill = pasteState.addInstallFill
+assert(initialFill > 0 && pasteState.addPhase === 'get' && pasteState.addInstallStage === '', 'initial progress starts a visible fill')
+pasteState.addInstallFill = 0.1
+handleAddLine('@@omarchy progress 1 100 18000000 downloading')
+assertEqual(pasteState.addInstallStage, 'downloading', 'progress updates the install stage')
+assertEqual(pasteState.addRateBytes, 18000000, 'progress updates the download rate')
+assertEqual(pasteState.addInstallFill, 0.1, 'entering downloading never pulls the bar backward')
+handleAddLine('@@omarchy progress 100 100 20000000 downloading')
+assertEqual(pasteState.addInstallFill, 0.75, 'a completed download caps at the download phase boundary')
+handleAddLine('@@omarchy progress 50 100 0 verifying')
+assertEqual(pasteState.addInstallStage, 'verifying', 'verifying stage updates the label')
+assertEqual(pasteState.addRateBytes, 0, 'verifying clears the download rate')
+assert(pasteState.addInstallFill > 0.75 && pasteState.addInstallFill < 0.82, 'verifying advances past downloading')
+
+// On a blank-slate machine, starting a local model download keeps AddView up
+// and must not also render a duplicate ProviderSection underneath it. Already-
+// installed models stay on the index across loading, stopping, failure, and
+// removal, as do added paired tailnet models.
+const propExpr = name => {
+  const m = source.match(new RegExp('readonly property bool ' + name + ': ([^\\n]+(?:\\n(?:    [^\\n]+|  \\}\\)))*)'))
+  assert(m, 'agents panel defines ' + name)
+  return m[1]
+}
+const addViewVisibleExpr = source.match(/AddView \{[\s\S]*?visible: ([^\n]+)/)[1]
+const sectionsModelExpr = source.match(/id: providerSections[\s\S]*?model: ([^\n]+)/)[1]
+const evalPanelState = new Function(
+  'addStage', 'usage', 'anySignedIn', 'localModels', 'localModelLines', 'localModelState', 'settingUpLocal', 'providers',
+  fn('localSettingUp') + '\n' +
+  'const hasIndexLocalModel = ' + propExpr('hasIndexLocalModel') + '\n' +
+  'const blankSlate = ' + propExpr('blankSlate') + '\n' +
+  'const indexShown = ' + propExpr('indexShown') + '\n' +
+  'const root = { addStage, blankSlate, indexShown, providers }\n' +
+  'return { blankSlate, addVisible: (' + addViewVisibleExpr + '), sections: (' + sectionsModelExpr + ') }'
+)
+const evalPanelView = ({ addStage = '', enabledProviders = [], anySignedIn = false, localModels = {}, localModelLines = [], settingUpLocal = '', added = [], providers = [] }) => {
+  const usage = {
+    enabledProviders,
+    localModelAdded: line => line.localModel.host === '' || added.includes(line.localModel.target)
+  }
+  const localModelState = local => local && local.host === '' ? (localModels[local.target] || null) : null
+  return evalPanelState(addStage, usage, anySignedIn, localModels, localModelLines, localModelState, settingUpLocal, providers)
+}
+const inklingLine = { providerId: 'local', localModel: { target: 'inkling', host: '' } }
+const downloadingView = evalPanelView({
+  localModels: { inkling: { kind: 'text', unit: 'installing' } },
+  localModelLines: [inklingLine],
+  settingUpLocal: 'inkling',
+  providers: [inklingLine]
+})
+assertEqual(downloadingView.blankSlate, true, 'downloading a first local model stays on the blank-slate picker')
+assertEqual(downloadingView.addVisible, true, 'downloading a first local model keeps AddView visible')
+assertDeepEqual(downloadingView.sections, [], 'downloading a first local model does not duplicate it in providerSections')
+
+const firstLoadView = evalPanelView({
+  localModels: { inkling: { kind: 'text', unit: 'activating' } },
+  localModelLines: [inklingLine],
+  settingUpLocal: 'inkling',
+  providers: [inklingLine]
+})
+assertEqual(firstLoadView.blankSlate, true, 'first-time loading started from the picker stays on the blank-slate picker')
+assertDeepEqual(firstLoadView.sections, [], 'first-time loading started from the picker does not duplicate in providerSections')
+
+for (const [label, model] of [
+  ['running', { kind: 'text', unit: 'active', sub_state: 'running' }],
+  ['loading from index', { kind: 'text', unit: 'activating' }],
+  ['stopping', { kind: 'text', unit: 'deactivating' }],
+  ['stopped', { kind: 'text', unit: 'inactive' }],
+  ['failed', { kind: 'text', unit: 'failed', error: 'Stopped unexpectedly' }],
+  ['removing', { kind: 'text', unit: 'removing' }]
+]) {
+  const view = evalPanelView({
+    localModels: { inkling: model },
+    localModelLines: [inklingLine],
+    providers: [inklingLine]
+  })
+  assertEqual(view.blankSlate, false, 'an installed model (' + label + ') stays on the panel index')
+  assertEqual(view.addVisible, false, 'an installed model (' + label + ') hides AddView')
+  assertDeepEqual(view.sections, [inklingLine], 'an installed model (' + label + ') keeps its section')
+}
+
+const pairedLine = { providerId: 'local', localModel: { target: 'spark/qwen', host: 'spark' } }
+const pairedView = evalPanelView({
+  localModelLines: [pairedLine],
+  added: ['spark/qwen'],
+  providers: [pairedLine]
+})
+assertEqual(pairedView.blankSlate, false, 'an added paired tailnet model leaves the blank-slate picker')
+assertDeepEqual(pairedView.sections, [pairedLine], 'an added paired tailnet model shows in providerSections')
+
+// Rewriting a usage file with only a fresh updatedAt timestamp must not
+// reassign Agent.record or trigger a panel rebuild; a real field change still
+// updates it, and malformed JSON clears it.
+const agentSource = fs.readFileSync(root + '/shell/plugins/agents/Agent.qml', 'utf8')
+const agentClearSrc = agentSource.match(/function clear\(\) \{[\s\S]*?\n  \}/)[0]
+const agentParseSrc = agentSource.match(/function parse\(content\) \{[\s\S]*?\n  \}/)[0]
+let recordWrites = 0
+let storedRecord = null
+const agentRoot = {
+  path: '/tmp/claude.json',
+  parsedText: '',
+  get record() { return storedRecord },
+  set record(v) { recordWrites++; storedRecord = v }
+}
+agentRoot.clear = new Function('root', agentClearSrc + '\nreturn clear')(agentRoot)
+const agentParse = new Function('root', 'console', agentParseSrc + '\nreturn parse')(agentRoot, { warn() {} })
+
+const baseRecord = { id: 'claude', name: 'Claude', todayPrompts: 3, updatedAt: '2026-11-27T11:00:00+00:00' }
+agentParse(JSON.stringify(baseRecord))
+assertEqual(recordWrites, 1, 'initial record parse populates Agent.record')
+assertEqual(agentRoot.record.todayPrompts, 3, 'initial record parse reads fields')
+
+const firstRef = agentRoot.record
+agentParse(JSON.stringify({ ...baseRecord, updatedAt: '2026-11-27T11:05:00+00:00' }))
+assertEqual(recordWrites, 1, 'updatedAt-only rewrite skips reassigning Agent.record')
+assertEqual(agentRoot.record, firstRef, 'updatedAt-only rewrite preserves record reference')
+
+agentParse(JSON.stringify({ ...baseRecord, todayPrompts: 4, updatedAt: '2026-11-27T11:05:00+00:00' }))
+assertEqual(recordWrites, 2, 'real usage change updates Agent.record')
+assertEqual(agentRoot.record.todayPrompts, 4, 'real usage change reflects new field value')
+
+agentParse('{bad json')
+assertEqual(agentRoot.record, null, 'malformed JSON clears Agent.record')
+assertEqual(agentRoot.parsedText, '', 'malformed JSON clears parsedText cache')
+
+// Even when every usage file only bumps updatedAt (so recordChanged never fires
+// and dataRevision does not bump), finishing an update run must still schedule
+// sync (to pull remote snapshots) and re-arm any advised limits retry.
+const mainSourceForUpdate = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const finishUpdateSrc = mainSourceForUpdate.match(/function finishUpdate\(\) \{[\s\S]*?\n  \}/)[0]
+const calls = []
+const deferred = []
+const updateState = {
+  pendingUpdateKind: '',
+  rescanAgents() { calls.push('rescan') },
+  reloadRecords() { calls.push('reload') },
+  scheduleLimitsRetry() { calls.push('retry') },
+  scheduleSync() { calls.push('sync') },
+  runUpdate(kind) { calls.push('run:' + kind) },
+  Qt: { callLater(fn) { deferred.push(fn) } }
+}
+const finishUpdate = new Function('with (this) { ' + finishUpdateSrc + '\nreturn finishUpdate }').call(updateState)
+finishUpdate()
+assertDeepEqual(calls, ['rescan', 'reload'], 'finishUpdate rescans and reloads records before deferred hooks')
+assertEqual(deferred.length, 1, 'finishUpdate defers retry and sync scheduling until reloads land')
+deferred.shift()()
+assertDeepEqual(calls, ['rescan', 'reload', 'retry', 'sync'], 'updatedAt-only update still schedules sync and re-arms limits retry')
+
+calls.length = 0
+updateState.pendingUpdateKind = 'force'
+finishUpdate()
+deferred.shift()()
+assertDeepEqual(calls, ['rescan', 'reload', 'run:force', 'retry', 'sync'], 'finishUpdate dispatches queued pendingUpdateKind')
+assertEqual(updateState.pendingUpdateKind, '', 'finishUpdate clears pendingUpdateKind')
+
+// China installs filter the add picker to mainland-accessible providers while
+// keeping global installs unchanged and preserving sign-in metadata for all.
+const signInProvidersSrc = source.match(/readonly property var signInProviders: (\[[\s\S]*?\n  \])/)[1]
+const cnGroupIdsSrc = source.match(/readonly property var cnGroupIds: \((\{[\s\S]*?\n  \})\)/)[1]
+const addGroupSrc = fn('addGroup')
+const evalPicker = isChinaRegion => new Function(
+  'Commons', 'isChinaRegion',
+  'const signInProviders = ' + signInProvidersSrc + '\n' +
+  'const cnGroupIds = ' + cnGroupIdsSrc + '\n' +
+  addGroupSrc + '\n' +
+  'return { signInProviders, addGroup }'
+)({ I18n: { t: key => key } }, isChinaRegion)
+
+const globalPicker = evalPicker(false)
+assertDeepEqual(
+  globalPicker.addGroup('subscription').map(p => p.providerId),
+  ['claude', 'codex', 'grok', 'agy', 'muse', 'cursor', 'copilot', 'more-subscriptions'],
+  'global installs keep all subscription picker tiles'
+)
+assertDeepEqual(
+  globalPicker.addGroup('provider').map(p => p.providerId),
+  ['fireworks', 'opencode', 'openrouter', 'more-providers'],
+  'global installs keep all pay-as-you-go picker tiles'
+)
+
+const cnPicker = evalPicker(true)
+assertDeepEqual(
+  cnPicker.addGroup('subscription').map(p => p.providerId),
+  ['minimax', 'zai', 'kimi'],
+  'cn installs offer only China-accessible subscriptions without a More tile'
+)
+assertDeepEqual(
+  cnPicker.addGroup('provider').map(p => p.providerId),
+  ['deepseek'],
+  'cn installs offer only DeepSeek under pay as you go without a More tile'
+)
+assertDeepEqual(cnPicker.addGroup('moreSubscriptions'), [], 'cn installs have no extra subscriptions behind More')
+assertDeepEqual(cnPicker.addGroup('moreProviders'), [], 'cn installs have no extra providers behind More')
+
+// Inline account rename returns focus only when still focused, closes any other
+// open rename before starting a new one, and saves only trimmed non-empty changes.
+const renameSrc = ['startRename', 'finishRename'].map(n => source.match(new RegExp('    function ' + n + '\\([^]*?\\n    \\}'))[0]).join('\n') + '\nreturn { startRename, finishRename }'
+let renameFocus = null, renameEvents = []
+const setRenameFocus = next => { const prev = renameFocus; renameFocus = next; if (prev && prev !== next) prev.onBlur() }
+const renameRoot = {
+  renaming: false,
+  focusKeys() { renameEvents.push('focusKeys'); setRenameFocus(null) },
+  renameAccount(p, a, v) { renameEvents.push(['rename', p.id, a.id, v]) }
+}
+const renameSection = (id, label) => {
+  let editing = false
+  const s = {
+    provider: { id }, account: { id }, accountLabel: label, renamedTo: '', root: renameRoot,
+    get editingName() { return editing }, set editingName(v) { editing = v; renameRoot.renaming = v },
+    nameField: { text: '', get activeFocus() { return renameFocus === this }, forceActiveFocus() { setRenameFocus(this) }, selectAll() {}, onBlur() { if (s.editingName) s.finishRename(false) } }
+  }
+  return Object.assign(s, new Function('with (this) { ' + renameSrc + ' }').call(s))
+}
+const secA = renameSection('claude', 'Work'), secB = renameSection('codex', 'Personal')
+secA.startRename(); renameEvents = []; secB.startRename()
+assert(!secA.editingName && secB.editingName && renameRoot.renaming, 'starting a second rename closes the first without clearing root.renaming')
+assertDeepEqual(renameEvents, ['focusKeys'], 'cross-account rename blurs the first before opening the second without stealing focus back')
+renameEvents = []; setRenameFocus({ onBlur() {} })
+assert(!secB.editingName && renameEvents.length === 0, 'blur-canceling an unfocused rename does not steal focus via root.focusKeys')
+secB.startRename(); renameEvents = []; secB.finishRename(false)
+assertDeepEqual(renameEvents, ['focusKeys'], 'canceling rename while focused restores focus to the panel')
+for (const [text, expected] of [['   ', ['focusKeys']], [' Personal ', ['focusKeys']], ['  Side  ', ['focusKeys', ['rename', 'codex', 'codex', 'Side']]]]) {
+  secB.startRename(); renameEvents = []; secB.nameField.text = text; secB.finishRename(true)
+  assertDeepEqual(renameEvents, expected, 'finishRename(true) with ' + JSON.stringify(text) + ' restores focus and saves only trimmed changes')
+}
+assertEqual(secB.renamedTo, 'Side', 'saving a changed rename updates renamedTo')
 JS

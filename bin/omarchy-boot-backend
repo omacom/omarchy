@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Print the boot loader whose boot images Omarchy manages: systemd-boot, limine or none
+# omarchy:args=[--managed]
+# omarchy:hidden=true
+
+# systemd-boot once omarchy-boot-switch made it the loader the firmware starts,
+# or on a machine installed with it; limine on a machine still booting Limine. --managed prints every loader whose
+# boot images have to be kept current: both while a switch is on trial, when
+# the firmware still starts Limine but systemd-boot is staged next to it.
+
+state=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}/state
+phase=$(sed -n 's/^phase=//p' "$state" 2>/dev/null | tail -1)
+has_limine() { omarchy-cmd-present limine-entry-tool; }
+
+case $phase in
+active)
+  echo systemd-boot
+  ;;
+promoted)
+  # systemd-boot starts the machine, and Limine stays its fallback until the
+  # switch finishes, so both are kept current.
+  [[ ${1:-} == "--managed" ]] && has_limine && echo limine
+  echo systemd-boot
+  ;;
+staged | trial | trial-failed)
+  if [[ ${1:-} == "--managed" ]]; then
+    has_limine && echo limine
+    echo systemd-boot
+  elif has_limine; then
+    echo limine
+  else
+    echo none
+  fi
+  ;;
+*)
+  # A machine installed with systemd-boot never switched: omarchy-boot-systemd,
+  # whose snapper plugin is there, says so even in a root whose boot store
+  # isn't mounted. (Its pacman hook can't: the installer masks it for a while.)
+  if [[ -f ${OMARCHY_BOOT_SYSTEMD_MARKER:-/usr/lib/snapper/plugins/20-omarchy-boot} ]]; then
+    echo systemd-boot
+  elif has_limine; then
+    echo limine
+  else
+    echo none
+  fi
+  ;;
+esac

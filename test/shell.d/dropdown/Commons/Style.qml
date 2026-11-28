@@ -11,10 +11,15 @@ QtObject {
   property real focusBorderAlpha: 1
   property real hoverBorderAlpha: 1
   property real cornerRadius: 0
+  property real touchpadScrollFactor: 3.0
   property QtObject spacing: QtObject {
     property int controlHeight: 28
     property int popupRowHeight: 28
     property int dropdownWidth: 240
+    property int searchableDropdownWidth: 260
+    property int searchablePopupMinHeight: 220
+    property int inputPaddingY: 7
+    property int rowPaddingX: 12
     property int huge: 18
     property int labelGap: 4
     property int controlPaddingX: 10
@@ -28,9 +33,12 @@ QtObject {
     property int caption: 10
     property int body: 12
   }
+  function space(px) { return px }
+  function duration(ms) { return 0 }
   function normalStateColor(foreground, accent) { return foreground }
   function focusStateColor(foreground, accent) { return accent }
   function hoverStateColor(foreground, accent) { return accent }
   function hoverFillFor(foreground, accent) { return "#334455" }
+  function selectionFillFor(foreground, accent) { return "#445566" }
   function controlFill(focused, hot, foreground, accent) { return "#222222" }
 }

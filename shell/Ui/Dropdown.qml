@@ -67,6 +67,11 @@ Item {
   implicitWidth: Style.spacing.dropdownWidth
   implicitHeight: showLabel && label !== "" ? rowHeight + Style.spacing.huge : rowHeight
 
+  PointerMoveGate {
+    id: pointerGate
+    referenceItem: optionList
+  }
+
   Column {
     anchors.fill: parent
     spacing: Style.spacing.labelGap
@@ -171,6 +176,7 @@ Item {
         }
 
         onOpened: {
+          pointerGate.reset()
           optionList.currentIndex = Math.max(0, optionList.indexOfValue(root.value))
           optionList.forceActiveFocus()
         }
@@ -183,9 +189,11 @@ Item {
           Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape) { popup.close(); event.accepted = true }
             else if (event.key === Qt.Key_Down || event.text === "j") {
+              pointerGate.reset()
               optionList.currentIndex = Math.min(root.options.length - 1, optionList.currentIndex + 1)
               event.accepted = true
             } else if (event.key === Qt.Key_Up || event.text === "k") {
+              pointerGate.reset()
               optionList.currentIndex = Math.max(0, optionList.currentIndex - 1)
               event.accepted = true
             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -197,6 +205,12 @@ Item {
           boundsBehavior: Flickable.StopAtBounds
           model: root.options
           currentIndex: -1
+
+          WheelScroll {
+            flickable: optionList
+            stepHeight: root.popupRowHeight
+            gate: pointerGate
+          }
 
           function indexOfValue(v) {
             for (var i = 0; i < root.options.length; i++)
@@ -213,6 +227,7 @@ Item {
           }
 
           delegate: Rectangle {
+            id: optionRow
             required property var modelData
             required property int index
             width: optionList.width
@@ -239,8 +254,14 @@ Item {
               anchors.fill: parent
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
-              onPositionChanged: optionList.currentIndex = parent.index
-              onClicked: optionList.selectCurrent()
+              onPositionChanged: function(mouse) {
+                if (pointerGate.moved(optionRow, mouse))
+                  optionList.currentIndex = optionRow.index
+              }
+              onClicked: {
+                optionList.currentIndex = optionRow.index
+                optionList.selectCurrent()
+              }
             }
           }
         }

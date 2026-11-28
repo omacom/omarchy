@@ -1,0 +1,38 @@
+# Optional and hardware-specific packages that only exist for aarch64.
+# Read by omarchy-iso on aarch64 builds so x86_64 builds never see them.
+
+# Surface Pro 11 (Snapdragon) support packages
+iptsd
+microsoft-surface-pro-11-sensors
+microsoft-surface-pro-11-support
+
+# Surface Laptop 7 (Snapdragon) support packages; 15" also uses iptsd above,
+# and 13.8" installs microsoft-surface-laptop-7-support for its front camera relay
+microsoft-surface-snapdragon-addresses
+microsoft-surface-laptop-7-support
+
+# Surface Laptop 8 (Snapdragon) support packages
+microsoft-surface-laptop-8-support
+
+# Samsung Galaxy Book4 Edge 14 (Snapdragon) support packages
+samsung-galaxy-book4-edge-14-support
+
+# Raspberry Pi 4 support packages
+raspberry-pi-4-bluetooth-firmware
+
+# Acer laptop support packages
+acer-aspire-16-ai-audio
+
+# HP laptop support packages
+hp-omnibook-3-audio
+
+# Anduril laptop support packages
+anduril-bluechip-support
+
+# ASUS laptop support packages
+asus-proart-p14-audio
+asus-proart-pz13-audio
+asus-zenbook-a16-audio
+asus-zenbook-14-ux3480qa-audio
+asus-zenbook-a16-firmware
+asus-zenbook-a16-support

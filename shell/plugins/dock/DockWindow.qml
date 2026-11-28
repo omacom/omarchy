@@ -7,11 +7,12 @@ import qs.Commons as Commons
 import qs.Ui
 import "DockModel.js" as DockModel
 
-// One screen's dock. It stays mapped and only hides its contents, so switching
-// to a floating workspace does not wait on a fresh layer surface. While hidden the
-// mask is empty and clicks fall through to the windows below.
+// One screen's dock. Mapped only while this screen is on a workspace that has
+// one, so a session with the tiled dock turned off holds no live layer surface
+// and dmabuf swapchain on its tiled workspaces.
 PanelWindow {
   id: window
+  visible: window.shown
   // Right-to-left languages read this window mirrored.
   Binding { target: window.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
   Binding { target: window.contentItem; property: "LayoutMirroring.childrenInherit"; value: true }
@@ -37,14 +38,31 @@ PanelWindow {
     }
     return mode
   }
-  readonly property bool shown: !!dock && dock.isFloating(workspaceId) && fullscreenMode < 2
-  // With auto-hide on, the dock waits off screen until the pointer reaches its
-  // edge, and stays while the pointer, a menu, or a drag still needs it. A
-  // maximized window hides the dock the same way, so it can still be called up.
-  readonly property bool autohide: !!dock && (dock.autohide || fullscreenMode === 1)
+  readonly property bool floating: !!dock && dock.isFloating(workspaceId)
+  // Whether the workspace has a window on it. One minimized to the dock waits
+  // on a workspace of its own, so it does not count.
+  readonly property bool occupied: {
+    var toplevels = Hyprland.toplevels.values
+    for (var i = 0; i < toplevels.length; i++) {
+      if (toplevels[i].workspace && toplevels[i].workspace.id === workspaceId) return true
+    }
+    return false
+  }
+  // Whether the dock comes out over windows: tiles run to the screen edges,
+  // and so does a maximized window. A floating workspace's windows go where
+  // they are put, mostly clear of it.
+  readonly property bool overWindows: fullscreenMode === 1 || (!floating && occupied)
+  readonly property bool shown: !!dock && (floating || (dock.tiling && !!workspace)) && fullscreenMode < 2
+  // A hidden dock waits off screen until the pointer reaches its edge, and
+  // stays while the pointer, a menu, or a drag still needs it. As it comes, the
+  // dock stays out on an empty workspace, where it is the way to start
+  // something, and hides once the workspace has a window. It can also be set to
+  // stay out always or to hide always. A maximized window hides it either way,
+  // so it can still be called up.
+  readonly property bool autohide: !!dock && (dock.visibility === "hidden" || fullscreenMode === 1 || (dock.visibility === "first-app" && occupied))
   property bool revealed: false
   readonly property bool menuOpen: menuItem !== null || settingsMenu
-  readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || insertIndex >= 0)
+  readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || movingDock || holdOpen || insertIndex >= 0)
   readonly property bool contentShown: shown && !tucked
 
   readonly property int gap: Style.spacing.xs
@@ -58,6 +76,10 @@ PanelWindow {
   // Room inward of the dock for its menus: the tallest, the apps button's,
   // has five rows.
   readonly property int popupRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
+  // A submenu opens beside the menu, which a vertical dock needs the width for.
+  // It is as wide as the widest choice any of the submenus holds, so none is
+  // clipped by the window, and the window does not resize as one opens.
+  readonly property int submenuRoom: Math.max(Style.space(140), Math.ceil(submenu.widestOf(false))) + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap
   // Icons pop away from the screen edge.
   readonly property int popOrigin: position === "top" ? Item.Top
     : position === "left" ? Item.Left
@@ -80,6 +102,63 @@ PanelWindow {
   property point dropPoint
   // Where an app dragged in from the app grid would land, or -1.
   property int insertIndex: -1
+  // The apps button dragged toward another screen edge moves the dock there,
+  // to any edge but the bar's.
+  property bool movingDock: false
+  // A dock that has just moved stays out a moment, auto-hide or not, so it is
+  // seen to have arrived rather than vanishing as it lands.
+  property bool holdOpen: false
+
+  function holdOpenBriefly() {
+    window.holdOpen = true
+    holdTimer.restart()
+  }
+
+  // A move asked for here: by the drag or the Position menu. The saved
+  // position lands a moment later, so the dock is held open from the request
+  // and again from its arrival. A position that arrives unasked, as the saved
+  // one does at startup, holds nothing open.
+  property bool moveRequested: false
+
+  function moveTo(edge) {
+    window.moveRequested = true
+    window.holdOpenBriefly()
+    Util.execDetached("omarchy-dock position " + edge)
+  }
+
+  onPositionChanged: {
+    if (!window.moveRequested) return
+    window.moveRequested = false
+    window.holdOpenBriefly()
+  }
+
+  Timer {
+    id: holdTimer
+    interval: 1000
+    onTriggered: {
+      window.holdOpen = false
+      if (window.autohide) hideTimer.restart()
+    }
+  }
+
+  // The edge the pointer is nearest while the dock is dragged, shown by the
+  // outline that previews the move.
+  function trackMove(point) {
+    if (!window.dock) return
+    window.dock.moveScreen = window.screen
+    window.dock.moveLength = window.vertical ? body.height : body.width
+    window.dock.moveThickness = window.slotSize
+    window.dock.moveEdge = DockModel.nearestEdge(point.x, point.y, window.screen.width, window.screen.height, window.barEdge)
+  }
+
+  function endMove() {
+    window.movingDock = false
+    if (!window.dock) return
+    window.dock.moveEdge = ""
+    window.dock.moveScreen = null
+  }
+  // The bar's edge, which the dock keeps off. A hidden bar holds none.
+  readonly property string barEdge: dock && dock.shell && dock.shell.bar && !dock.shell.bar.barHidden ? String(dock.shell.bar.position || "top") : ""
 
   // Where this window sits on its screen, which a point from the app grid's
   // fullscreen surface is given in: against its edge, clear of the space
@@ -120,7 +199,8 @@ PanelWindow {
     if (window.autohide) hideTimer.restart()
   }
 
-  // The slot a point along the dock falls before, counting from the first app.
+  // The slot a point along the dock falls before, counting from the first app,
+  // which comes after the apps button.
   function slotIndexAt(point) {
     var along = window.vertical ? point.y : point.x
     var first = window.slotSize
@@ -129,13 +209,44 @@ PanelWindow {
   }
   property var menuItem: null
   property Item menuSlot: null
-  // The apps button's menu: where the dock sits and whether it hides.
+  // The apps button's menu: where the dock sits, the layout, and when the dock
+  // is out. Each opens its choices in a submenu beside it, on hover as a menu
+  // bar's do, or on a click.
   property bool settingsMenu: false
+  property string openSubmenu: ""
+  // Whether the submenu opens on the near side of the menu, for the rows'
+  // marks to point that way.
+  readonly property bool submenuBefore: submenu.x < menu.x
+  property string pendingSubmenu: ""
+
+  // The first submenu opens as the pointer arrives. With one open, the way to
+  // its choices can cross another row, so a row has to hold the pointer a
+  // moment before it takes over; one only passed over changes nothing.
+  function hoverSubmenu(name) {
+    if (name === window.openSubmenu) {
+      submenuTimer.stop()
+    } else if (window.openSubmenu === "") {
+      window.openSubmenu = name
+    } else {
+      window.pendingSubmenu = name
+      submenuTimer.restart()
+    }
+  }
+
+  Timer {
+    id: submenuTimer
+    interval: 200
+    onTriggered: {
+      var row = window.pendingSubmenu === "position" ? positionRow : window.pendingSubmenu === "layout" ? layoutRow : visibilityRow
+      if (row.hovered) window.openSubmenu = window.pendingSubmenu
+    }
+  }
 
   onWorkspaceIdChanged: if (dock) dock.readMode(workspaceId)
   onShownChanged: {
     if (shown) return
     closeMenu()
+    endMove()
     window.revealed = false
   }
   Component.onCompleted: if (dock) dock.readMode(workspaceId)
@@ -148,8 +259,24 @@ PanelWindow {
 
   function openSettingsMenu(slot) {
     window.menuItem = null
+    window.openSubmenu = ""
     window.settingsMenu = true
     window.menuSlot = slot
+  }
+
+  // The layout picked here goes to the workspace the dock is on and becomes
+  // the default every workspace uses, as under Appearance > Workspace Layout.
+  // Other workspaces with windows on them keep the layout they have. The
+  // layout commands act on the focused workspace, so a choice on another
+  // screen's dock focuses that screen first. The default is saved only when
+  // it changes, as saving it reloads Hyprland, and not at all for a workspace
+  // that cannot take a layout, such as a named one.
+  function setLayout(mode) {
+    var command = "omarchy-hyprland-workspace-layout-toggle " + mode
+      + " && if [[ $(omarchy-hyprland-workspace-layout-default) != \"" + mode + "\" ]]; then omarchy-hyprland-workspace-layout-default " + mode + "; fi"
+    if (window.monitor && !window.monitor.focused)
+      command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + window.monitor.name + "\" })") + " >/dev/null && { " + command + "; }"
+    Util.execDetached(command)
   }
 
   function settleShifts() {
@@ -168,6 +295,8 @@ PanelWindow {
   function closeMenu() {
     window.menuItem = null
     window.settingsMenu = false
+    submenuTimer.stop()
+    window.openSubmenu = ""
     window.menuSlot = null
     if (window.autohide) hideTimer.restart()
   }
@@ -179,6 +308,27 @@ PanelWindow {
     if (window.position === "left") return body.x + body.width + window.gap
     if (window.position === "right") return body.x - window.gap - popup.width
     return Math.max(window.gap, Math.min(window.width - popup.width - window.gap, center - popup.width / 2))
+  }
+
+  // A submenu sits beside the menu, away from the dock, with its first row
+  // level with the row that opened it, as far as the room inward of the dock
+  // allows. It overlaps the menu by a border, as macOS's do, so the two share
+  // one edge rather than standing a sliver apart.
+  function submenuX(popup) {
+    var after = menu.x + menu.width - Style.normalBorderWidth
+    var before = menu.x - popup.width + Style.normalBorderWidth
+    if (window.position === "left") return after
+    if (window.position === "right") return before
+    if (Commons.I18n.rightToLeft) return before >= window.gap ? before : after
+    return after + popup.width <= window.width - window.gap ? after : before
+  }
+
+  function submenuY(row, popup) {
+    if (!row) return 0
+    var top = menu.y + menuColumn.y + row.y - popup.contentTopInset
+    var low = window.position === "top" ? body.y + body.height + window.gap : window.gap
+    var high = window.position === "bottom" ? body.y - window.gap - popup.height : window.height - popup.height - window.gap
+    return Math.max(low, Math.min(high, top))
   }
 
   function popupY(slot, popup) {
@@ -205,7 +355,7 @@ PanelWindow {
     right: window.position !== "left"
   }
 
-  implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupRoom : 0
+  implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupRoom + window.submenuRoom : 0
   implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + window.popupRoom
 
   mask: Region {
@@ -213,6 +363,7 @@ PanelWindow {
 
     Region { item: window.shown && window.autohide ? edgeTrigger : null }
     Region { item: menu.visible ? menu : null }
+    Region { item: submenu.visible ? submenu : null }
   }
 
   onAutohideChanged: window.revealed = false
@@ -222,7 +373,7 @@ PanelWindow {
     // Long enough to cross a gap between the edge and the icons, no longer.
     interval: 150
     onTriggered: {
-      if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging) window.revealed = false
+      if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging && !window.movingDock && !window.holdOpen) window.revealed = false
     }
   }
 
@@ -252,8 +403,96 @@ PanelWindow {
     onCleared: window.closeMenu()
   }
 
+  // The dock slides out over windows, where bare icons land on their content
+  // and borders. A mist of the theme's background stands behind them, easing
+  // out to nothing just past the icons and toward both ends, with no outline.
+  // It does only what is needed: over windows it is close to solid through
+  // the icons, so nothing beneath tangles with them; over the wallpaper, where
+  // that would be a slab, it is a shade at half strength. Which one comes from
+  // what the dock already knows, so it costs nothing to decide. It stays put
+  // and clears as the dock tucks away.
+  Canvas {
+    id: mist
+
+    // How far past the dock's ends it runs and how far inward. It dissolves
+    // toward each end over a longer stretch than it overruns, starting under
+    // the last icons, so it ends softly without standing clear of the stack.
+    readonly property real reach: window.slotSize * 0.75
+    readonly property real dissolve: window.slotSize * 1.75
+    readonly property real depth: window.gap + window.slotSize * 1.9
+    // The share of the depth, from the screen edge, the icons stand in.
+    readonly property real ground: (window.gap + window.slotSize * 0.8) / depth
+    readonly property bool dense: window.overWindows
+    property color tint: Commons.Color.background
+
+    visible: window.shown && opacity > 0
+    opacity: 1 - body.tuck / (window.slotSize + window.gap)
+    x: window.vertical ? (window.position === "left" ? 0 : window.width - width) : body.x - reach
+    y: window.vertical ? body.y - reach : (window.position === "top" ? 0 : window.height - height)
+    width: window.vertical ? depth : body.width + reach * 2
+    height: window.vertical ? body.height + reach * 2 : depth
+
+    renderStrategy: Canvas.Cooperative
+    onWidthChanged: requestPaint()
+    onHeightChanged: requestPaint()
+    onTintChanged: requestPaint()
+    onDenseChanged: requestPaint()
+    onVisibleChanged: if (visible) requestPaint()
+    Connections {
+      target: window
+      function onPositionChanged() { mist.requestPaint() }
+    }
+
+    // One gradient across the depth, then both ends dissolved out of it, each
+    // along an eased curve in many stops: a few straight segments would show
+    // as bands, and strips painted side by side as stripes.
+    onPaint: {
+      var ctx = getContext("2d")
+      if (!ctx || width <= 0 || height <= 0) return
+      ctx.reset()
+      var rgb = "rgba(" + Math.round(mist.tint.r * 255) + "," + Math.round(mist.tint.g * 255) + "," + Math.round(mist.tint.b * 255) + ","
+      function ease(t) {
+        t = Math.max(0, Math.min(1, t))
+        return t * t * t * (t * (t * 6 - 15) + 10)
+      }
+      var stops = 24
+      var near = window.position === "left" || window.position === "top"
+
+      var across = window.vertical
+        ? ctx.createLinearGradient(near ? 0 : width, 0, near ? width : 0, 0)
+        : ctx.createLinearGradient(0, near ? 0 : height, 0, near ? height : 0)
+      for (var i = 0; i <= stops; i++) {
+        var t = i / stops
+        var cover = mist.dense ? 0.9 * (1 - ease((t - mist.ground) / (1 - mist.ground))) : 0.5 * (1 - ease(t))
+        across.addColorStop(t, rgb + cover.toFixed(4) + ")")
+      }
+      ctx.fillStyle = across
+      ctx.fillRect(0, 0, width, height)
+
+      ctx.globalCompositeOperation = "destination-out"
+      var length = window.vertical ? height : width
+      for (var side = 0; side < 2; side++) {
+        var from = side === 0 ? 0 : length
+        var to = side === 0 ? mist.dissolve : length - mist.dissolve
+        var fade = window.vertical ? ctx.createLinearGradient(0, from, 0, to) : ctx.createLinearGradient(from, 0, to, 0)
+        for (var j = 0; j <= stops; j++) {
+          var u = j / stops
+          fade.addColorStop(u, "rgba(0,0,0," + (1 - ease(u)).toFixed(4) + ")")
+        }
+        ctx.fillStyle = fade
+        var low = Math.min(from, to)
+        if (window.vertical) ctx.fillRect(0, low, width, mist.dissolve)
+        else ctx.fillRect(low, 0, mist.dissolve, height)
+      }
+    }
+  }
+
   Item {
     id: body
+
+    // Dimmed while the dock is being dragged to another edge.
+    opacity: window.movingDock ? 0.45 : 1
+    Behavior on opacity { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
 
     // The strip keeps its order in every language, like the bar: drags and
     // drops reckon slots along x from the first app. Only the menu mirrors.
@@ -263,17 +502,19 @@ PanelWindow {
     width: slots.implicitWidth
     height: slots.implicitHeight
     // How far the dock is tucked past its edge. Auto-hide slides it, but only
-    // while the dock is on screen: arriving on a floating workspace shows it
-    // where it belongs at once.
+    // while the dock is on screen: a dock that was not shown appears where it
+    // belongs at once. Between a tiled workspace and a floating one with the
+    // dock always out, it is on screen throughout, so it slides.
     property real tuck: window.tucked ? window.slotSize + window.gap : 0
 
-    // Tucking away is quicker than coming back. A gentler curve than
+    // Tucking away is quicker than coming back, though not so quick that the
+    // dock seems to vanish rather than slide off. A gentler curve than
     // Style.easeOut, which crosses the short slide in a frame or two.
     Behavior on tuck {
       id: tuckMotion
       enabled: window.shown
       NumberAnimation {
-        duration: Style.duration(tuckMotion.targetValue > 0 ? 120 : 180)
+        duration: Style.duration(tuckMotion.targetValue > 0 ? 156 : 180)
         easing.type: Easing.OutCubic
       }
     }
@@ -284,11 +525,6 @@ PanelWindow {
     y: window.position === "top" ? window.gap - tuck
       : window.position === "bottom" ? window.height - height - window.gap + tuck
       : Math.round((window.height - height) / 2)
-    // Switching between tiled and floating workspaces shows and hides the dock
-    // at once, with nothing to watch in between. Hidden by opacity rather than
-    // visibility, so the icons keep their textures and are drawn on the first
-    // frame back instead of being uploaded again.
-    opacity: window.shown ? 1 : 0
 
     HoverHandler {
       id: bodyHover
@@ -342,6 +578,53 @@ PanelWindow {
     id: appsSlot
 
     property real displayedShift: window.insertIndex >= 0 ? -window.slotSize / 2 : 0
+    property point pressPoint
+    property bool dragged: false
+
+    mouse.cursorShape: window.movingDock ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+
+    // Where the pointer is on the screen, which the dock's edge is chosen by.
+    function screenPoint(event) {
+      var at = window.origin()
+      var point = appsSlot.mapToItem(window.contentItem, event.x, event.y)
+      return Qt.point(at.x + point.x, at.y + point.y)
+    }
+
+    // Only the left button drags; another pressed meanwhile is no part of it.
+    // A drag dropped away from the button is followed by no click to clear
+    // its mark, so any press outside a drag starts clean.
+    mouse.onPressed: function(event) {
+      if (!window.movingDock) appsSlot.dragged = false
+      if (event.button === Qt.LeftButton) appsSlot.pressPoint = Qt.point(event.x, event.y)
+    }
+
+    // Past a short way from where it was pressed, the press is a move of the
+    // whole dock rather than a click. From then on the dock dims and an
+    // outline shows the edge it would land on.
+    mouse.onPositionChanged: function(event) {
+      if (!(appsSlot.mouse.pressedButtons & Qt.LeftButton)) return
+      if (!window.movingDock) {
+        if (Math.hypot(event.x - appsSlot.pressPoint.x, event.y - appsSlot.pressPoint.y) < Style.space(6)) return
+        window.closeMenu()
+        appsSlot.dragged = true
+        window.movingDock = true
+      }
+      window.trackMove(appsSlot.screenPoint(event))
+    }
+
+    mouse.onReleased: function(event) {
+      if (!window.movingDock || event.button !== Qt.LeftButton) return
+      window.trackMove(appsSlot.screenPoint(event))
+      var edge = window.dock ? window.dock.moveEdge : ""
+      window.endMove()
+      if (edge && edge !== window.position) window.moveTo(edge)
+      else if (window.autohide) hideTimer.restart()
+    }
+
+    mouse.onCanceled: {
+      window.endMove()
+      if (window.autohide) hideTimer.restart()
+    }
 
     Behavior on displayedShift {
       enabled: window.animateShifts
@@ -354,6 +637,11 @@ PanelWindow {
     }
 
     mouse.onClicked: function(event) {
+      // A drag ends in a release over the button, which is not a click on it.
+      if (appsSlot.dragged) {
+        appsSlot.dragged = false
+        return
+      }
       if (event.button === Qt.RightButton) {
         window.openSettingsMenu(appsSlot)
         return
@@ -598,31 +886,37 @@ PanelWindow {
       y: menu.contentTopInset
       width: menu.width - menu.contentLeftInset - menu.contentRightInset
 
-      Repeater {
-        model: [["top", Commons.I18n.t("dock.positionTop")], ["bottom", Commons.I18n.t("dock.positionBottom")], ["left", Commons.I18n.t("dock.positionLeft")], ["right", Commons.I18n.t("dock.positionRight")]]
-
-        // Each row acts, then closes the menu: the actions read its item.
-        delegate: PopupMenuRow {
-          required property var modelData
-
-          visible: window.settingsMenu
-          text: modelData[1]
-          checked: window.position === modelData[0]
-          onTriggered: {
-            Util.execDetached("omarchy-dock position " + modelData[0])
-            window.closeMenu()
-          }
-        }
+      PopupMenuRow {
+        id: positionRow
+        visible: window.settingsMenu
+        text: Commons.I18n.t("dock.position")
+        submenu: true
+        submenuBefore: window.submenuBefore
+        highlighted: window.openSubmenu === "position"
+        onHoveredChanged: if (hovered) window.hoverSubmenu("position")
+        onTriggered: window.openSubmenu = "position"
       }
 
       PopupMenuRow {
+        id: layoutRow
         visible: window.settingsMenu
-        text: Commons.I18n.t("dock.autoHide")
-        checked: window.autohide
-        onTriggered: {
-          Util.execDetached("omarchy-dock autohide " + (window.autohide ? "off" : "on"))
-          window.closeMenu()
-        }
+        text: Commons.I18n.t("dock.layout")
+        submenu: true
+        submenuBefore: window.submenuBefore
+        highlighted: window.openSubmenu === "layout"
+        onHoveredChanged: if (hovered) window.hoverSubmenu("layout")
+        onTriggered: window.openSubmenu = "layout"
+      }
+
+      PopupMenuRow {
+        id: visibilityRow
+        visible: window.settingsMenu
+        text: Commons.I18n.t("dock.visibility")
+        submenu: true
+        submenuBefore: window.submenuBefore
+        highlighted: window.openSubmenu === "visibility"
+        onHoveredChanged: if (hovered) window.hoverSubmenu("visibility")
+        onTriggered: window.openSubmenu = "visibility"
       }
 
       PopupMenuRow {
@@ -649,6 +943,95 @@ PanelWindow {
         onTriggered: {
           window.dock.quit(menu.item)
           window.closeMenu()
+        }
+      }
+    }
+  }
+
+  BorderSurface {
+    id: submenu
+
+    // Wide enough for its longest choice with its tick, which a translation
+    // can make longer than any in English: of the choices showing, or of every
+    // submenu's.
+    function widestOf(showing) {
+      var width = 0
+      for (var i = 0; i < submenuColumn.children.length; i++) {
+        var choice = submenuColumn.children[i]
+        if ((choice.visible || !showing) && choice.contentWidth > width) width = choice.contentWidth
+      }
+      return width
+    }
+    readonly property Item row: window.openSubmenu === "position" ? positionRow
+      : window.openSubmenu === "layout" ? layoutRow
+      : window.openSubmenu === "visibility" ? visibilityRow
+      : null
+
+    visible: menu.visible && window.settingsMenu && !!row
+    width: Math.max(Style.space(140), Math.ceil(widestOf(true))) + padding * 2
+    height: submenuColumn.implicitHeight + padding * 2
+    x: window.submenuX(submenu)
+    y: window.submenuY(row, submenu)
+    radius: Style.cornerRadius
+    color: Commons.Color.popups.background
+    borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Style.normalBorderWidth)
+    padding: Style.spacing.sm
+
+    Column {
+      id: submenuColumn
+      x: submenu.contentLeftInset
+      y: submenu.contentTopInset
+      width: submenu.width - submenu.contentLeftInset - submenu.contentRightInset
+
+      Repeater {
+        model: [["top", Commons.I18n.t("dock.positionTop")], ["bottom", Commons.I18n.t("dock.positionBottom")], ["left", Commons.I18n.t("dock.positionLeft")], ["right", Commons.I18n.t("dock.positionRight")]]
+
+        // Each row acts, then closes the menu: the actions read its item.
+        delegate: PopupMenuRow {
+          required property var modelData
+
+          // The bar's edge is no place for the dock, so it isn't offered.
+          visible: window.openSubmenu === "position" && modelData[0] !== window.barEdge
+          text: modelData[1]
+          checked: window.position === modelData[0]
+          onTriggered: {
+            if (modelData[0] !== window.position) window.moveTo(modelData[0])
+            window.closeMenu()
+          }
+        }
+      }
+
+      Repeater {
+        model: [["dwindle", Commons.I18n.t("dock.layoutTiling")], ["scrolling", Commons.I18n.t("dock.layoutScrolling")], ["floating", Commons.I18n.t("dock.layoutFloating")]]
+
+        delegate: PopupMenuRow {
+          required property var modelData
+
+          visible: window.openSubmenu === "layout"
+          text: modelData[1]
+          // The layout of the workspace being looked at, which picking one
+          // switches along with the default.
+          checked: !!window.dock && (window.dock.modes[window.workspaceId] || "dwindle") === modelData[0]
+          onTriggered: {
+            window.setLayout(modelData[0])
+            window.closeMenu()
+          }
+        }
+      }
+
+      Repeater {
+        model: [["always", Commons.I18n.t("dock.visibilityAlways")], ["first-app", Commons.I18n.t("dock.visibilityFirstApp")], ["hidden", Commons.I18n.t("dock.visibilityHidden")]]
+
+        delegate: PopupMenuRow {
+          required property var modelData
+
+          visible: window.openSubmenu === "visibility"
+          text: modelData[1]
+          checked: !!window.dock && window.dock.visibility === modelData[0]
+          onTriggered: {
+            Util.execDetached("omarchy-dock visibility " + modelData[0])
+            window.closeMenu()
+          }
         }
       }
     }

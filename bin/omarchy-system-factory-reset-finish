@@ -94,6 +94,9 @@ scrub_legacy_degraded_state() {
   rm -f /etc/NetworkManager/system-connections/*
   rm -rf /var/lib/NetworkManager/* /var/lib/tailscale /var/lib/iwd
   rm -f /var/lib/sddm/state.conf /etc/sddm.conf.d/autologin.conf
+  if [[ -f /etc/greetd/config.toml ]]; then
+    omarchy-system-login --reset
+  fi
 
   # Fresh machine identity from the next boot on.
   systemd-id128 new >/etc/machine-id 2>/dev/null || :>/etc/machine-id

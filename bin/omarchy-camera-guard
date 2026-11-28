@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# omarchy:summary=Keep the userland webcam relay healthy on libcamera 0.7.2
+# omarchy:hidden=true
+
+# Two faults in libcamera 0.7.2 with v4l2-relayd 0.2.0 degrade or stop the camera:
+#  - every stream stop leaks the GPU debayer EGL context and one 8.3 MB frame
+#    buffer (leaving /dev/dri/renderD* open in the idle relay process);
+#  - a failed start leaves the relay deadlocked until restarted.
+# Restarting the userland relay frees the leaked buffers and clears the deadlock
+# without needing root or debugfs access. Because /sys/kernel/debug/dma_buf is
+# root-only, leaks are reclaimed once the camera goes idle rather than mid-stream.
+# Root causes are fixed in libcamera 0.8.0 (a00a4ca2 EGL context leak, 0f045015
+# stop deadlock); --needed lets the unit stand down once that version is installed.
+set -u
+
+unit=omarchy-camera-relay.service
+procs="/sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/session.slice/$unit/cgroup.procs"
+COOLDOWN=4
+
+log() { echo "camera-guard: $*"; }
+
+if [[ ${1-} == "--needed" ]]; then
+  v=$(pacman -Q libcamera 2>/dev/null) && (( $(vercmp "${v#* }" 0.8.0) >= 0 )) &&
+    { log "libcamera ${v#* } fixes both faults; standing down"; exit 1; }
+  exit 0
+fi
+
+RELAY= INUSE=0
+read_relay() {
+  RELAY=
+  if [[ -r $procs ]]; then
+    read -r RELAY <"$procs" 2>/dev/null || true
+  fi
+  if [[ -z $RELAY ]]; then
+    RELAY="$(systemctl --user show -p MainPID --value "$unit" 2>/dev/null || true)"
+    [[ $RELAY =~ ^[1-9][0-9]*$ ]] || RELAY=
+  fi
+}
+
+# In use while the relay streams for an app: only then does it hold /dev/media* open.
+read_inuse() {
+  local f m
+  INUSE=0
+  [[ -n $RELAY ]] || return
+  for f in /proc/"$RELAY"/fd/*; do
+    for m in /dev/media*; do
+      [[ $f -ef $m ]] && { INUSE=1; return; }
+    done
+  done
+}
+
+# True while the relay still holds a DRM render node open (from libcamera 0.7.2's
+# leaked GPU debayer EGL context). A freshly started idle relay holds none.
+relay_has_gpu() {
+  local f d
+  [[ -n $RELAY ]] || return 1
+  for f in /proc/"$RELAY"/fd/*; do
+    for d in /dev/dri/renderD*; do
+      [[ $f -ef $d ]] && return 0
+    done
+  done
+  return 1
+}
+
+last_restart=0
+pending=
+restart() {
+  (( EPOCHSECONDS - last_restart < COOLDOWN )) && { pending=$1; return; }
+  pending=
+  log "restarting relay: $1"
+  systemctl --user restart "$unit"
+  last_restart=$EPOCHSECONDS
+}
+
+dir=$(mktemp -d) || { log "can't make a folder for the log reader's FIFO"; exit 1; }
+trap 'rm -rf "$dir"; kill 0' EXIT
+mkfifo "$dir/log" || { log "can't make a FIFO for the log reader"; exit 1; }
+journalctl --user -f -n0 -o short -u "$unit" >"$dir/log" 2>/dev/null &
+jpid=$!
+exec 3<"$dir/log"
+
+while :; do
+  kill -0 "$jpid" 2>/dev/null || { log "log reader stopped; exiting to be restarted"; exit 1; }
+  while IFS= read -r -t 2 line <&3; do
+    case $line in
+      *"configuring streams"*) ;;
+      *"Failed to start streaming"*|*"allocation failure"*|*"Unable to create buffer"*|*"Failed to start camera"*|*"Failed to configure"*)
+        read_relay
+        [[ $line =~ \[([0-9]+)\]:\  && ${BASH_REMATCH[1]} != "$RELAY" ]] || restart "${line##*] }" ;;
+    esac
+    read -r -t 0 <&3 || break
+  done
+  (( EPOCHSECONDS - last_restart < COOLDOWN )) && continue
+  [[ -n $pending ]] && { restart "$pending (held over the cooldown)"; continue; }
+  read_relay
+  [[ -n $RELAY ]] || continue
+  read_inuse
+  if (( ! INUSE )) && relay_has_gpu; then
+    restart "released with leaked GPU debayer context"
+  fi
+done

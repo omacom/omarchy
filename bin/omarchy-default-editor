@@ -45,15 +45,15 @@ if omarchy-cmd-missing "$editor"; then
     exec omarchy-launch-floating-terminal-with-presentation omarchy-default-editor --install "$selection"
   else
     case "$selection" in
-    plain) omarchy-pkg-add plain ;;
+    plain) echo "Installing $name..."; omarchy-pkg-add plain ;;
     code) omarchy-install-editor-vscode ;;
-    cursor) omarchy-pkg-add cursor-bin ;;
+    cursor) echo "Installing $name..."; omarchy-pkg-add cursor-bin ;;
     zed) omarchy-install-editor-zed ;;
-    sublime_text) omarchy-pkg-add sublime-text-4 ;;
+    sublime_text) echo "Installing $name..."; omarchy-pkg-add sublime-text-4 ;;
     helix) omarchy-install-editor-helix ;;
-    vim) omarchy-pkg-add vim ;;
+    vim) echo "Installing $name..."; omarchy-pkg-add vim ;;
     emacs) omarchy-install-editor-emacs ;;
-    nvim) omarchy-pkg-add neovim ;;
+    nvim) echo "Installing $name..."; omarchy-pkg-add neovim ;;
     esac || exit 1
   fi
 fi

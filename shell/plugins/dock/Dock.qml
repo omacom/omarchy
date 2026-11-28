@@ -5,9 +5,11 @@ import Quickshell.Io
 import qs.Commons
 import "DockModel.js" as DockModel
 
-// An app dock that shows on floating workspaces. A floating workspace has no
-// tiles to hand the apps out, so the dock gives back a place to find them:
-// pinned apps, running apps, and a grid of every app.
+// An app dock: pinned apps, running apps, and a grid of every app. A floating
+// workspace has no tiles to hand the apps out, so the dock is a place to find
+// them there. Tiled workspaces get it too, unless turned off. It stays out
+// on an empty workspace and hides once there is a window, and it is where
+// minimized windows wait.
 Item {
   id: root
 
@@ -19,7 +21,15 @@ Item {
   readonly property var defaultDockConfig: shell && shell.defaultsConfig && shell.defaultsConfig.dock ? shell.defaultsConfig.dock : ({})
   readonly property string position: DockModel.normalizePosition(dockConfig.position)
   readonly property bool vertical: DockModel.isVertical(position)
-  readonly property bool autohide: dockConfig.autohide === true
+  readonly property bool tiling: dockConfig.tiling !== false
+  readonly property string visibility: DockModel.normalizeVisibility(dockConfig.visibility, dockConfig.autohide)
+
+  // A dock being dragged by its apps button: the screen it is on, the edge it
+  // would land on, and its size, for the outline that previews the move.
+  property var moveScreen: null
+  property string moveEdge: ""
+  property real moveLength: 0
+  property real moveThickness: 0
 
   // The dock's order for the session, as desktop ids, set when the user moves
   // an app: a drag moves it, and keeping it in the dock puts it at the end. An
@@ -63,14 +73,18 @@ Item {
     var toplevels = Hyprland.toplevels.values
     for (var i = 0; i < toplevels.length; i++) {
       var toplevel = toplevels[i].wayland
-      if (!toplevel || !toplevel.appId || toplevel.parent) continue
-      var entry = root.entryForAppId(toplevel.appId)
+      if (!toplevel || !toplevel.appId) continue
       var workspace = toplevels[i].workspace
+      var minimized = !!workspace && DockModel.isMinimizedWorkspace(workspace.name)
+      // A dialog belongs to its parent's window and has no place of its own,
+      // unless it is minimized: the dock is then the only way back to it.
+      if (toplevel.parent && !minimized) continue
+      var entry = root.entryForAppId(toplevel.appId)
       windows.push({
         key: entry ? DockModel.standInKey(entry.id, entry.categories, pinned) : toplevel.appId,
         hasEntry: !!entry && !entry.noDisplay,
         workspaceId: workspace ? workspace.id : -1,
-        minimized: !!workspace && DockModel.isMinimizedWorkspace(workspace.name),
+        minimized: minimized,
         address: toplevels[i].address,
         toplevel: toplevel
       })
@@ -185,33 +199,54 @@ Item {
     root.bringForward(item.windows[index])
   }
 
+  property var pendingNoAnimUnsets: []
+
+  function scheduleNoAnimUnset(address) {
+    if (pendingNoAnimUnsets.indexOf(address) < 0)
+      pendingNoAnimUnsets = pendingNoAnimUnsets.concat([address])
+    noAnimUnsetTimer.restart()
+  }
+
+  function flushNoAnimUnsets() {
+    noAnimUnsetTimer.stop()
+    var addresses = pendingNoAnimUnsets
+    pendingNoAnimUnsets = []
+    for (var i = 0; i < addresses.length; i++)
+      Hyprland.dispatch("hl.dsp.window.set_prop({ prop = \"no_anim\", value = \"unset\", window = \"address:" + addresses[i] + "\" })")
+  }
+
+  // If the dock is disabled or reloaded within 400ms of restoring a minimized
+  // window, flush pending resets immediately so no_anim isn't left stuck on.
+  Component.onDestruction: flushNoAnimUnsets()
+
+  Timer {
+    id: noAnimUnsetTimer
+    interval: 400
+    repeat: false
+    onTriggered: root.flushNoAnimUnsets()
+  }
+
   // A window the dock brings forward lands on top of the others, focused; a
   // minimized one first comes back to the workspace in front of the user.
   function bringForward(window) {
-    var address = String(window.address || "")
-    if (!address) {
+    var address = String(window.address || "").trim()
+    if (address && address.indexOf("0x") !== 0) address = "0x" + address
+    if (!/^0x[0-9a-f]+$/i.test(address)) {
       window.toplevel.activate()
       return
     }
-    if (address.indexOf("0x") !== 0) address = "0x" + address
     var target = "window = \"address:" + address + "\""
-    var steps = []
-    var after = []
     if (window.minimized) {
       var monitor = Hyprland.focusedMonitor
       var workspace = monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
       if (!(workspace >= 1)) return
       // A restored window is simply there again, without animating in.
-      steps.push("hl.dsp.window.set_prop({ prop = \"no_anim\", value = \"1\", " + target + " })")
-      steps.push("hl.dsp.window.move({ workspace = \"" + workspace + "\", " + target + " })")
-      after.push("hl.dsp.window.set_prop({ prop = \"no_anim\", value = \"unset\", " + target + " })")
+      Hyprland.dispatch("hl.dsp.window.set_prop({ prop = \"no_anim\", value = \"1\", " + target + " })")
+      Hyprland.dispatch("hl.dsp.window.move({ workspace = \"" + workspace + "\", " + target + " })")
+      scheduleNoAnimUnset(address)
     }
-    steps.push("hl.dsp.focus({ " + target + " })")
-    steps.push("hl.dsp.window.alter_zorder({ mode = \"top\", " + target + " })")
-    var dispatch = function(step) { return "hyprctl dispatch " + Util.shellQuote(step) }
-    var command = steps.map(dispatch).join(" && ")
-    if (after.length > 0) command += "; sleep 0.4; " + after.map(dispatch).join("; ")
-    Util.execDetached(command)
+    Hyprland.dispatch("hl.dsp.focus({ " + target + " })")
+    Hyprland.dispatch("hl.dsp.window.alter_zorder({ mode = \"top\", " + target + " })")
   }
 
   function quit(item) {
@@ -401,6 +436,20 @@ Item {
         required property var modelData
 
         screen: modelData
+        dock: root
+      }
+    }
+  }
+
+  Variants {
+    model: Quickshell.screens
+
+    delegate: Component {
+      DockMovePreview {
+        required property var modelData
+
+        screen: modelData
+        showOn: modelData
         dock: root
       }
     }

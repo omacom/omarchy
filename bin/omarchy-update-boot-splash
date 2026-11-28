@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Rebuild the boot images with the boot splash's current files
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# The boot splash copies programs and libraries from other packages into the
+# image (etc/initcpio/install/omarchy-splash), which no other rebuild watches.
+# Nothing to rebuild where the HOOKS baseline doesn't name omarchy-splash.
+
+set -euo pipefail
+
+hooks=$(bash -c 'source <(cat -- /etc/mkinitcpio.conf /etc/mkinitcpio.conf.d/*.conf 2>/dev/null) && echo " ${HOOKS[*]} "')
+[[ $hooks == *" omarchy-splash "* ]] || exit 0
+
+if [[ $(omarchy-boot-backend) == none ]]; then
+  mkinitcpio -P
+else
+  omarchy-boot-rebuild
+fi

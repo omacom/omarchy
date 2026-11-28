@@ -3,7 +3,7 @@
 # omarchy:summary=Shared helpers for generating locales and handing them to the session (source this, don't run it).
 # omarchy:hidden=true
 
-# Sourced by omarchy-language (Setup > Region > Language) and omarchy-region
+# Sourced by omarchy-language (Setup > Region > Language) and omarchy-region-formats
 # (Setup > Region > Formats).
 
 locale_generated() {

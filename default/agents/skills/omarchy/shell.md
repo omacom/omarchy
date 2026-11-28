@@ -46,11 +46,12 @@ edges. Put a widget beside the clock in `centerBegin` or `centerEnd`, not in
 
 ## Dock
 
-The dock shows on floating workspaces. Its pinned apps are desktop ids (`dock.pinned` in `shell.json`):
+The dock shows on every workspace. As it comes (`first-app`), it is out while the workspace is empty and hidden until the pointer reaches its edge once the workspace has a window; `always` keeps it out and `hidden` keeps it hidden. `omarchy dock tiling off` keeps it to floating workspaces. Its pinned apps are desktop ids (`dock.pinned` in `shell.json`):
 
 ```bash
 omarchy dock position [top|bottom|left|right]
-omarchy dock autohide [on|off|toggle]
+omarchy dock visibility [always|first-app|hidden]
+omarchy dock tiling [on|off|toggle]
 omarchy dock pin folio
 omarchy dock unpin folio
 ```

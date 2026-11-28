@@ -1,41 +1,41 @@
-# अपनी खुद की theme बनाना
+# अपनी खुद की थीम बनाना
 
-आप अपनी खुद की themes `~/.config/omarchy/themes` में जोड़ सकते हैं। बस मौजूदा themes में से किसी एक को आधार के तौर पर copy कर लें ( `/usr/share/omarchy/themes` में देखें), फिर अपनी पसंद के हिसाब से उसमें बदलाव करें। जब तक आपकी theme उस folder के अंदर है, वह theme selection menu में शामिल रहेगी।
+आप `~/.config/omarchy/themes` में अपनी खुद की थीम जोड़ सकते हैं। बस मौजूदा थीमों में से किसी एक को आधार बनाकर कॉपी करें (`/usr/share/omarchy/themes` में देखें), फिर अपनी खुशी के हिसाब से उसमें बदलाव करें। जब तक आपकी थीम उस फ़ोल्डर के अंदर है, वह थीम चयन मेनू में शामिल रहेगी।
 
-आपको जिस मुख्य file में बदलाव करना है, वह है `colors.toml`। वही उस color set को परिभाषित करती है जिसका उपयोग फिर terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian, और पूरे Omarchy shell (top bar, menu, notifications, OSD, और lock screen) के लिए configurations बनाने में किया जाता है।
+मुख्य फ़ाइल जिसमें आपको बदलाव करना है वह `colors.toml` है। यह उस रंग सेट को परिभाषित करती है जिसका उपयोग फिर terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian, Qt apps, keyboard backlight, input method, screen-share picker, app icons, कई AI tools (Claude, Pi, Hermes, T3 Code, Herdr), और पूरे Omarchy shell (top bar, menu, notifications, OSD, और lock screen) के लिए configurations बनाने में किया जाता है।
 
-आप साथ में आए Aether application का उपयोग करके भी एक नई theme बना सकते हैं, जिसमें colors के साथ खेलने और backgrounds खोजने के लिए एक सुंदर GUI interface मिलता है। इसे बस `Super + Alt + Space` पर app grid से शुरू करें।
+आप शामिल Aether application का उपयोग करके भी एक नई थीम बना सकते हैं, जिसमें रंगों के साथ खेलने और backgrounds खोजने के लिए एक सुंदर GUI interface मिलता है। बस इसे `Super + Alt + Space` पर app grid से शुरू करें।
 
-### एक installed theme में क्या-क्या हो सकता है
+### एक installed थीम में क्या हो सकता है
 
-जो theme आप खुद `~/.config/omarchy/themes` में लिखते हैं, उसमें आप जो चाहें रख सकते हैं — यह आपकी machine है और आपकी file है, और Omarchy उसका सब कुछ लागू करता है।
+`~/.config/omarchy/themes` में आप खुद जो थीम लिखते हैं, उसमें जो चाहें रख सकते हैं — यह आपकी machine है और आपकी फ़ाइल है, और Omarchy वह सब लागू करता है।
 
-जो theme आप किसी और के repo से `omarchy theme install` के साथ install करते हैं, वह हर वह चीज़ रखती है जो colour है, और उन मुट्ठी भर files को खो देती है जो आपकी machine पर code चलातीं: कोई भी `.lua` file, terminal configs (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`), और `vscode.json`। किसी theme की `hyprland.lua` वह Lua है जिसे आपका compositor login के समय चलाता है, कोई terminal config उस program का नाम बताता है जिसे आपका terminal शुरू करता है, और `vscode.json` install किए जाने वाले किसी VSCode extension का नाम बताता है। किसी की theme install करने से यह बदलना चाहिए कि आपका desktop कैसा दिखता है, यह कभी नहीं कि वह क्या चलाता है।
+किसी और के repo से `omarchy theme install` के साथ आप जो थीम install करते हैं, उसमें वह सब कुछ रहता है जो रंग है, और वे मुट्ठी भर फ़ाइलें हट जाती हैं जो आपकी machine पर code चलातीं: कोई भी `.lua` फ़ाइल, terminal configs (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`), और `vscode.json`। किसी थीम की `hyprland.lua` वह Lua है जिसे आपका compositor login पर चलाता है, कोई terminal config उस program का नाम बताता है जिसे आपका terminal शुरू करता है, और `vscode.json` install किए जाने वाले किसी VSCode extension का नाम बताता है। किसी की थीम install करने से आपका desktop कैसा दिखता है यह बदलना चाहिए, यह कभी नहीं कि वह क्या चलाता है।
 
-बाकी सब कुछ ठीक वैसे ही काम करता रहता है जैसा theme के लेखक ने लिखा था — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, backgrounds और previews, सब रखे जाते हैं। केवल जो हटाया गया था, वही आपकी machine पर `colors.toml` से फिर से बनाया जाता है।
+बाकी सब कुछ ठीक वैसा ही काम करता रहता है जैसा थीम के लेखक ने लिखा था — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, backgrounds और previews सभी रखे जाते हैं। केवल जो हटाया गया था वही आपकी machine पर `colors.toml` से फिर से बनाया जाता है।
 
-Omarchy दोनों में अंतर इस बात से करता है कि theme के अंदर उसका अपना git repo है या नहीं, जो वही है जो `omarchy theme install` clone करते समय पीछे छोड़ जाता है। तो जो theme आपने लिखी, वह आपकी ही रहती है, और जो आपने internet से ली, वह colours ही रहती है।
+Omarchy दोनों में अंतर इस बात से करता है कि थीम के अंदर उसका अपना git repo है या नहीं, जो वही है जो `omarchy theme install` clone करने पर पीछे छोड़ जाता है। तो जो थीम आपने लिखी वह आपकी रहती है, और जो आपने internet से ली वह केवल रंग रहती है।
 
-### लाइट मोड
+### Light mode
 
-अगर आप light mode theme बना रहे हैं, तो अपनी `colors.toml` के सबसे ऊपर `mode = "light"` set करें। फिर वह सभी apps के लिए अपने आप light mode के साथ जोड़ दी जाएगी। (अपनी theme के root में `light.mode` नाम की एक खाली file डालने का पुराना तरीका भी अभी काम करता है।)
+अगर आप light mode थीम बना रहे हैं, तो अपनी `colors.toml` के शीर्ष पर `mode = "light"` सेट करें। फिर यह सभी apps के लिए अपने आप light mode के साथ जोड़ी जाएगी। (अपनी थीम की root में `light.mode` नाम की खाली फ़ाइल डालने का पुराना तरीका भी अभी काम करता है।)
 
-### Unlock image
+### Boot और login screens
 
-जिन themes के साथ `unlock.png` और `preview-unlock.png` images दी गई होंगी, वे _Appearance > Unlock_ के अंतर्गत सूचीबद्ध होंगी। आपकी `unlock.png` अधिमानतः एक transparent png होनी चाहिए। और आप `omarchy plymouth preview` का उपयोग करके preview image बना सकते हैं।
+Boot पर drive password माँगने वाली screen, और login screen, Omarchy logo को आपकी थीम के `accent` रंग में उसके `background` पर बनाती हैं, जिसमें password field उसके `foreground` में और गलत password के लिए `red` होता है। उनके लिए कुछ अतिरिक्त भेजने की ज़रूरत नहीं है: Omarchy अब किसी थीम की `unlock.png` या `preview-unlock.png` का उपयोग नहीं करता। Apple Silicon Macs पर, drive password screen थीम चाहे जो हो Omarchy का default रूप ही रखती है।
 
-### उन apps की theming जिन्हें Omarchy cover नहीं करता
+### उन apps की थीमिंग जिन्हें Omarchy cover नहीं करता
 
-अगर आप किसी ऐसे app का उपयोग करते हैं जो उस सूची में नहीं है, तो आप एक template के साथ Omarchy को खुद उसे theme करना सिखा सकते हैं। `~/.config/omarchy/themed/` में एक file डालें जिसका नाम उस config के नाम पर हो जिसे वह बनाती है, साथ में एक `.tpl` extension हो, और config को `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` से लेकर `{{ color15 }}` तक, और palette के बाकी हिस्सों को placeholders के रूप में लिखकर बनाएं। हर बार जब आप themes बदलते हैं, file उस theme के colors के साथ फिर से बनाई जाती है।
+अगर आप किसी ऐसे app का उपयोग करते हैं जो उस सूची में नहीं है, तो आप एक template के साथ Omarchy को खुद उसे थीम करना सिखा सकते हैं। `~/.config/omarchy/themed/` में एक फ़ाइल डालें जिसका नाम उस config के नाम पर हो जिसे यह बनाती है, साथ में एक `.tpl` extension हो, और config को `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` से लेकर `{{ color15 }}`, और palette के बाकी हिस्सों को placeholders के रूप में लिखकर लिखें। हर बार जब आप थीम बदलते हैं, फ़ाइल उस थीम के रंगों के साथ फिर से बनाई जाती है।
 
-उस folder में पूरी तरह commented एक `alacritty.toml.tpl.sample` है जिससे आप copy कर सकते हैं — इसमें हर वह variable सूचीबद्ध है जिसका आप उपयोग कर सकते हैं, साथ में उन apps के लिए `_strip` और `_rgb` modifiers भी हैं जो अपने colors को `#` के बिना या decimal RGB के रूप में चाहते हैं। आपकी templates को Omarchy की अपनी templates पर प्राथमिकता मिलती है, इसलिए आप इसका उपयोग यह override करने के लिए भी कर सकते हैं कि किसी built-in app को कैसे theme किया जाए।
+उस फ़ोल्डर में पूरी तरह comment की गई `alacritty.toml.tpl.sample` है जिससे कॉपी की जा सकती है — यह हर variable को सूचीबद्ध करती है जिसका आप उपयोग कर सकते हैं, साथ में उन apps के लिए `_strip` और `_rgb` modifiers भी, जो अपने रंगों को `#` के बिना या decimal RGB के रूप में चाहते हैं। आपके templates को Omarchy के अपने templates पर प्राथमिकता मिलती है, इसलिए आप इसका उपयोग यह override करने के लिए भी कर सकते हैं कि किसी built-in app को कैसे थीम किया जाए।
 
-### अपनी theme वितरित करना
+### अपनी थीम वितरित करना
 
-अगर आप अपनी theme वितरित करना चाहते हैं ताकि दूसरे उसका उपयोग कर सकें, तो आपको उसे किसी public git server, जैसे GitHub, पर रखना होगा। फिर लोग Omarchy menu में _Install > Style > Theme_ का उपयोग करके उस URL से उसे install कर सकते हैं। यह सलाह दी जाती है कि आप `omarchy-[themename]-theme` के naming convention का पालन करें, क्योंकि installation के बाद theme selection menu में theme सही ढंग से सिर्फ `[themename]` के रूप में दिखेगी।
+अगर आप अपनी थीम वितरित करना चाहते हैं ताकि दूसरे इसका उपयोग कर सकें, तो आपको इसे किसी public git server, जैसे GitHub, पर रखना होगा। फिर लोग उस URL का उपयोग करके Omarchy menu में _Install > Style > Theme_ से इसे install कर सकते हैं। यह सलाह दी जाती है कि आप `omarchy-[themename]-theme` की नामकरण परंपरा का पालन करें, क्योंकि installation के बाद थीम चयन मेनू में थीम ठीक केवल `[themename]` के रूप में दिखाई देगी।
 
-वह बचा हुआ `[themename]` theme का directory name बन जाता है, इसलिए वह ऐसा होना चाहिए जिसे Omarchy सुरक्षित रूप से इधर-उधर दे सके: उसे किसी letter, किसी digit, या किसी underscore से शुरू होना चाहिए, और बाकी हिस्से में letters, digits, `.`, `_`, `+`, और `-` हो सकते हैं। Capitals आपके लिए lowercase में बदल दिए जाते हैं, लेकिन बाकी कुछ भी — कोई space, कोई quote, कोई non-English character — directory name में बदले जाने के बजाय install के समय अस्वीकार कर दिया जाता है। इसलिए `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme`, और `omarchy-c++-theme` सभी ठीक से install हो जाती हैं।
+वह बचा हुआ `[themename]` थीम की directory का नाम बन जाता है, इसलिए यह ऐसा होना चाहिए जिसे Omarchy सुरक्षित रूप से इधर-उधर दे सके: यह किसी letter, digit, या underscore से शुरू होना चाहिए, और बाकी हिस्से में letters, digits, `.`, `_`, `+`, और `-` हो सकते हैं। Capitals आपके लिए lowercase कर दिए जाते हैं, लेकिन इसके अलावा कुछ भी — कोई space, कोई quote, कोई non-English character — directory नाम में बदलने के बजाय install के समय अस्वीकार कर दिया जाता है। इसलिए `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme`, और `omarchy-c++-theme` सभी ठीक से install हो जाते हैं।
 
-याद रखें कि एक बार जब वह किसी repo से install हो जाती है, तो उसके साथ आने वाली कोई भी `.lua`, terminal config या `vscode.json` हटा दी जाती है, इसलिए theme को उन चीज़ों के इर्द-गिर्द न बनाएं।
+याद रखें कि एक बार repo से install हो जाने के बाद, इसके साथ आने वाली कोई भी `.lua`, terminal config या `vscode.json` हटा दी जाती है, इसलिए थीम को उनके इर्द-गिर्द न बनाएँ।
 
-आप [अतिरिक्त themes पेज](https://omarchy.org/themes/) पर अपनी theme को [omarchy-site repo](https://github.com/omacom-io/omarchy-site) को एक pull request भेजकर जुड़वा सकते हैं।
+आप [omarchy-site repo](https://github.com/omacom-io/omarchy-site) को एक pull request भेजकर अपनी थीम को [अतिरिक्त थीम पेज](https://omarchy.org/themes/) पर जुड़वा सकते हैं।

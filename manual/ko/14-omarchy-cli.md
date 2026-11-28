@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy는 보통 단축키와 Omarchy 메뉴(`Super + Space`)를 통해 제어합니다. 하지만 `omarchy` CLI를 통해서도 제어할 수 있습니다. 이는 AI 에이전트와 함께 맞춤 설정이나 구성을 작업할 때 특히 유용합니다.
+Omarchy는 보통 단축키와 Omarchy 메뉴(`Super + Space`)를 통해 제어합니다. 하지만 `omarchy` CLI를 통해서도 제어할 수 있습니다. AI agent와 함께 맞춤 설정이나 구성을 작업할 때 특히 유용합니다.
 
-CLI는 메뉴를 통해 사용되는 내부 도구를 비롯해 그 외의 모든 내부 도구에 접근할 수 있습니다. 터미널에서 `omarchy`를 실행하면 사용 가능한 모든 것을 확인할 수 있습니다.
+이 CLI는 메뉴와 그 외 경로 모두에서 사용되는 모든 내부 도구에 접근할 수 있습니다. 터미널에서 `omarchy`를 실행하면 사용 가능한 모든 항목을 볼 수 있습니다.
 
-대략 다음과 같은 모습입니다:
+모습은 대략 이렇습니다:
 
 ```
 ~ ❯ omarchy
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,7 +42,7 @@ Groups:
   ...
 ```
 
-진단이 필요할 때는 `omarchy-debug --no-sudo --print`를 직접 실행하세요. sudo를 묻지 않고 진단을 출력하고 `/tmp/omarchy-debug.log`를 작성합니다. 패키지 설치처럼 `omarchy debug`가 "Unknown Omarchy command" 오류로 실패할 수 있는 경우에도 마찬가지입니다.
+진단이 필요하면 `omarchy-debug --no-sudo --print`를 직접 실행하세요. sudo를 묻지 않고 진단 정보를 출력하고 `/tmp/omarchy-debug.log`에 기록합니다. 패키지 설치 중 `omarchy debug`가 "Unknown Omarchy command" 오류로 실패할 수 있는 경우에도 마찬가지입니다.
 
 그리고 모든 그룹을 더 깊이 파고들 수도 있습니다:
 
@@ -49,7 +50,7 @@ Groups:
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
@@ -60,4 +61,4 @@ Capture commands — Screenshots and screen recording:
 
 ### 터미널에서 메뉴 열기
 
-Omarchy 메뉴도 스크립트로 제어할 수 있어, 직접 키 바인딩을 만들 때 편리합니다. `omarchy menu`는 메뉴를 루트에서 열고, 이름을 지정하면 트리의 원하는 지점으로 바로 이동할 수 있습니다: `omarchy menu summon appearance.theme`는 테마 선택기로 바로 이동하고, `omarchy menu toggle system`은 시스템 메뉴를 열며 이미 열려 있으면 다시 닫고, `omarchy menu close`는 메뉴를 닫습니다.
+Omarchy 메뉴도 스크립트로 제어할 수 있어 직접 만든 단축키에 쓰기 좋습니다. `omarchy menu`는 루트에서 메뉴를 열고, 이름을 지정하면 트리의 원하는 지점으로 곧바로 이동할 수 있습니다. `omarchy menu summon appearance.theme`는 테마 선택기로 바로 이동하고, `omarchy menu toggle system`은 시스템 메뉴를 열며 이미 열려 있으면 다시 닫고, `omarchy menu close`는 메뉴를 치웁니다.

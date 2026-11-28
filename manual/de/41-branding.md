@@ -1,50 +1,38 @@
 # Branding
 
-Omarchy ermöglicht es dir, dein Firmenlogo oder ein persönliches Bild sowohl für die Boot-Entsperrung, den Bildschirmschoner als auch den Info-Bildschirm festzulegen.
-
-### Boot-Entsperrung
-
-Mit `omarchy plymouth preview` kannst du dir ansehen, wie dein eigenes Logo und deine Farben aussehen würden. Der Befehl nimmt eine Hintergrundfarbe, eine Textfarbe, ein Logo als png und einen Pfad für das Vorschaubild entgegen:
-
-```
-omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
-```
-
-Anschließend übernimmst du die Einrichtung mit `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png`, wodurch auch der SDDM-Anmeldebildschirm dieselben Farben und dasselbe Logo erhält. Wenn du alles rückgängig machen willst, kannst du `omarchy plymouth reset` verwenden.
-
- ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
+Omarchy ermöglicht es dir, dein Firmenlogo oder ein persönliches Bild sowohl für den Bildschirmschoner als auch für den Info-Bildschirm festzulegen.
 
 ### Bildschirmschoner
 
-Das für den Bildschirmschoner verwendete Logo kannst du unter _Appearance > Branding > Screensaver_ ändern. Es ist ein ASCII-Logo, du kannst den Text also direkt bearbeiten, aber du kannst ihm auch ein png- oder svg-Bild übergeben, und wir wandeln es in ASCII um. Das sieht ziemlich cool aus.
+Das Logo für den Bildschirmschoner kannst du unter _Darstellung > Branding > Bildschirmschoner_ ändern. Es ist ein ASCII-Logo, du kannst den Text also direkt bearbeiten, aber du kannst auch ein png- oder svg-Bild übergeben, und wir wandeln es in ASCII um. Sieht ziemlich cool aus.
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
-Dieses Menü enthält drei Einträge:
+Es gibt drei Einträge in diesem Menü:
 
-- **Edit Text** öffnet `~/.config/omarchy/branding/screensaver.txt` in deinem Editor. Tippe oder füge ein, was immer du willst — ASCII-Art, deinen Namen, ein unanständiges Wort. Speichere und beende den Editor, und der Bildschirmschoner startet sofort, damit du es dir ansehen kannst.
-- **Set From Image** öffnet eine Dateiauswahl für ein png oder svg, wandelt es in ASCII um und zeigt dir das Ergebnis. Logos mit einer klaren Silhouette funktionieren weitaus besser als Fotos.
-- **Restore Default** stellt das Omarchy-Logo wieder her.
+- **Text bearbeiten** öffnet `~/.config/omarchy/branding/screensaver.txt` in deinem Editor. Tippe oder füge ein, was du willst — ASCII-Art, deinen Namen, ein unanständiges Wort. Speichern und beenden, und der Bildschirmschoner startet sofort, damit du es sehen kannst.
+- **Aus Bild festlegen** öffnet einen Dateiauswahldialog für ein png oder svg, wandelt es in ASCII um und zeigt dir das Ergebnis. Logos mit einer klaren Silhouette funktionieren weitaus besser als Fotos.
+- **Standard wiederherstellen** setzt das Omarchy-Logo zurück.
 
 ### Info-Bildschirm
 
-Dieselben drei Optionen findest du unter _Appearance > Branding > About_ für den _About_-Bildschirm, den du über das Omarchy-Menü aufrufst, und sie funktionieren identisch — die Datei ist `~/.config/omarchy/branding/about.txt`, und das About-Fenster öffnet sich nach jeder Änderung. Die About-Grafik wird in einer kleineren Größe konvertiert als die des Bildschirmschoners, da sie in ein Fenster passen muss, statt deine Anzeige auszufüllen.
+Die gleichen drei Optionen findest du unter _Darstellung > Branding > Info_ für den _Info_-Bildschirm, den du über das Omarchy-Menü aufrufst, und sie funktionieren identisch — die Datei ist `~/.config/omarchy/branding/about.txt`, und das Info-Fenster erscheint nach jeder Änderung. Die Info-Grafik wird in einer kleineren Größe umgewandelt als die des Bildschirmschoners, da sie in ein Fenster passen muss, statt deine Anzeige auszufüllen.
 
-Während das Fenster geöffnet ist, zieht alle paar Sekunden ein grüner Schimmer über die Grafik und lässt sie dann wieder still stehen. Deine eigene Grafik bekommt ihn auch, solange darin jedes Zeichen eine Spalte breit ist — alles, was _Set From Image_ erzeugt, ist es. Aus Emoji oder Zeichen mit doppelter Breite aufgebaute Grafik bleibt stattdessen still stehen, und das gilt auch für den Bildschirm, wenn du eine eigene fastfetch-Konfiguration behältst: Ein stillstehendes Logo ist in diesen Fällen die Animation, die sich zurückhält, statt zu versagen, denn ein Schimmer, der darüber hinweggleitet, würde den Rest der Zeile an der falschen Stelle landen lassen.
+Während das Fenster geöffnet ist, zieht alle paar Sekunden ein Band aus hellem weißen Licht über die Grafik und lässt sie dann wieder still stehen. Deine eigene Grafik bekommt das auch, solange jedes Zeichen darin eine Spalte breit ist — alles, was _Aus Bild festlegen_ erzeugt, ist es. Grafik aus Emoji oder Zeichen mit doppelter Breite bleibt stattdessen still stehen, und der Bildschirm tut das auch, wenn du eine eigene fastfetch-Konfiguration behältst: Ein stillstehendes Logo ist in diesen Fällen die Animation, die sich zurückhält, statt zu versagen, da ein darübergleitender Lichtstreifen den Rest der Zeile an die falsche Stelle rücken würde.
 
  ![branding-about](images/branding-about.webp)
 
-### Bilder selbst konvertieren
+### Bilder selbst umwandeln
 
-Beide _Set From Image_-Optionen rufen lediglich `omarchy transcode ascii` auf, das du auch direkt ausführen kannst, wenn du die Kontrolle über die Konvertierung haben willst:
+Beide _Aus Bild festlegen_-Optionen rufen einfach `omarchy transcode ascii` auf, das du direkt ausführen kannst, wenn du die Kontrolle über die Umwandlung haben willst:
 
 ```
 omarchy transcode ascii ~/logo.svg ~/.config/omarchy/branding/screensaver.txt --width 100
 ```
 
-Es nimmt `--width` und `--height` in Terminalspalten und -zeilen, einen `--mode` von entweder `braille` (der Standard und viel feiner) oder `block`, einen `--threshold`-Prozentwert, der entscheidet, welche Pixel als Teil des Logos gelten, und `--invert` für den Fall, dass dein Logo hell auf dunklem Hintergrund ist. Wenn bei einer Konvertierung nur ein Klecks herauskommt, ist der Schwellenwert meist der Regler, an dem du drehen musst.
+Es akzeptiert `--width` und `--height` in Terminal-Spalten und -Zeilen, einen `--mode` von entweder `braille` (der Standard und viel feiner) oder `block`, einen `--threshold`-Prozentsatz, um zu entscheiden, welche Pixel als Teil des Logos zählen, und `--invert` für den Fall, dass dein Logo hell auf dunklem Hintergrund ist. Wenn eine Umwandlung als Klumpen herauskommt, ist der Schwellenwert normalerweise der Regler, an dem du drehen musst.
 
-### Worte statt eines Logos
+### Wörter statt eines Logos
 
 `omarchy ascii` zeichnet Text in Delta Corps Priest 1, der FIGlet-Schrift, in der auch die Omarchy-Wortmarke selbst gezeichnet ist, sodass ein Bildschirmschoner etwas sagen kann, statt ein Bild zu zeigen:
 
@@ -52,4 +40,4 @@ Es nimmt `--width` und `--height` in Terminalspalten und -zeilen, einen `--mode`
 omarchy ascii "Back in five" > ~/.config/omarchy/branding/screensaver.txt
 ```
 
-Es nimmt den Text als Argumente entgegen oder liest ihn aus einer Pipe, wenn keine angegeben werden. Die Schrift enthält nur Buchstaben und Leerzeichen — sie wurde ohne Ziffern oder Satzzeichen gezeichnet —, sodass alles andere verworfen und auf stderr benannt wird, statt still verschluckt zu werden.
+Es nimmt den Text als Argumente entgegen oder liest ihn aus einer Pipe, wenn keine angegeben sind. Die Schrift enthält nur Buchstaben und Leerzeichen — sie wurde ohne Ziffern oder Satzzeichen gezeichnet — also wird alles andere verworfen und auf stderr benannt, statt stillschweigend verschluckt zu werden.

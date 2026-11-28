@@ -1,0 +1,137 @@
+#!/bin/bash
+
+# omarchy:summary=Rebuild boot images when Omarchy initramfs inputs changed
+# omarchy:args=[--pacman-hook|--record|--print-hash]
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# omarchy-settings installs its initcpio hooks under /etc/initcpio/ rather than
+# /usr/lib/initcpio/ so routine settings updates do not trip
+# 90-mkinitcpio-install.hook when those files are byte-identical. This helper
+# hashes the Omarchy initcpio hooks, the boot splash files omarchy-splash copies
+# into the image and /etc/mkinitcpio.conf.d/*.conf after an omarchy-settings
+# upgrade and calls omarchy-boot-rebuild only when the content actually
+# changed.
+
+set -euo pipefail
+
+ROOT=${OMARCHY_INITCPIO_ROOT:-/}
+ROOT=${ROOT%/}
+MODULES=${OMARCHY_BOOT_MODULES:-$ROOT/usr/lib/modules}
+STATE=${OMARCHY_INITCPIO_STATE:-$ROOT/var/lib/omarchy/initcpio.sha256}
+BACKEND_CMD=${OMARCHY_INITCPIO_BACKEND_CMD:-omarchy-boot-backend}
+REBUILD_CMD=${OMARCHY_INITCPIO_REBUILD_CMD:-omarchy-boot-rebuild}
+
+# Hash the sorted set of Omarchy initcpio hooks, boot splash files and
+# mkinitcpio drop-ins (ignoring .pacnew/.pacsave/.pacorig backups). Each entry
+# records its relative path and file content digest (and link target for
+# symlinks, plus the resolved target's bytes when present) so renames,
+# additions, removals, link changes, and edits through symlinks all change the
+# resulting digest.
+compute_hash() {
+  local -a paths=()
+  local pattern path rel digest content_digest
+  local shopt_nullglob
+  shopt_nullglob=$(shopt -p nullglob || true)
+  shopt -s nullglob
+
+  for pattern in \
+    "$ROOT/etc/initcpio/hooks/omarchy-"* \
+    "$ROOT/etc/initcpio/install/omarchy-"* \
+    "$ROOT/usr/lib/initcpio/hooks/omarchy-"* \
+    "$ROOT/usr/lib/initcpio/install/omarchy-"* \
+    "$ROOT/usr/share/omarchy/default/splash/"* \
+    "$ROOT/usr/share/omarchy/default/splash/ui/"* \
+    "$ROOT/etc/mkinitcpio.conf.d/"*.conf; do
+    [[ -f $pattern || -L $pattern ]] || continue
+    case $pattern in
+    *.pacnew | *.pacsave | *.pacorig) continue ;;
+    esac
+    paths+=("$pattern")
+  done
+
+  eval "$shopt_nullglob"
+
+  {
+    if ((${#paths[@]})); then
+      while IFS= read -r -d '' path; do
+        rel=${path#"$ROOT/"}
+        if [[ -L $path ]]; then
+          if [[ -f $path ]]; then
+            content_digest=$(sha256sum <"$path")
+            content_digest=${content_digest%% *}
+          else
+            content_digest="dangling"
+          fi
+          digest=$(printf 'link\0%s\0%s' "$(readlink "$path")" "$content_digest" | sha256sum)
+        else
+          digest=$(sha256sum <"$path")
+        fi
+        printf '%s  %s\n' "${digest%% *}" "$rel"
+      done < <(printf '%s\0' "${paths[@]}" | LC_ALL=C sort -z)
+    fi
+  } | sha256sum | awk '{print $1}'
+}
+
+has_managed_backend() {
+  local backend
+  while IFS= read -r backend; do
+    if [[ -n $backend && $backend != "none" ]]; then
+      return 0
+    fi
+  done < <("$BACKEND_CMD" --managed 2>/dev/null || true)
+  return 1
+}
+
+has_installed_kernels() {
+  local pkgbase
+  for pkgbase in "$MODULES"/*/pkgbase; do
+    [[ -f $pkgbase ]] && return 0
+  done
+  return 1
+}
+
+write_state() {
+  local hash=$1 dir tmp
+  dir=$(dirname "$STATE")
+  install -d -m 0755 "$dir"
+  tmp=$(mktemp "$dir/.initcpio.sha256.XXXXXX")
+  printf '%s\n' "$hash" >"$tmp"
+  chmod 0644 "$tmp"
+  mv -f "$tmp" "$STATE"
+}
+
+case ${1:-} in
+--print-hash)
+  compute_hash
+  ;;
+--record)
+  if ! has_managed_backend || ! has_installed_kernels; then
+    exit 0
+  fi
+  write_state "$(compute_hash)"
+  ;;
+--pacman-hook | "")
+  if ! has_managed_backend || ! has_installed_kernels; then
+    exit 0
+  fi
+
+  current_hash=$(compute_hash)
+  previous_hash=""
+  if [[ -f $STATE ]]; then
+    previous_hash=$(tr -d '[:space:]' <"$STATE" 2>/dev/null || true)
+  fi
+
+  if [[ $previous_hash == "$current_hash" ]]; then
+    exit 0
+  fi
+
+  echo "Omarchy initramfs inputs changed; rebuilding boot images..."
+  "$REBUILD_CMD"
+  write_state "$current_hash"
+  ;;
+*)
+  echo "Usage: omarchy-boot-sync-initcpio [--pacman-hook|--record|--print-hash]" >&2
+  exit 2
+  ;;
+esac

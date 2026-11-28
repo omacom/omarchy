@@ -1,6 +1,7 @@
 # Omarchy core package list pacstrapped by the ISO.
 # The ISO builder also reads this file when constructing the offline mirror.
 
+adwaita-cursors
 aether
 alsa-utils
 asdcontrol
@@ -44,6 +45,7 @@ fcitx5-table-extra
 fd
 ffmpeg
 ffmpegthumbnailer
+flowtunes
 folio
 fontconfig
 foot
@@ -54,6 +56,7 @@ gliff
 gnome-keyring
 gnome-themes-extra
 google-chrome
+greetd
 grim
 gpu-screen-recorder
 gum
@@ -74,6 +77,7 @@ inxi
 networkmanager
 jq
 kernel-modules-hook
+kmscon
 lazygit
 less
 libsecret
@@ -88,8 +92,9 @@ mariadb-libs
 mise-bin
 monologue
 gnome-disk-utility
+nodejs
 noto-fonts
-noto-fonts-cjk
+noto-fonts-cjk-vf
 noto-fonts-emoji
 nss-mdns
 nvim
@@ -114,9 +119,13 @@ owe
 pacman-contrib
 pamixer
 papers
+pi-coding-agent
 pinta
 plain
+playwright-cli
 plocate
+# Draws the shutdown splash, and the unlock prompt in a systemd initramfs (Apple
+# Silicon's); omarchy-splash draws it in the busybox one.
 plymouth
 podman
 postgresql-libs
@@ -136,12 +145,13 @@ quickshell
 ripgrep
 rtkit
 ruby
-sddm
+seatd
 signed
 slurp
 socat
 starship
 superwhisper-bin
+sway
 system-config-printer
 terminus-font
 tesseract
@@ -150,20 +160,21 @@ tldr
 tree-sitter-cli
 tmux
 tobi-try
-ttf-ia-writer
 ttf-jetbrains-mono-nerd-basic
 tzupdate
-udiskie
+udisks2
 ufw
 ufw-docker
 unzip
 usage
+uv
 uwsm
 vi
 whois
 wireless-regdb
 wireplumber
 wl-clipboard
+wlroots0.20
 wtype
 woff2-font-awesome
 xdg-desktop-portal-gtk

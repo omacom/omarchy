@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Install a supported browser
-# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|zen>
+# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|zen|ladybird>
 # omarchy:examples=omarchy install browser chromium | omarchy install browser firefox
 
 set -e
@@ -39,6 +39,19 @@ copy_chromium_flags() {
   omarchy-install-camera
 }
 
+# A Chromium browser starts on the system title bar, which gives it Omarchy's
+# titlebar when it floats, in place of a frame of its own with only the empty
+# end of the tab strip to drag it by. Only a profile that does not exist yet is
+# seeded: the browser owns its Preferences once it has run.
+seed_system_title_bar() {
+  local preferences="${XDG_CONFIG_HOME:-$HOME/.config}/$1/Default/Preferences"
+
+  if [[ ! -e $preferences ]]; then
+    mkdir -p "$(dirname "$preferences")"
+    printf '{"browser":{"custom_chrome_frame":false}}\n' >"$preferences"
+  fi
+}
+
 setup_firefox_wayland() {
   mkdir -p ~/.config/environment.d
   echo "MOZ_ENABLE_WAYLAND=1" > ~/.config/environment.d/omarchy-firefox-wayland.conf
@@ -61,6 +74,7 @@ chrome)
 
   setup_chromium_policy_directory /etc/opt/chrome/policies/managed
   copy_chromium_flags ~/.config/chrome-flags.conf
+  seed_system_title_bar google-chrome
   omarchy-theme-set-browser
   omarchy-lifecycle-dispatch post-install chrome
   announce_browser_installed "Chrome"
@@ -71,6 +85,7 @@ edge)
 
   setup_chromium_policy_directory /etc/opt/edge/policies/managed
   copy_chromium_flags ~/.config/microsoft-edge-stable-flags.conf
+  seed_system_title_bar microsoft-edge
   omarchy-theme-set-browser
   omarchy-lifecycle-dispatch post-install edge
   announce_browser_installed "Edge"
@@ -81,6 +96,7 @@ brave)
 
   setup_chromium_policy_directory /etc/brave/policies/managed
   copy_chromium_flags ~/.config/brave-flags.conf
+  seed_system_title_bar BraveSoftware/Brave-Browser
   link_widevine_cdm brave-bin
   omarchy-theme-set-browser
   omarchy-lifecycle-dispatch post-install brave
@@ -92,6 +108,7 @@ brave-origin)
 
   setup_chromium_policy_directory /etc/brave/policies/managed
   copy_chromium_flags ~/.config/brave-origin-flags.conf
+  seed_system_title_bar BraveSoftware/Brave-Origin
   link_widevine_cdm brave-origin-bin
   omarchy-theme-set-browser
   omarchy-lifecycle-dispatch post-install brave-origin
@@ -115,8 +132,15 @@ zen)
   omarchy-lifecycle-dispatch post-install zen
   announce_browser_installed "Zen"
   ;;
+ladybird)
+  echo "Installing Ladybird..."
+  omarchy-pkg-add ladybird-bin || exit 1
+
+  omarchy-lifecycle-dispatch post-install ladybird
+  announce_browser_installed "Ladybird"
+  ;;
 *)
-  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen|ladybird>"
   exit 1
   ;;
 esac

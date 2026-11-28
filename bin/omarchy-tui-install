@@ -8,15 +8,40 @@ set -e
 ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
 
 safe_icon_name() {
-  printf '%s\n' "$1" \
+  local name
+  name=$(printf '%s\n' "$1" \
     | tr '[:upper:]' '[:lower:]' \
-    | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//'
+    | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
+  if [[ -n $name ]]; then
+    printf '%s\n' "$name"
+  else
+    printf 'tui-%s\n' "$(printf '%s' "$1" | sha256sum | cut -c1-12)"
+  fi
+}
+
+require_plain_name() {
+  if [[ $1 == */* || $1 == "." || $1 == ".." ]]; then
+    echo "App name cannot contain '/' or be '.'/'..': $1" >&2
+    exit 1
+  fi
+}
+
+desktop_string_escape() {
+  local value="$1"
+
+  value=${value//\\/\\\\}
+  value=${value//$'\t'/\\t}
+  value=${value//$'\r'/\\r}
+  value=${value//$'\n'/\\n}
+  [[ $value == " "* ]] && value="\\s${value# }"
+
+  printf '%s' "$value"
 }
 
 icon_name_from_ref() {
   local ref="$1"
   local name
-  name=$(basename "$ref")
+  name=$(basename -- "$ref")
 
   if [[ $name == *.* ]]; then
     safe_icon_name "${name%.*}"
@@ -32,14 +57,29 @@ install_user_icon() {
 
   [[ $ext == "$source" ]] && ext="png"
   mkdir -p "$ICON_DIR"
-  cp "$source" "$ICON_DIR/$name.$ext"
+  cp -- "$source" "$ICON_DIR/$name.$ext"
   gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
   printf '%s\n' "$name"
+}
+
+download_icon() {
+  local tmp
+  tmp=$(mktemp "$(dirname "$2")/.icon.XXXXXX") || return 1
+  if curl -fsSL --max-time 10 -o "$tmp" -- "$1" 2>/dev/null &&
+    [[ -s $tmp && $(file -b --mime-type "$tmp") == image/* ]]; then
+    chmod 644 "$tmp"
+    mv -f "$tmp" "$2"
+    return 0
+  else
+    rm -f "$tmp"
+    return 1
+  fi
 }
 
 if (( $# != 4 )); then
   echo -e "\e[32m$(omarchy-i18n tui.intro)\n\e[0m"
   APP_NAME=$(gum input --prompt "$(omarchy-i18n tui.namePrompt)" --placeholder "$(omarchy-i18n tui.namePlaceholder)")
+  require_plain_name "$APP_NAME"
   APP_EXEC=$(gum input --prompt "$(omarchy-i18n tui.commandPrompt)" --placeholder "$(omarchy-i18n tui.commandPlaceholder "lazydocker" "bash -c 'dust; read -n 1 -s'")")
   WINDOW_STYLE=$(gum choose --header "$(omarchy-i18n tui.windowStyle)" float tile)
   ICON_REF=$(gum input --prompt "$(omarchy-i18n tui.iconPrompt)" --placeholder "$(omarchy-i18n tui.iconPlaceholder "https://dashboardicons.com")")
@@ -55,13 +95,15 @@ if [[ -z $APP_NAME || -z $APP_EXEC || -z $ICON_REF ]]; then
   exit 1
 fi
 
+require_plain_name "$APP_NAME"
+
 DESKTOP_FILE="$HOME/.local/share/applications/$APP_NAME.desktop"
 mkdir -p "$(dirname "$DESKTOP_FILE")"
 
 if [[ $ICON_REF =~ ^https?:// ]]; then
   ICON_VALUE=$(safe_icon_name "$APP_NAME")
   mkdir -p "$ICON_DIR"
-  if ! curl -sL -o "$ICON_DIR/$ICON_VALUE.png" "$ICON_REF"; then
+  if ! download_icon "$ICON_REF" "$ICON_DIR/$ICON_VALUE.png"; then
     echo "Error: Failed to download icon."
     exit 1
   fi
@@ -79,15 +121,19 @@ else
   APP_CLASS="TUI.tile"
 fi
 
+name_field=$(desktop_string_escape "$APP_NAME")
+exec_field=$(desktop_string_escape "xdg-terminal-exec --app-id=$APP_CLASS -e $APP_EXEC")
+icon_field=$(desktop_string_escape "$ICON_VALUE")
+
 cat >"$DESKTOP_FILE" <<EOF
 [Desktop Entry]
 Version=1.0
-Name=$APP_NAME
-Comment=$APP_NAME
-Exec=xdg-terminal-exec --app-id=$APP_CLASS -e $APP_EXEC
+Name=$name_field
+Comment=$name_field
+Exec=$exec_field
 Terminal=false
 Type=Application
-Icon=$ICON_VALUE
+Icon=$icon_field
 StartupNotify=true
 EOF
 

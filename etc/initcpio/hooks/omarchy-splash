@@ -1,0 +1,106 @@
+#!/usr/bin/ash
+# Starts the boot splash (etc/initcpio/install/omarchy-splash), and leaves it
+# for the real root to take down.
+
+run_hook() {
+  local run=/run/omarchy-splash
+
+  # The plymouth package stays installed for a systemd initramfs and draws the
+  # shutdown splash, but its boot splash would start again in the real root
+  # after the switch. Mask that for this boot: /run moves into the real root.
+  mkdir -p /run/systemd/system
+  ln -sf /dev/null /run/systemd/system/plymouth-start.service
+
+  [ "$(getarg splash)" = "y" ] || return 0
+  # Plymouth's switch for the text console turns the splash off too.
+  case " $(cat /proc/cmdline) " in
+    *" plymouth.enable=0 "*) return 0 ;;
+  esac
+
+  mkdir -m 0700 -p "$run"
+  # The theme's colors, which systemd-stub hands over from the ESP's
+  # loader/credentials/. The splash ignores anything in it but colors.
+  if [ -r /.extra/global_credentials/omarchy-splash.cred ]; then
+    head -c 4096 /.extra/global_credentials/omarchy-splash.cred >"$run/colors"
+  fi
+
+  /usr/lib/omarchy-splash/session </dev/null >"$run/session.log" 2>&1 &
+  echo $! >"$run/session.pid"
+}
+
+# Whether crypttab $1 names a volume the real root unlocks at boot with a
+# passphrase typed on the console: one without a key file ("-", "none" or no
+# third field) and without noauto.
+asks_passphrase() {
+  awk '!/^[[:space:]]*(#|$)/ && ($3 == "" || $3 == "-" || $3 == "none") && ("," $4 ",") !~ /,noauto,/ { found = 1; exit }
+    END { exit !found }' "$1" 2>/dev/null
+}
+
+# As Plymouth does, the splash stays up while the real root boots, its progress
+# bar running, rather than leave the screen black until the login screen. A
+# unit for this boot only takes it down in the real root, just before the login
+# screen, a console login or an emergency shell, with the copy of `stop` the
+# real root has: the initramfs's own is gone by then.
+run_latehook() {
+  local run=/run/omarchy-splash session target i
+
+  # A volume asks_passphrase finds asks on the console while the real root
+  # boots, which the splash would cover.
+  session=$(cat "$run/session.pid" 2>/dev/null)
+  if [ -z "$session" ] || ! kill -0 "$session" 2>/dev/null || asks_passphrase /sysroot/etc/crypttab; then
+    /usr/lib/omarchy-splash/stop
+    return 0
+  fi
+
+  # switch_root deletes the initramfs and moves /dev and /sys away, so a splash
+  # that has not finished starting cannot finish afterwards. Wait for one that
+  # has already picked a display; one still waiting for a native GPU (or that
+  # died before coming up) is taken down instead of stalling the boot.
+  if [ ! -e "$run/ready" ] && [ -e "$run/starting" ]; then
+    i=0
+    while [ ! -e "$run/ready" ] && kill -0 "$session" 2>/dev/null && [ "$i" -lt 50 ]; do
+      sleep 0.1
+      i=$((i + 1))
+    done
+  fi
+  if [ ! -e "$run/ready" ] || ! kill -0 "$session" 2>/dev/null; then
+    /usr/lib/omarchy-splash/stop
+    return 0
+  fi
+
+  # The real root keeps the /dev/shm the session mounted as its own.
+  rm -f "$run/shm"
+
+  mkdir -p /run/systemd/system
+  cat >/run/systemd/system/omarchy-splash-stop.service <<'UNIT'
+[Unit]
+Description=Take down the boot splash
+# sysinit.target conflicts with emergency mode; do not pull it in here.
+DefaultDependencies=no
+After=systemd-user-sessions.service
+Before=display-manager.service getty@tty1.service emergency.service rescue.service omarchy-provision-owner.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=-/bin/sh /usr/share/omarchy/default/splash/stop
+UNIT
+  # After switch_root, seatd may not be able to reopen the VT to restore it.
+  # Reset the emergency console through systemd before it asks for input.
+  mkdir -p /run/systemd/system/emergency.service.d
+  cat >/run/systemd/system/emergency.service.d/omarchy-splash.conf <<'UNIT'
+[Service]
+TTYReset=yes
+UNIT
+  for target in graphical multi-user emergency rescue; do
+    mkdir -p "/run/systemd/system/$target.target.wants"
+    ln -sf ../omarchy-splash-stop.service "/run/systemd/system/$target.target.wants/"
+  done
+  # The splash's displays stay open over the stop for the login screen or the
+  # desktop to take (default/splash/hold); only a graphical boot has one.
+  ln -sf /etc/systemd/system/omarchy-splash-hold.service /run/systemd/system/graphical.target.wants/
+}
+
+run_emergencyhook() {
+  /usr/lib/omarchy-splash/stop
+}

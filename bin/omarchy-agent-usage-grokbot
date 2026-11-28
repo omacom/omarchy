@@ -31,6 +31,7 @@ from collectors import (  # noqa: E402
   LimitsCache,
   account_key,
   base_record,
+  cursor_account_name,
   cursor_token,
   emit,
   finite,
@@ -95,6 +96,7 @@ def collect(force: bool = False) -> dict[str, Any]:
   token = cursor_token()
   if not token:
     return record
+  account_name = cursor_account_name(token)
 
   cache = LimitsCache(AGENT_ID, account_key(token))
   # A kept week that has ended is a fresh allowance, so it comes back at zero
@@ -109,6 +111,8 @@ def collect(force: bool = False) -> dict[str, Any]:
   # account has no Grok Bot.
   if cache.fresh(force, allow_empty=True):
     record.update(ready=bool(kept), tierLabel=kept_tier, limits=kept, limitsFetchedAt=fetched_at)
+    if account_name and record["ready"]:
+      record["accountName"] = account_name
     return record
 
   retry = False
@@ -139,6 +143,8 @@ def collect(force: bool = False) -> dict[str, Any]:
       # The cache only backs later runs; failing to keep it never costs this
       # run's live answer.
       record.update(ready=bool(limits), tierLabel=tier, limits=limits, limitsFetchedAt=cache.save(limits, tierLabel=tier))
+      if account_name and record["ready"]:
+        record["accountName"] = account_name
       return record
 
   # A failed check keeps the last good limit, marked stale so the panel
@@ -153,6 +159,8 @@ def collect(force: bool = False) -> dict[str, Any]:
     limitsStale=True,
     limitsFetchedAt=fetched_at if kept else 0,
   )
+  if account_name and record["ready"]:
+    record["accountName"] = account_name
   if retry:
     record["retryAdvised"] = True
   return record

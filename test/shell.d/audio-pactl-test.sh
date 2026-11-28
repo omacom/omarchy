@@ -77,7 +77,7 @@ OUT
   {
     "index": 2,
     "name": "alsa_output.headphones",
-    "description": "Headphones",
+    "description": "Studio\\DAC Headphones",
     "ports": [{"name": "analog-output-headphones", "availability": "available"}],
     "volume": {"front-left": {"value_percent": "70%"}}
   }
@@ -135,12 +135,15 @@ grep -qx 'C pactl get-sink-volume alsa_output.headphones' "$CALLS" ||
   fail 'audio-output-switch reads sink volume in the C locale' "$(calls)"
 grep -qx 'C pactl get-sink-mute alsa_output.headphones' "$CALLS" ||
   fail 'audio-output-switch reads sink mute in the C locale' "$(calls)"
+grep -Fxq 'omarchy-osd -i volume-medium -m Studio\DAC Headphones' "$CALLS" ||
+  fail 'audio-output-switch preserves backslashes in sink descriptions' "$(calls)"
 pass 'audio-output-switch reads pactl outputs in the C locale'
 
 : >"$CALLS"
 LC_ALL=en_US.UTF-8 omarchy-audio-output-volume +5 2>/dev/null || true
 grep -qx 'C pactl get-sink-volume alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-volume reads sink volume in the C locale' "$(calls)"
+XDG_RUNTIME_DIR="$work" LC_ALL=en_US.UTF-8 omarchy-audio-output-volume mute-toggle 2>/dev/null || true
 grep -qx 'C pactl get-sink-mute alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-volume reads sink mute in the C locale' "$(calls)"
 pass 'audio-output-volume reads pactl outputs in the C locale'
@@ -277,3 +280,135 @@ OUT
 omarchy-audio-input-set-default 43 alsa_input.pci-0000_00_1f.3.analog-stereo
 [[ $(moved) == "12 13 14 " ]] || fail 'input set-default still moves every other recording' "$(moved)"
 pass 'input set-default still moves every other recording'
+
+# --- omarchy-audio-tuning sink recovery and diagnostics ---
+
+tuning_work="$work/tuning"
+tuning_bin="$tuning_work/bin"
+tuning_root="$tuning_work/omarchy"
+tuning_calls="$tuning_work/calls"
+tuning_state="$tuning_work/state"
+mkdir -p "$tuning_bin" \
+  "$tuning_root/default/audio/tunings/test-laptop" \
+  "$tuning_root/default/systemd/user"
+
+printf 'context.modules = []\n' >"$tuning_root/default/audio/filter-chain-host.conf"
+printf '[Unit]\nDescription=Test\n' >"$tuning_root/default/systemd/user/omarchy-speaker-tuning.service"
+cat >"$tuning_root/default/audio/tunings/test-laptop/tuning.conf" <<'CONF'
+description="Test laptop speakers"
+match_command="true"
+sink_pattern='^alsa_output.test.speaker$'
+CONF
+printf 'target = "@SPEAKER_SINK@"\n' >"$tuning_root/default/audio/tunings/test-laptop/filter-chain.conf"
+
+cat >"$tuning_bin/pgrep" <<'SH'
+#!/bin/bash
+exit 1
+SH
+
+cat >"$tuning_bin/omarchy-audio-output-sink" <<'SH'
+#!/bin/bash
+printf 'alsa_output.test.speaker\n'
+SH
+
+cat >"$tuning_bin/systemctl" <<'SH'
+#!/bin/bash
+printf 'systemctl %s\n' "$*" >>"$TUNING_CALLS"
+case "$*" in
+  "--user is-active --quiet wireplumber.service")
+    [[ ${WP_ACTIVE:-1} == "1" ]]
+    ;;
+  "--user try-restart wireplumber.service")
+    : >"$TUNING_STATE/wp-restarted"
+    ;;
+  "--user restart omarchy-speaker-tuning.service")
+    : >"$TUNING_STATE/tuning-started"
+    ;;
+  "--user is-active --quiet easyeffects.service")
+    exit 1
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+SH
+
+cat >"$tuning_bin/pactl" <<'SH'
+#!/bin/bash
+printf 'pactl %s\n' "$*" >>"$TUNING_CALLS"
+case "$*" in
+  "info")
+    [[ ${AUDIO_SERVER:-1} == "1" ]]
+    ;;
+  "list sinks short")
+    [[ ${AUDIO_SERVER:-1} == "1" ]] || exit 1
+    printf '1\talsa_output.usb.mic\tPipeWire\ts32le 2ch 48000Hz\tSUSPENDED\n'
+    if [[ ${RECOVER_ON_WP_RESTART:-0} == "1" && -e $TUNING_STATE/wp-restarted ]]; then
+      printf '2\talsa_output.test.speaker\tPipeWire\ts32le 2ch 48000Hz\tSUSPENDED\n'
+    fi
+    if [[ -e $TUNING_STATE/tuning-started ]]; then
+      printf '3\tomarchy_speaker_tuning\tPipeWire\tf32le 2ch 48000Hz\tSUSPENDED\n'
+    fi
+    ;;
+  "list sink-inputs")
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+SH
+
+chmod +x "$tuning_bin"/*
+
+run_tuning_on() {
+  rm -rf "$tuning_state" "$tuning_work/config"
+  mkdir -p "$tuning_state" "$tuning_work/config"
+  : >"$tuning_calls"
+  PATH="$tuning_bin:$PATH" \
+    OMARCHY_PATH="$tuning_root" \
+    XDG_CONFIG_HOME="$tuning_work/config" \
+    TUNING_CALLS="$tuning_calls" \
+    TUNING_STATE="$tuning_state" \
+    OMARCHY_AUDIO_TUNING_WAIT_TRIES=2 \
+    OMARCHY_AUDIO_TUNING_WAIT_DELAY=0.01 \
+    "$@" "$ROOT/bin/omarchy-audio-tuning" on
+}
+
+# PipeWire is up, speaker sink is missing (dropped HiFi profile), and reappears
+# after restarting WirePlumber.
+if run_tuning_on env AUDIO_SERVER=1 WP_ACTIVE=1 RECOVER_ON_WP_RESTART=1 >"$tuning_work/out" 2>"$tuning_work/err"; then
+  grep -qx 'systemctl --user try-restart wireplumber.service' "$tuning_calls" ||
+    fail 'audio-tuning restarts wireplumber to recover a missing speaker sink' "$(cat "$tuning_calls")"
+  grep -q 'target = "alsa_output.test.speaker"' "$tuning_work/config/pipewire/omarchy-speaker-tuning.conf.d/90-tuning.conf" ||
+    fail 'audio-tuning renders the recovered speaker sink into the filter chain' "$(cat "$tuning_work/out")"
+else
+  # Machines without lsp-plugins-lv2 stop at the limiter check after sink recovery.
+  grep -qx 'systemctl --user try-restart wireplumber.service' "$tuning_calls" ||
+    fail 'audio-tuning restarts wireplumber to recover a missing speaker sink' "$(cat "$tuning_calls")"
+  grep -q 'lsp-plugins-lv2 is required' "$tuning_work/err" ||
+    fail 'audio-tuning recovers the speaker sink after restarting wireplumber' "$(cat "$tuning_work/err")"
+fi
+pass 'audio-tuning restarts wireplumber to recover a dropped speaker sink'
+
+# PipeWire is up, but the speaker sink stays missing even after WirePlumber restarts.
+if run_tuning_on env AUDIO_SERVER=1 WP_ACTIVE=1 RECOVER_ON_WP_RESTART=0 >"$tuning_work/out" 2>"$tuning_work/err"; then
+  fail 'audio-tuning fails when the speaker sink never appears' "$(cat "$tuning_work/out")"
+fi
+grep -qx 'systemctl --user try-restart wireplumber.service' "$tuning_calls" ||
+  fail 'audio-tuning tries restarting wireplumber once when PipeWire is running' "$(cat "$tuning_calls")"
+grep -q 'even after restarting WirePlumber' "$tuning_work/err" ||
+  fail 'audio-tuning reports that the sink stayed missing after restarting wireplumber' "$(cat "$tuning_work/err")"
+! grep -q 'no audio server' "$tuning_work/err" ||
+  fail 'audio-tuning does not blame a missing audio server when PipeWire is running' "$(cat "$tuning_work/err")"
+pass 'audio-tuning distinguishes a missing speaker sink from a stopped audio server'
+
+# No audio server at all (e.g. TTY/SSH): never restarts WirePlumber and says so.
+if run_tuning_on env AUDIO_SERVER=0 WP_ACTIVE=1 RECOVER_ON_WP_RESTART=0 >"$tuning_work/out" 2>"$tuning_work/err"; then
+  fail 'audio-tuning fails without an audio server' "$(cat "$tuning_work/out")"
+fi
+! grep -q 'try-restart wireplumber.service' "$tuning_calls" ||
+  fail 'audio-tuning does not restart wireplumber when no audio server is running' "$(cat "$tuning_calls")"
+grep -q 'no audio server is running yet' "$tuning_work/err" ||
+  fail 'audio-tuning reports when no audio server is running' "$(cat "$tuning_work/err")"
+pass 'audio-tuning skips wireplumber restart when no audio server is running'

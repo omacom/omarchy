@@ -1,42 +1,42 @@
 # Neovim
 
-[Neovim](https://neovim.io/) adalah implementasi modern dari [editor vi](<https://en.wikipedia.org/wiki/Vi_(text_editor)>) yang diciptakan oleh Bill Joy jauh di tahun 1976. Ia adalah editor modal di mana mode sisipkan dan mode perintah dipisahkan, dan ia sedikit merupakan kekuatan super begitu Anda mempelajari bahkan hanya sebagian kecil dari set perintah tombol yang sangat dalam. Namun kurva belajarnya juga cukup curam!
+[Neovim](https://neovim.io/) adalah implementasi modern dari [editor vi](<https://en.wikipedia.org/wiki/Vi_(text_editor)>) yang dibuat oleh Bill Joy jauh di tahun 1976. Ini adalah editor modal di mana mode insert dan mode command terpisah, dan ini semacam kekuatan super begitu kamu mempelajari bahkan hanya sebagian dari rangkaian perintah tombol yang luar biasa mendalam itu. Tapi kurva pembelajarannya juga cukup curam!
 
-Jika Anda benar-benar baru dalam penyuntingan bergaya vim, saya sarankan Anda melihat [seri Vim As Your Editor oleh ThePrimeagen](https://www.youtube.com/watch?v=X6AR2RMB5tE&list=PLm323Lc7iSW_wuxqmKx_xxNtJC_hJbQ7R) di YouTube. Itu akan mengajarkan Anda dasar-dasarnya. Ketahuilah bahwa tidak seperti editor arus utama yang lebih mirip, Anda akan membutuhkan waktu lebih lama untuk mendapatkan kemahiran dasar dengan vim. Namun begitu Anda melakukannya, hasilnya juga lebih besar.
+Kalau kamu benar-benar baru dalam pengeditan gaya vim, aku merekomendasikan kamu menonton [seri Vim As Your Editor dari ThePrimeagen](https://www.youtube.com/watch?v=X6AR2RMB5tE&list=PLm323Lc7iSW_wuxqmKx_xxNtJC_hJbQ7R) di YouTube. Seri itu akan mengajarkan dasar-dasarnya kepadamu. Perlu diketahui, tidak seperti editor mainstream yang lebih umum, kamu akan butuh waktu lebih lama untuk mencapai kemahiran dasar dengan vim. Tapi begitu kamu mencapainya, hasilnya juga lebih besar.
 
-Sekarang Neovim pada dasarnya dapat dikonfigurasi tanpa batas. Jika Anda benar-benar ingin gila, Anda dapat membuat konfigurasi Neovim Anda sendiri dari awal. Ada kursus bagus dari [Typecraft tentang menyiapkan Neovim dari awal](https://www.youtube.com/watch?v=zHTeCSVAFNY). Dan [ThePrimeagen juga memilikinya](https://www.youtube.com/watch?v=w7i4amO_zaE).
+Nah, Neovim pada dasarnya bisa dikonfigurasi tanpa batas. Kalau kamu benar-benar ingin menggila, kamu bisa membuat konfigurasi Neovim-mu sendiri dari nol. Ada kursus hebat dari [Typecraft tentang menyiapkan Neovim dari nol](https://www.youtube.com/watch?v=zHTeCSVAFNY). Dan [ThePrimeagen juga punya satu](https://www.youtube.com/watch?v=w7i4amO_zaE).
 
-Namun Omarchy dikirim dengan penyiapan Neovim lengkap — paket `omarchy-nvim` — yang telah disetel dengan penuh kasih untuk menampilkan yang terbaik dari yang mungkin langsung dari kotak. Tanpa Anda harus menulis satu baris konfigurasi pun! Ia dibangun di atas [LazyVim](https://www.lazyvim.org/), distribusi plugin dan konfigurasi Neovim. Ia luar biasa.
+Tapi Omarchy disertai dengan setup Neovim yang lengkap — paket `omarchy-nvim` — yang telah disetel dengan penuh cinta untuk menampilkan yang terbaik dari apa yang mungkin, langsung sejak pertama pakai. Tanpa kamu harus menulis satu baris konfigurasi pun! Setup ini dibangun di atas [LazyVim](https://www.lazyvim.org/), sebuah distribusi plugin dan konfigurasi Neovim. Keren sekali.
 
-## Dasar-dasar LazyVim
+## Dasar-Dasar LazyVim
 
-Seperti yang disebutkan, saya tidak akan mengajari Anda vim dalam pengantar singkat ini, tetapi saya dapat menunjukkan beberapa dasar LazyVim, dan cara berkeliling.
+Seperti yang sudah kusebutkan, aku tidak akan mengajarkan vim kepadamu dalam pengantar singkat ini, tetapi aku bisa menunjukkan beberapa dasar LazyVim, dan cara menjelajahinya.
 
-Pertama, Neovim memiliki ide tentang tombol pemimpin. Itu pada dasarnya adalah gerbang ke semua perintah. LazyVim telah mengaturnya ke `Space`. Jadi cukup tekan itu, tunggu sebentar, dan Anda akan melihat banyak opsi dijelaskan sebaris seperti ini:
+Pertama, Neovim punya konsep tombol leader. Itu pada dasarnya adalah gerbang menuju semua perintah. LazyVim telah mengaturnya ke `Space`. Jadi tekan saja tombol itu, tunggu sebentar, dan kamu akan melihat sekumpulan opsi yang dijelaskan secara inline seperti ini:
 
-Berikut adalah beberapa perintah dasar yang saya gunakan sepanjang waktu:
+Berikut beberapa perintah dasar yang selalu kupakai:
 
-- `Space Space` - Temukan secara fuzzy berkas apa pun dalam direktori saat ini.
-- `Space S G` - Cari semua berkas menggunakan grep dengan pratinjau.
-- `Space E` - Alihkan pohon berkas aktif/mati.
-- `Ctrl + W W` - Lompat dari pohon berkas ke editor dan kembali.
-- `Shift + H` - Pindah kiri di antara tab yang terbuka (vim menyebutnya buffer).
-- `Shift + L` - Pindah kanan di antara tab yang terbuka.
-- `Space B D` - Tutup tab.
-- `Space B O` - Tutup semua tab lain kecuali yang saat ini.
-- `Space G G` - Luncurkan LazyGit dalam pane melayang dari direktori saat ini.
-- `Space U W` - Alihkan bungkus lembut.
+- `Space Space` - Cari file apa pun di direktori saat ini secara fuzzy.
+- `Space S G` - Cari di semua file menggunakan grep dengan pratinjau.
+- `Space E` - Tampilkan/sembunyikan pohon file.
+- `Ctrl + W W` - Loncat dari pohon file ke editor dan kembali.
+- `Shift + H` - Pindah ke kiri antar tab yang terbuka (vim menyebutnya buffer).
+- `Shift + L` - Pindah ke kanan antar tab yang terbuka.
+- `Space B D` - Tutup sebuah tab.
+- `Space B O` - Tutup semua tab lain kecuali tab saat ini.
+- `Space G G` - Jalankan LazyGit di panel mengambang dari direktori saat ini.
+- `Space U W` - Aktifkan/nonaktifkan soft wrap.
 
-Saat Anda berada dalam pohon berkas (`Space E` untuk menampilkan, `Ctrl + W W` untuk melompat ke sana), Anda dapat menambahkan berkas baru dengan `a` atau direktori baru dengan `A`. Tekan `?` saat berada dalam pohon untuk melihat semua perintah.
+Selagi kamu berada di pohon file (`Space E` untuk menampilkannya, `Ctrl + W W` untuk loncat ke sana), kamu bisa menambahkan file baru dengan `a` atau direktori baru dengan `A`. Tekan `?` selagi berada di pohon file untuk melihat semua perintah.
 
-Jika Anda ingin mempelajari bahasa vim dasar, saya telah menulis tentang [sintaks tiga bagian](https://world.hey.com/dhh/wonderful-vi-a1d034d3) dan cara melakukan gerakan kombo yang keren itu!
+Kalau kamu ingin mempelajari bahasa dasar vim, aku sudah menulis tentang [sintaks tiga bagian](https://world.hey.com/dhh/wonderful-vi-a1d034d3) dan cara melakukan gerakan kombo keren itu!
 
-Anda dapat melihat semua perintah yang mungkin di [halaman Keymaps LazyVim](https://www.lazyvim.org/keymaps).
+Kamu bisa melihat semua perintah yang mungkin di [halaman Keymaps LazyVim](https://www.lazyvim.org/keymaps).
 
 ## Memulai Neovim
 
-Anda dapat memulai Neovim menggunakan `Super + Shift + N` (binding meluncurkan editor bawaan Anda, yang adalah Neovim langsung dari kotak), tetapi biasanya lebih mudah mengemudikannya dari terminal dengan menavigasi ke direktori yang ingin Anda kerjakan dan mengetik `n`. `n` adalah alias untuk `nvim`, yang akan menggunakan direktori saat ini untuk membuka secara bawaan. Anda dapat membuka satu berkas dengan `n myfile.txt`.
+`Super + Shift + N` menjalankan editor default-mu, yaitu Plain pada instalasi baru; pilih Neovim di _Setup > Defaults > Editor_ agar tombol itu menjalankan Neovim sebagai gantinya. Tapi biasanya lebih mudah menjalankannya dari terminal dengan berpindah ke direktori tempat kamu ingin bekerja dan mengetik `n`. `n` adalah alias untuk `nvim`, yang secara default akan menggunakan direktori saat ini untuk dibuka. Kamu bisa membuka satu file dengan `n myfile.txt`.
 
-## Menggunakan Neovim untuk edit sudo
+## Menggunakan Neovim untuk Pengeditan sudo
 
-Jika Anda perlu mengedit berkas yang hanya dapat Anda ubah sebagai pengguna super, Anda dapat menggunakan neovim dengan semua plugin Anda disiapkan dengan menjalankan `sudoedit /etc/sudoers.d/00-sudo-only-file`.
+Jika kamu perlu mengedit file yang hanya bisa kamu ubah sebagai super user, jalankan `sudoedit /etc/sudoers.d/00-sudo-only-file`. Perintah itu membuka editor default-mu, jadi atur Neovim di _Setup > Defaults > Editor_ jika kamu ingin Neovim di sana lengkap dengan semua plugin-mu.

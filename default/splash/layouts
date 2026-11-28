@@ -1,0 +1,68 @@
+#!/bin/bash
+# The keyboard the unlock prompt and the login screen type a password with, as
+# vconsole.conf lines: the XKB layouts of vconsole.conf ($1), US among them,
+# the one the prompt starts in first, and its other settings but for layout
+# shortcuts (grp:, grp_led:), as Splash.qml's keyboard button and Shift+Tab
+# switch instead. The omarchy-splash hook builds it into the image,
+# and default/splash/greeter reads it for the login screen.
+#
+# A first layout that types no Latin letters starts in US, as at every other
+# prompt (#6229), with its own a click or Shift+Tab away; any other starts in
+# its own, with US a click or Shift+Tab away.
+
+set -euo pipefail
+
+unset KEYMAP XKBLAYOUT XKBMODEL XKBVARIANT XKBOPTIONS
+[[ ! -f $1 ]] || . "$1"
+
+# A console keymap with no XKB layout, which the splash leaves to the console
+# (see session).
+if [[ -z ${XKBLAYOUT:-} ]]; then
+  [[ -z ${KEYMAP:-} ]] || echo "KEYMAP=$KEYMAP"
+  exit 0
+fi
+
+# Each layout with its variant, which pair by position.
+IFS=, read -ra layouts <<<"$XKBLAYOUT"
+IFS=, read -ra variants <<<"${XKBVARIANT:-}"
+entries=()
+for i in "${!layouts[@]}"; do
+  entries+=("${layouts[i]}:${variants[i]:-}")
+done
+
+# The list in etc/mkinitcpio.conf.d/omarchy_hooks.conf.
+case ${layouts[0]} in
+  af | am | ara | bd | bg | by | et | ge | gr | il | in | iq | ir | kg | kh | kz | la | lk | mk | mm | mn | mv | np | rs | ru | sy | th | tj | ua)
+    # The first US a password can be typed in, which a Cherokee or Russian
+    # phonetic one isn't, moves to the front, or a plain one goes there.
+    front=us:
+    for i in "${!entries[@]}"; do
+      if [[ ${entries[i]} == us:* && ${entries[i]} != us:chr && ${entries[i]} != us:rus ]]; then
+        front=${entries[i]}
+        unset 'entries[i]'
+        break
+      fi
+    done
+    entries=("$front" "${entries[@]}")
+    ;;
+  *)
+    [[ " ${entries[*]} " == *" us: "* ]] || entries+=(us:)
+    ;;
+esac
+
+layout="" variant="" options=""
+for entry in "${entries[@]}"; do
+  layout+=,${entry%%:*} variant+=,${entry#*:}
+done
+IFS=, read -ra list <<<"${XKBOPTIONS:-}"
+for option in "${list[@]}"; do
+  case $option in
+    "" | grp:* | grp_led:*) ;;
+    *) options+=,$option ;;
+  esac
+done
+
+echo "XKBLAYOUT=${layout#,}"
+[[ -z ${XKBMODEL:-} ]] || echo "XKBMODEL=$XKBMODEL"
+[[ $variant != *[!,]* ]] || echo "XKBVARIANT=${variant#,}"
+[[ -z $options ]] || echo "XKBOPTIONS=${options#,}"

@@ -149,6 +149,177 @@ assert(
   hugeFileRow.entryType === 'file' && hugeFileRow.fullText.split('\n').every(path => path.endsWith('.mp4')),
   'clipboard display rows cap a huge file list without truncating a path'
 )
+
+const imageDir = '/state/omarchy/clipboard-images'
+assertDeepEqual(
+  clipboard.removedImageEntries(
+    [
+      { type: 'image', path: `${imageDir}/kept.png`, mime: 'image/png', inode: '10' },
+      { type: 'image', path: `${imageDir}/removed.png`, mime: 'image/png', inode: '20' },
+      { type: 'image', path: `${imageDir}/legacy.png`, mime: 'image/png' },
+      { type: 'image', path: `${imageDir}/nested/ignored.png`, mime: 'image/png', inode: '30' },
+      { type: 'image', path: `${imageDir}/../escape.png`, mime: 'image/png', inode: '40' },
+      { type: 'image', path: '/home/user/Pictures/photo.png', mime: 'image/png', inode: '50' },
+      { type: 'text', text: `file://${imageDir}/text-ref.png` }
+    ],
+    [{ type: 'image', path: `${imageDir}/kept.png`, mime: 'image/png', inode: '10' }],
+    imageDir
+  ),
+  [{ path: `${imageDir}/removed.png`, inode: '20' }],
+  'clipboard removedImageEntries deletes only unreferenced direct children of clipboard-images'
+)
+
+assertDeepEqual(
+  clipboard.addEntry(
+    [{ type: 'image', path: `${imageDir}/same.png`, mime: 'image/png', inode: '200', gen: 2 }],
+    { type: 'image', path: `${imageDir}/same.png`, mime: 'image/png', inode: '100', gen: 1 },
+    10
+  ),
+  [{ type: 'image', path: `${imageDir}/same.png`, mime: 'image/png', inode: '200', gen: 2 }],
+  'clipboard addEntry keeps newer on-disk inode when duplicate image captures arrive out of order'
+)
+
+const fs = require('fs')
+const { execFileSync } = require('child_process')
+const os = require('os')
+const clipboardQml = fs.readFileSync(path.join(root, 'shell/plugins/clipboard/Clipboard.qml'), 'utf8')
+const qmlFns = [
+  clipboardQml.match(/function pruneRemovedImages\(previousHistory, nextHistory\) \{[\s\S]*?\n  \}/)[0],
+  clipboardQml.match(/function loadHistory\(raw\) \{[\s\S]*?\n  \}/)[0],
+  clipboardQml.match(/function saveHistory\(\) \{[\s\S]*?\n  \}/)[0],
+  clipboardQml.match(/function addClipboardEntry\(entry\) \{[\s\S]*?\n  \}/)[0],
+  clipboardQml.match(/function confirmClearHistory\(\) \{[\s\S]*?\n  \}/)[0]
+].join('\n')
+
+const savedWrites = []
+const removedCalls = []
+const ctx = {
+  history: [],
+  historyLoaded: false,
+  pendingEntries: [],
+  historyLimit: 2,
+  opened: false,
+  selectedIndex: 0,
+  cursorActive: true,
+  clearConfirmOpen: true,
+  imageDir,
+  ClipboardHistory: clipboard,
+  historyFile: { setText(v) { savedWrites.push(JSON.parse(v)) } },
+  Quickshell: { execDetached(argv) { removedCalls.push(argv) } },
+  Qt: { callLater() {} },
+  keyCatcher: { forceActiveFocus() {} },
+  disarmPointer() {},
+  rebuildDisplay() {}
+}
+ctx.root = ctx
+require('vm').runInNewContext(qmlFns, ctx)
+
+// Captures arriving before historyFile finishes loading must queue instead of
+// writing [] + [new] and wiping existing history on disk.
+ctx.addClipboardEntry({ type: 'text', text: 'early-copy' })
+assertEqual(savedWrites.length, 0, 'clipboard does not overwrite history before disk history loads')
+ctx.loadHistory(JSON.stringify([
+  { type: 'text', text: 'persisted' },
+  { type: 'image', path: `${imageDir}/evicted.png`, mime: 'image/png', inode: '101' }
+]))
+assertDeepEqual(
+  ctx.history.map(e => e.text || e.path),
+  ['early-copy', 'persisted'],
+  'clipboard merges pre-load captures onto loaded history without data loss'
+)
+assertEqual(savedWrites.length, 1, 'clipboard persists merged pre-load captures once history loads')
+assertDeepEqual(
+  removedCalls[0].slice(-2),
+  [`${imageDir}/evicted.png`, '101'],
+  'clipboard schedules removal of cached image files evicted by historyLimit'
+)
+
+// Run the real prune command against a real directory to prove inode matching
+// preserves a re-captured image while deleting an unchanged removed image.
+const pruneDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clipboard-prune-'))
+try {
+  const realImageDir = path.join(pruneDir, 'clipboard-images')
+  fs.mkdirSync(realImageDir, { recursive: true })
+  const shotPath = path.join(realImageDir, 'shot.png')
+  fs.writeFileSync(shotPath, 'first')
+  const firstInode = String(fs.statSync(shotPath).ino)
+
+  ctx.imageDir = realImageDir
+  ctx.addClipboardEntry({ type: 'image', path: shotPath, mime: 'image/png', inode: firstInode })
+  ctx.confirmClearHistory()
+  const stalePruneCmd = removedCalls[removedCalls.length - 1]
+
+  // Simulate a concurrent re-capture replacing the file atomically with a new inode.
+  const tmpPath = path.join(realImageDir, 'clipboard.new')
+  fs.writeFileSync(tmpPath, 'second')
+  fs.renameSync(tmpPath, shotPath)
+  const secondInode = String(fs.statSync(shotPath).ino)
+  assert(secondInode !== firstInode, 'atomic recapture allocates a new inode')
+
+  execFileSync(stalePruneCmd[0], stalePruneCmd.slice(1))
+  assert(fs.existsSync(shotPath), 'stale prune preserves a freshly re-captured image with a new inode')
+
+  ctx.addClipboardEntry({ type: 'image', path: shotPath, mime: 'image/png', inode: secondInode })
+  ctx.confirmClearHistory()
+  const currentPruneCmd = removedCalls[removedCalls.length - 1]
+  execFileSync(currentPruneCmd[0], currentPruneCmd.slice(1))
+  assert(!fs.existsSync(shotPath), 'prune deletes the cached image when its inode still matches')
+} finally {
+  fs.rmSync(pruneDir, { recursive: true, force: true })
+}
+
+const utilQml = fs.readFileSync(path.join(root, 'shell/Commons/Util.qml'), 'utf8')
+const utilCtx = { Style: { touchpadScrollFactor: 2.5 } }
+require('vm').runInNewContext([
+  utilQml.match(/function clampContentY\(flick, y\) \{[\s\S]*?\n  \}/)[0],
+  utilQml.match(/function wheelScroll\(flick, event, step\) \{[\s\S]*?\n  \}/)[0]
+].join('\n'), utilCtx)
+
+const flick = { originY: 10, height: 100, contentHeight: 260, contentY: 10 }
+const clamp = (f, y) => (utilCtx.clampContentY(f, y), f.contentY)
+const wheel = (py, ay, step = 40) => {
+  const ev = { pixelDelta: { y: py }, angleDelta: { y: ay }, accepted: false }
+  utilCtx.wheelScroll(flick, ev, step)
+  return ev.accepted
+}
+assertDeepEqual([clamp(flick, -20), clamp(flick, 95), clamp(flick, 500)], [10, 95, 170], 'Util.clampContentY clamps to [originY, originY + contentHeight - height]')
+assertEqual(clamp({ originY: 10, height: 100, contentHeight: 40, contentY: 50 }, 50), 10, 'Util.clampContentY stays at originY when content fits')
+
+flick.contentY = 10
+assert(wheel(-10, -120) && flick.contentY === 35, 'Util.wheelScroll scales touchpad pixelDelta by Style.touchpadScrollFactor')
+assert(wheel(0, -120) && flick.contentY === 75, 'Util.wheelScroll steps mouse wheel angleDelta when pixelDelta is zero')
+assert(wheel(0, -1200) && flick.contentY === 170, 'Util.wheelScroll clamps downward scroll to bottom')
+assert(wheel(0, 1200) && flick.contentY === 10, 'Util.wheelScroll clamps upward scroll to originY')
+flick.contentY = 80
+assert(wheel(0, 0) && flick.contentY === 80, 'Util.wheelScroll leaves contentY unchanged when delta is zero')
+
+const rows = [], positioned = [], deferred = []
+const scrollList = { originY: 0, height: 100, contentHeight: 0, contentY: 0, positionViewAtIndex(i, m) { positioned.push([i, m, this.contentY]) } }
+const scrollCtx = {
+  history: ['a', 'b', 'c', 'd', 'e', 'f'].map(text => ({ type: 'text', text })),
+  filterText: '', selectedIndex: 4, cursorActive: true, resultList: scrollList,
+  ClipboardHistory: clipboard, Util: utilCtx, ListView: { Contain: 1 }, Commons: { I18n: {} },
+  Qt: { callLater(fn) { deferred.push(fn) } }, pruneRemovedImages() {}, saveHistory() {}, disarmPointer() {},
+  displayModel: {
+    get count() { return rows.length }, get(i) { return rows[i] },
+    clear() { rows.length = 0; scrollList.contentY = scrollList.contentHeight = 0 },
+    append(r) { rows.push(r); scrollList.contentHeight = rows.length * 50 }
+  }
+}
+scrollCtx.root = scrollCtx
+require('vm').runInNewContext([
+  clipboardQml.match(/function removeDisplayIndex\(index\) \{[\s\S]*?\n  \}/)[0],
+  clipboardQml.match(/function rebuildDisplay\(preserveScroll\) \{[\s\S]*?\n  \}/)[0]
+].join('\n'), scrollCtx)
+const flush = () => { positioned.length = 0; deferred.splice(0).forEach(fn => fn()) }
+scrollCtx.rebuildDisplay(); flush()
+scrollList.contentY = 180; scrollCtx.removeDisplayIndex(4); flush()
+assertDeepEqual(positioned, [[4, 1, 150]], 'clipboard removeDisplayIndex preserves and clamps scroll before positioning selection')
+scrollList.contentY = 120; scrollCtx.rebuildDisplay(); flush()
+assertDeepEqual(positioned, [[4, 1, 0]], 'clipboard rebuildDisplay without preserveScroll does not restore prior scroll')
+scrollCtx.history = [{ type: 'text', text: 'last' }]; scrollCtx.rebuildDisplay(); flush()
+scrollCtx.removeDisplayIndex(0); flush()
+assert(rows.length === 0 && !scrollCtx.cursorActive && positioned.length === 0, 'clipboard removeDisplayIndex skips positioning on empty list')
 JS
 
 TMPDIR=$(mktemp -d)
@@ -366,6 +537,14 @@ image_path=$(jq -r '.path' <<<"$capture_output")
 jq -e '.mime == "image/jpeg"' <<<"$capture_output" >/dev/null && [[ $image_path == *.jpg ]] || fail "clipboard capture stores watched jpeg images with jpg extension"
 pass "clipboard capture stores watched jpeg images with jpg extension"
 
+image_dir_mode=$(stat -c '%a' "$TMPDIR/state/omarchy/clipboard-images")
+[[ $image_dir_mode == "700" ]] || fail "clipboard image directory is owner-only" "actual: $image_dir_mode"
+pass "clipboard image directory is owner-only"
+
+capture_output=$(printf 'escape-data' | XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" 'image/../../escape')
+[[ -z $capture_output && ! -e "$TMPDIR/state/omarchy/escape" ]] || fail "clipboard capture rejects path traversal in image mime subtype" "actual: $capture_output"
+pass "clipboard capture rejects path traversal in image mime subtype"
+
 capture_output=$(printf 'secret' | CLIPBOARD_STATE=sensitive XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text)
 [[ -z $capture_output ]] || fail "clipboard capture ignores sensitive watched text"
 pass "clipboard capture ignores sensitive watched text"
@@ -433,3 +612,86 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/omasnap") == "--notify $TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
+
+# History reads happen in a single jq call so a concurrent copy shifting array
+# indices between two reads cannot cause the wrong entry to be pasted or opened.
+cat >"$TMPDIR/bin/jq" <<'SH'
+#!/bin/bash
+/usr/bin/jq "$@"
+status=$?
+if [[ -n ${JQ_SHIFT_HISTORY:-} && -f $JQ_SHIFT_HISTORY ]]; then
+  printf '[{"type":"text","text":"shifted-wrong-entry"}]\n' >"$JQ_SHIFT_HISTORY"
+fi
+exit "$status"
+SH
+chmod +x "$TMPDIR/bin/jq"
+
+printf '[{"type":"text","text":"original-entry"}]\n' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+JQ_SHIFT_HISTORY="$TMPDIR/home/.local/state/omarchy/clipboard-history.json" \
+  WL_COPY_OUT="$TMPDIR/copied" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --history-index 0
+[[ $(<"$TMPDIR/copied") == "original-entry" ]] ||
+  fail "clipboard paste reads and validates history entry in a single jq call" "$(<"$TMPDIR/copied")"
+
+printf '[{"type":"text","text":"https://example.com/original"}]\n' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+rm -f "$TMPDIR/browser"
+JQ_SHIFT_HISTORY="$TMPDIR/home/.local/state/omarchy/clipboard-history.json" \
+  BROWSER_OUT="$TMPDIR/browser" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-open" --history-index 0
+[[ $(<"$TMPDIR/browser") == "https://example.com/original" ]] ||
+  fail "clipboard open reads and validates history entry in a single jq call" "$(<"$TMPDIR/browser")"
+rm -f "$TMPDIR/bin/jq"
+pass "clipboard history helpers read entries atomically in one jq call"
+
+# Embedded NUL bytes in saved history text must survive extraction into wl-copy.
+printf '[{"type":"text","text":"foo\\u0000bar\\u0000"}]\n' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+WL_COPY_OUT="$TMPDIR/copied-nul" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --history-index 0
+[[ $(od -An -tx1 "$TMPDIR/copied-nul" | tr -d ' \n') == "666f6f0062617200" ]] ||
+  fail "clipboard paste preserves embedded NUL bytes from history entries" "$(od -An -tx1 "$TMPDIR/copied-nul")"
+pass "clipboard paste preserves embedded NUL bytes from history entries"
+
+sweep_dir="$TMPDIR/sweep-images"
+sweep_hist="$TMPDIR/sweep-history.json"
+mkdir -p "$sweep_dir"
+printf 'orphan' >"$sweep_dir/orphan.png"
+printf 'kept' >"$sweep_dir/kept.png"
+printf 'kept-kind' >"$sweep_dir/kept-kind.png"
+printf 'recent' >"$sweep_dir/recent.png"
+printf 'inflight' >"$sweep_dir/clipboard.abc123"
+printf '5\n' >"$sweep_dir/.gen"
+printf 'outside' >"$TMPDIR/outside.png"
+ln -s "$TMPDIR/outside.png" "$sweep_dir/escape.png"
+touch -d '2 minutes ago' "$sweep_dir/orphan.png" "$sweep_dir/kept.png" "$sweep_dir/kept-kind.png" "$sweep_dir/clipboard.abc123" "$sweep_dir/.gen" "$TMPDIR/outside.png"
+touch -h -d '2 minutes ago' "$sweep_dir/escape.png"
+
+# Missing or malformed history fails safe and deletes nothing.
+"$ROOT/shell/plugins/clipboard/sweep.sh" "$TMPDIR/missing-history.json" "$sweep_dir"
+[[ -f $sweep_dir/orphan.png ]] || fail "clipboard orphan sweep leaves images alone when history is missing"
+printf 'not json {{{' >"$sweep_hist"
+"$ROOT/shell/plugins/clipboard/sweep.sh" "$sweep_hist" "$sweep_dir"
+[[ -f $sweep_dir/orphan.png ]] || fail "clipboard orphan sweep leaves images alone when history is malformed"
+printf '{"not":"an-array"}' >"$sweep_hist"
+"$ROOT/shell/plugins/clipboard/sweep.sh" "$sweep_hist" "$sweep_dir"
+[[ -f $sweep_dir/orphan.png ]] || fail "clipboard orphan sweep leaves images alone when history is not an array"
+pass "clipboard orphan sweep fails safe on missing or malformed history"
+
+# Valid history removes only old unreferenced regular files.
+jq -n --arg path "$sweep_dir/kept.png" --arg kind_path "$sweep_dir/kept-kind.png" \
+  '[{type:"image", mime:"image/png", path:$path}, {kind:"image", path:$kind_path}]' >"$sweep_hist"
+"$ROOT/shell/plugins/clipboard/sweep.sh" "$sweep_hist" "$sweep_dir"
+[[ ! -e $sweep_dir/orphan.png ]] || fail "clipboard orphan sweep removes unreferenced old images"
+[[ $(<"$sweep_dir/kept.png") == "kept" ]] || fail "clipboard orphan sweep keeps referenced images"
+[[ $(<"$sweep_dir/kept-kind.png") == "kept-kind" ]] || fail "clipboard orphan sweep keeps legacy kind:image referenced images"
+[[ $(<"$sweep_dir/recent.png") == "recent" ]] || fail "clipboard orphan sweep keeps recent unreferenced images"
+[[ $(<"$sweep_dir/clipboard.abc123") == "inflight" ]] || fail "clipboard orphan sweep skips in-flight temp files"
+[[ $(<"$sweep_dir/.gen") == "5" ]] || fail "clipboard orphan sweep skips dotfiles"
+[[ -L $sweep_dir/escape.png && $(<"$TMPDIR/outside.png") == "outside" ]] || fail "clipboard orphan sweep skips symlinks and outside targets"
+pass "clipboard orphan sweep removes only old unreferenced images"
+
+# Cleared history ([]) sweeps remaining aged legacy images.
+printf '[]\n' >"$sweep_hist"
+"$ROOT/shell/plugins/clipboard/sweep.sh" "$sweep_hist" "$sweep_dir"
+[[ ! -e $sweep_dir/kept.png && ! -e $sweep_dir/kept-kind.png ]] || fail "clipboard orphan sweep removes aged images after history is cleared"
+[[ $(<"$sweep_dir/recent.png") == "recent" ]] || fail "clipboard orphan sweep still preserves recent images on empty history"
+pass "clipboard orphan sweep cleans aged images when history is empty"

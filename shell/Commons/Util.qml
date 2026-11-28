@@ -39,6 +39,17 @@ QtObject {
     return { steps: steps, remainder: total - steps * 120 }
   }
 
+  function clampContentY(flick, y) {
+    var bottom = flick.originY + Math.max(0, flick.contentHeight - flick.height)
+    flick.contentY = Math.max(flick.originY, Math.min(bottom, y))
+  }
+
+  function wheelScroll(flick, event, step) {
+    var delta = event.pixelDelta.y * Style.touchpadScrollFactor || event.angleDelta.y / 120 * step
+    clampContentY(flick, flick.contentY - delta)
+    event.accepted = true
+  }
+
   // Compose a base color with an opacity. Accepts a color object or a hex
   // string; null/undefined yields transparent black at the requested alpha.
   function alpha(c, opacity) {
@@ -46,6 +57,17 @@ QtObject {
     if (!c) return Qt.rgba(0, 0, 0, a)
     if (typeof c === "string") c = Qt.color(c)
     return Qt.rgba(c.r, c.g, c.b, a)
+  }
+
+  // Relative luminance (WCAG) of a Qt color, in 0..1.
+  function luminance(color) {
+    if (!color) return 0
+    function channel(value) {
+      var c = Number(value)
+      if (!isFinite(c)) return 0
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+    }
+    return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b)
   }
 
   // file:// URL with each path segment percent-encoded so spaces and
@@ -66,16 +88,18 @@ QtObject {
   }
 
   function execDetached(command) {
-    Quickshell.execDetached(["bash", "-lc", command])
+    Quickshell.execDetached(["env", "-u", "MALLOC_CONF", "bash", "-lc", command])
   }
 
   // Run an argv vector without a shell interpreting it: the constant `exec "$@"`
   // means the args only ever land in positional parameters, which bash expands
   // without re-tokenizing — so untrusted data ($(id), a filename) stays literal.
   // The login shell (-l) keeps the PATH/session env GUI targets (omasnap, omaview,
-  // xdg-open) need. Prefer this over execDetached for anything built from input.
+  // xdg-open) need. Scrub MALLOC_CONF so Quickshell's jemalloc arena/THP cap
+  // does not propagate into launched apps. Prefer this over execDetached for
+  // anything built from input.
   function execArgv(argv) {
-    Quickshell.execDetached(["bash", "-lc", 'exec "$@"', "bash"].concat(argv))
+    Quickshell.execDetached(["env", "-u", "MALLOC_CONF", "bash", "-lc", 'exec "$@"', "bash"].concat(argv))
   }
 
   function isPlainObject(value) {

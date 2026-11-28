@@ -36,11 +36,15 @@ source = source.replace(/\bNetworking\./g, 'NetworkMock.')
 source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
       property alias testButton: portalAction
       property alias testTitle: heroSsid
+      property alias testBandRow: bandRow
+      property alias testNetworkList: networkList
 `)
 source = source.replace('  id: root', `  id: root
   function testEnsureContent() { return panel.ensureContent() }
   readonly property Item testContent: panel.loadedContent
   readonly property Item testButton: panel.loadedContent ? panel.loadedContent.testButton : null
+  readonly property Item testBandRow: panel.loadedContent ? panel.loadedContent.testBandRow : null
+  readonly property Item testNetworkList: panel.loadedContent ? panel.loadedContent.testNetworkList : null
   readonly property Item testKeys: panel.loadedContent
   readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
   readonly property Item testTitle: panel.loadedContent ? panel.loadedContent.testTitle : null
@@ -59,6 +63,8 @@ JS
   # Normal assertions keep the details empty to exercise missing-route handling.
   printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type\\twifi\\niface\\ttest-wifi\\nssid\\tGuest Wi-Fi\\nip\\t192.0.2.10\\ngateway\\t192.0.2.1\\n"\nfi\n' >"$stage/bin/omarchy-network-status"
   chmod +x "$stage/bin/omarchy-network-status"
+  printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> "$NETWORK_TEST_WIFI_LOG"\n' >"$stage/bin/omarchy-network-wifi"
+  chmod +x "$stage/bin/omarchy-network-wifi"
   printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_BROWSER_LOG"\n' >"$stage/bin/omarchy-network-captive-portal"
   chmod +x "$stage/bin/omarchy-network-captive-portal"
 }
@@ -68,6 +74,7 @@ run_panel() {
   local output
   output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
     NETWORK_TEST_BROWSER_LOG="$stage/browser.log" NETWORK_TEST_NMCLI_LOG="$stage/nmcli.log" \
+    NETWORK_TEST_WIFI_LOG="$stage/wifi.log" \
     timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "$1 fixture exits cleanly" "$output"
   [[ $output == *"RESULT pass"* ]] || fail "$1 runtime assertions pass" "$output"
   if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
@@ -103,4 +110,12 @@ pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use ac
 
 stage_panel live-rows
 run_panel "network live rows"
+grep -qx "connect --interface test-wifi -- Guest" "$stage/wifi.log" ||
+  fail "network panel routes direct connect through omarchy-network-wifi" "$(cat "$stage/wifi.log")"
+grep -qx "disconnect -- test-wifi" "$stage/wifi.log" ||
+  fail "network panel routes disconnect through omarchy-network-wifi" "$(cat "$stage/wifi.log")"
+grep -qx "connect --interface test-wifi -- Cafe" "$stage/wifi.log" ||
+  fail "network panel routes second connect through omarchy-network-wifi" "$(cat "$stage/wifi.log")"
+grep -q "Home" "$stage/wifi.log" &&
+  fail "network panel does not spawn omarchy-network-wifi for an already-connected SSID" "$(cat "$stage/wifi.log")"
 pass "network rows follow connects, drops, saves and forgets made outside the panel, with the cursor on its network"

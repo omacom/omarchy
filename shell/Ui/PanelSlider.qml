@@ -147,7 +147,13 @@ Item {
       root.released(root.liveValue)
       root.liveValue = root.value
     }
+    onCanceled: {
+      if (!root.dragging) return
+      root.dragging = false
+      root.liveValue = root.value
+    }
     onWheel: function(wheel) {
+      if (wheel.angleDelta.y === 0) return
       var delta = wheel.angleDelta.y > 0 ? root.step : -root.step
       var next = Math.max(root.minimum, Math.min(root.maximum, root.liveValue + delta))
       if (root.integer) next = Math.round(next)

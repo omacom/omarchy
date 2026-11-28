@@ -1,57 +1,61 @@
-# Atkeliavus iš „Mac“ ar „Windows“
+# Perėjus iš Mac ar Windows
 
-Jei metų metus naudojote macOS arba Windows, jūsų pirštai žino šimtą dalykų, kuriuos jūsų smegenys jau pamiršo kada nors išmokusios. Šis skyrius yra vertimo sluoksnis: kur tie įpročiai atsiduria Omarchy. Pačios funkcijos išsamiai aprašytos kitur — čia tik žemėlapis.
+Jei metų metus praleidai su macOS ar Windows, tavo pirštai žino šimtą dalykų, kurių smegenys jau pamiršo, kad kada nors išmoko. Šis skyrius yra vertimo sluoksnis: kur tie instinktai atsiduria Omarchy. Pačios funkcijos išsamiai aprašytos kitur — čia tik žemėlapis.
 
-### Super yra viso ko centras
+### Super yra visko centras
 
-Visa raumenų atmintis, susikaupusi aplink Cmd arba Windows klavišą, persikelia į vieną klavišą: Super. Tai Windows klavišas PC klaviatūroje, ir jis yra beveik kiekvieno sparčiojo klavišo Omarchy pagrindas.
+Visa raumenų atmintis, kurią susikūrei aplink Cmd ar Windows klavišą, perkeliama į vieną klavišą: Super. Tai Windows klavišas PC klaviatūroje, ir jis yra beveik visų Omarchy sparčiųjų klavišų pagrindas.
 
-Jūsų Spotlight, Raycast ar Pradžios meniu refleksas tampa `Super + Space`. Tai atidaro Omarchy meniu, kuris paleidžia programas, keičia nustatymus, diegia programinę įrangą, daro ekrano nuotraukas — praktiškai viską. Pradėkite rašyti, kad filtruotumėte. `Super + Alt + Space` rodo visas programas viename tinklelyje, kaip tai daro Launchpad. Žr. [navigacija](04-navigation.md).
+Tavo Spotlight, Raycast ar Start meniu refleksas tampa `Super + Space`. Tai atidaro Omarchy meniu, kuris paleidžia programas, keičia nustatymus, diegia programinę įrangą, daro ekrano kopijas — beveik viską. Pradėk rašyti, kad filtruotum. `Super + Alt + Space` rodo visas programas viename tinklelyje, kaip tai daro Launchpad. Žr. [navigaciją](04-navigation.md).
 
-### Nėra nei doko, nei darbalaukio piktogramų
+### Jokių darbalaukio piktogramų, o dokas nesimaišo
 
-Nieko, ką spustelėjus būtų galima paleisti programas, jokių piktogramų, kurias reikėtų dėlioti darbalaukyje. Programos paleidžiamos sparčiuoju klavišu (`Super + Return` — terminalas, `Super + Shift + Return` — naršyklė, o `Super + K` — visko, kas priskirta, sąrašas) arba iš meniu. Vienintelis nuolatinis sąsajos elementas yra [viršutinė juosta](05-the-top-bar.md), kuri atlieka tai, ką anksčiau jums darė meniu juosta, sistemos dėklas ir Notification Center — ir beveik kiekvienas jos valdiklis ką nors daro spustelėjus kairiuoju, dešiniuoju ir viduriniu pelės mygtuku.
+Nėra piktogramų, kurias reikėtų dėlioti darbalaukyje, o dokas pasislepia, kai tik darbo srityje atsiranda langas, kol nustumi žymeklį prie jo ekrano krašto — apatinio, nebent jį perkeltum (žr. [navigaciją](04-navigation.md)). Programos paleidžiamos sparčiuoju klavišu (`Super + Return` terminalui, `Super + Shift + Return` naršyklei ir `Super + K` visko, kas priskirta, sąrašui) arba iš meniu. Vienintelis nuolatinis sąsajos elementas yra [viršutinė juosta](05-the-top-bar.md), kuri apima tai, ką anksčiau tau darė meniu juosta, sistemos dėklas ir Notification Center — ir beveik kiekvienas jos valdiklis kažką daro paspaudus kairįjį, dešinįjį ir vidurinį mygtuką.
 
 ### Langai išsidėsto patys
 
-Didžiausias mąstymo pokytis: jūs netampote langų ir neprilipdote jų prie ekrano pusių. Atidarote langą ir jis užima visą ekraną. Atidarote antrą ir jie pasidalija ekraną. Niekada nereikia iš po kito ištraukti lango, nes langai nesidengia.
+Didžiausias mąstymo pokytis: nereikia tempti langų ar pritraukti jų prie ekrano pusių. Atidarai langą ir jis užima visą ekraną. Atidarai antrą ir jie pasidalija ekraną. Niekada nereikia žvejoti lango iš po kito, nes langai nesidengia.
 
-Kai jums tikrai reikia plūduriuojančio lango, `Super + T` iškelia aktyvų langą iš plytelių išdėstymo (ir grąžina atgal). Bet pirmiausia duokite plytelių išdėstymui realią progą — tai visos sistemos širdis. [Navigacija](04-navigation.md) jus per tai praves.
+Kai tikrai reikia plaukiojančio lango, `Super + T` iškelia aktyvųjį iš plytelių išdėstymo (ir grąžina atgal). Bet pirmiausia duok plytelių išdėstymui tikrą šansą — tai yra visko esmė. [Navigacija](04-navigation.md) viską paaiškina.
 
-Darbo sritys atrodys pažįstamos: tai macOS Spaces arba Windows virtualūs darbalaukiai, tik čia jūs jas iš tiesų naudosite, nes `Super + 1/2/3/4` iškart peršoka į norimą, o `Super + Shift + 1/2/3/4` ten nusiunčia aktyvų langą. Jokio animacijos vėlavimo, tik momentiniai peršokimai. Tai reiškia, kad jums gali net nebereikėti kelių monitorių, jei anksčiau buvote prie to pripratę.
+Darbo sritys atrodys pažįstamos: tai macOS Spaces arba Windows virtualūs darbalaukiai, tik tu tikrai jomis naudosis, nes `Super + 1/2/3/4` iškart peršoka į vieną, o `Super + Shift + 1/2/3/4` ten nusiunčia aktyvų langą. Jokio animacijos vėlavimo, tik momentiniai šuoliai. Tai reiškia, kad tau galbūt net nereikės kelių monitorių, jei buvai prie to pripratęs anksčiau.
 
 ### Kopijavimas ir įklijavimas tiesiog veikia
 
-„Mac“ kompiuteryje visur turėjote Cmd + C. Windows kompiuteryje visur turėjote Ctrl + C — išskyrus terminalą, kur tai nužudo jūsų programą. Omarchy jums duoda `Super + C`, `Super + X` ir `Super + V`, ir jie veikia visur, įskaitant terminalą. Nereikia mokytis atskiro reflekso apvalkalui.
+Mac kompiuteryje visur turėjai Cmd + C. Windows kompiuteryje visur turėjai Ctrl + C — išskyrus terminalą, kur tai užmuša tavo programą. Omarchy duoda tau `Super + C`, `Super + X` ir `Super + V`, ir jie veikia visur, įskaitant terminalą. Nereikia mokytis atskiro reflekso apvalkalui.
 
-Windows žmonėms: jūsų Win + V mainų srities istorija gyvena ant `Super + Ctrl + V` ir saugo ne tik tekstą, bet ir vaizdus. Žr. [vieninga mainų sritis ir istorija](08-unified-clipboard-history.md).
+Windows žmonės: tavo Win + V iškarpinės istorija gyvena ant `Super + Ctrl + V`, ir joje laikomi ir vaizdai, ir tekstas. Žr. [vieningą iškarpinę ir istoriją](08-unified-clipboard-history.md).
 
 ### Vertimo lentelė
 
-| Ko ieškote | Omarchy sistemoje |
+| Ko ieškai | Omarchy sistemoje |
 | ------------- | ---------- |
-| Spotlight / Raycast / Pradžios meniu | `Super + Space` — Omarchy meniu |
-| AirDrop | LocalSend, per `Super + Ctrl + S` — žr. [grafinės sąsajos](22-guis.md) |
-| Cmd + Shift + 4 / Win + Shift + S | `Super + Ctrl + Alt + C` arba `Print Screen` — žr. [ekrano nuotraukos ir įrašymas](12-screenshots-recording.md) |
+| Spotlight / Raycast / Start meniu | `Super + Space` — Omarchy meniu |
+| AirDrop | LocalSend, per `Super + Ctrl + S` — žr. [GUI](22-guis.md) |
+| Cmd + Shift + 4 / Win + Shift + S | `Super + Ctrl + Alt + C` arba `Print Screen` — žr. [ekrano kopijas ir įrašymą](12-screenshots-recording.md) |
 | Notification Center | Pranešimų istorija ant `Super + Shift + Alt + ,` |
-| Time Machine (sistemai) | Automatinės [sistemos momentinės kopijos](47-system-snapshots.md) kiekvieno atnaujinimo metu |
-| App Store / diegimo programos atsisiuntimas | _Install_ meniu arba `omarchy pkg add` — žr. [kiti paketai](29-other-packages.md) |
+| Time Machine (sistemai) | Automatinės [sistemos momentinės kopijos](47-system-snapshots.md) su kiekvienu atnaujinimu |
+| App Store / diegimo programos atsisiuntimas | _Install_ meniu arba `omarchy pkg add` — žr. [kitus paketus](29-other-packages.md) |
 | System Settings / Control Panel | _Setup_ meniu, kuris redaguoja paprastus konfigūracijos failus — žr. [dotfiles](31-dotfiles.md) |
+| Finder / File Explorer | Files, ant `Super + Shift + F` — žr. [GUI](22-guis.md) |
+| Safari / Edge | Google Chrome ant `Super + Shift + Return`; pasirink kitą skiltyje _Setup > Defaults > Browser_ — žr. [naršykles](23-browsers.md) |
+| Preview / Photos | Omaview paveikslėliams, vaizdo įrašams ir muzikai, Document Viewer PDF failams — žr. [GUI](22-guis.md) |
+| TextEdit / Notepad | Plain, ant `Super + Shift + N`; pasirink kitą skiltyje _Setup > Defaults > Editor_ |
 
-### Kai kurie dalykai iš tiesų kitokie
+### Kai kurie dalykai tikrai kitokie
 
-Daug nustatymų gyvena tekstiniuose failuose, kuriuos redaguojate, o ne skydeliuose, kuriuos spustelėjate. Tai skamba primityviai, kol nesuprantate, kad tai reiškia, jog kiekvieną pakeitimą galima pamatyti, nukopijuoti į kitą savo kompiuterį ir laikyti versijų valdyme. _Setup_ meniu jus iškart nukelia prie tinkamo failo ir, kai baigiate, iš naujo paleidžia viską, ką reikia paleisti iš naujo.
+Daug nustatymų gyvena tekstiniuose failuose, kuriuos redaguoji, o ne skydeliuose, kuriuos spaudinėji. Tai skamba primityviai, kol nesupranti, kad tai reiškia, jog kiekvieną pakeitimą galima pamatyti, nukopijuoti į kitą savo kompiuterį ir laikyti versijų valdyme. _Setup_ meniu iškart nuveda tave į reikiamą failą ir, kai baigi, iš naujo paleidžia tai, ką reikia paleisti iš naujo.
 
-Atnaujinimai ateina per vieną komandą — _Update > Omarchy_ — kuri atnaujina pačią Omarchy ir kiekvieną sistemos paketą, prieš tai padarydama momentinę kopiją. Jokių atskirų programų naujintojų, erzinančių jus atsitiktiniais momentais. Žr. [atnaujinimai](30-updates.md).
+Atnaujinimai ateina per vieną komandą — _Update > Omarchy_ — kuri atnaujina pačią Omarchy ir kiekvieną sistemos paketą, prieš tai padarydama momentinę kopiją. Jokių atskirų programų atnaujintojų, kurie erzintų atsitiktiniais momentais. Žr. [atnaujinimus](30-updates.md).
 
 Programinė įranga ateina iš paketų tvarkyklės, o ne iš atsisiųstų diegimo programų.
 
-Ir kai uždarote langą, programa iš tiesų išsijungia. Nėra jokio macOS limbo, kur programa toliau veikia be langų. `Super + W` — arba `Super + Q`, jei atėjote su tokia pirštų atmintimi — reiškia dingo.
+Ir kai uždarai langą, programa tikrai išsijungia. Nėra macOS limbo, kur programa toliau veikia be langų. `Super + W` — arba `Super + Q`, jei atėjai su ta pirštų atmintimi — reiškia dingo.
 
-### „Mac“ aparatinėje įrangoje
+### Mac aparatinė įranga
 
-Omarchy gerai veikia Intel Mac kompiuteriuose — žr. [Mac palaikymas](44-mac-support.md). Ir klaviatūra jums palanki: Omarchy nieko neperpriskiria, o Linux Command klavišą laiko Super, taigi Super yra būtent ten, kur visada buvo Cmd. Jūsų nykštys persikėlimo net nepastebės.
+Omarchy gerai veikia Intel Mac kompiuteriuose ir M1, M2 bei M3 Mac kompiuteriuose su Omarchy for Apple Silicon. Žr. [Mac palaikymą](44-mac-support.md). Ir klaviatūra tau palanki: Omarchy nieko neperpriskiria, o Linux laiko Command klavišą Super klavišu, todėl Super yra tiksliai ten, kur visada buvo Cmd. Tavo nykštys persikėlimo nepastebės.
 
-### Duokite tam dvi savaites
+### Duok tam dvi savaites
 
-Įpročiai persikelia greičiau, nei manote. Kartą peržvelkite [sparčiųjų klavišų](07-hotkeys.md) skyrių, o kai užmiršite priskyrimą, spauskite `Super + K` — jis jums parodys juos visus. Tai vienintelis spartusis klavišas, kurį iš tiesų turite įsiminti.
+Instinktai persikelia greičiau, nei manai. Kartą peržvelk [sparčiųjų klavišų](07-hotkeys.md) skyrių, o kai tik užmiršti priskyrimą, spausk `Super + K` — jis parodo juos visus. Tai vienintelis spartusis klavišas, kurį tikrai turi įsiminti.

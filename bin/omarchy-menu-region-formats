@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:summary=Pick how dates, times, numbers and units are written
+# omarchy:group=menu
+# omarchy:name=region
+
+set -euo pipefail
+
+current=$(omarchy-region-formats)
+icon=󰃰
+
+# Each row shows a sample, so the choice is made by what it looks like.
+mark() {
+  if [[ $1 == "$current" ]]; then
+    echo "✓"
+  else
+    echo "$icon"
+  fi
+}
+
+same_label=$(omarchy-i18n region.sameAsLanguage)
+same_sample=$(jq -r --arg locale "$(omarchy-language locale)" '.[$locale] // empty' "$OMARCHY_PATH/default/i18n/format-samples.json")
+
+rows=("$(mark default)"$'\t'"$same_label"$'\t'"$same_sample")
+declare -A codes
+while IFS=$'\t' read -r code name sample; do
+  rows+=("$(mark "$code")"$'\t'"$name"$'\t'"$sample")
+  codes["$name"$'\t'"$sample"]=$code
+done < <(omarchy-region-formats list)
+
+selection=$(printf '%s\n' "${rows[@]}" | omarchy-menu-select "$(omarchy-i18n region.formatsTitle)" -- --width 520 --maxheight 520) || exit 0
+
+if [[ ${selection%%$'\t'*} == "$same_label" ]]; then
+  omarchy-region-formats default
+elif [[ -n ${codes[$selection]:-} ]]; then
+  omarchy-region-formats "${codes[$selection]}"
+fi

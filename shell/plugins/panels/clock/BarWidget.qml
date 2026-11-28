@@ -1,6 +1,4 @@
 import QtQuick
-import Quickshell
-import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
@@ -38,6 +36,16 @@ BarWidget {
   function refresh() {
     displayDate = new Date()
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
+  }
+
+  // The timer stops during suspend, so after a wake the label kept the time
+  // from before it for up to a minute. Resyncing re-reads the time and arms
+  // its next tick from now, and onDateChanged below puts the result on the
+  // label. Unlike refresh() this leaves a month the user is browsing in the
+  // calendar where it is.
+  function resync() {
+    clock.resync()
+    if (panelLoader.item && panelLoader.item.resync) panelLoader.item.resync()
   }
 
   function cycleFormat() {
@@ -142,6 +150,7 @@ BarWidget {
     target: "omarchy.clock"
 
     function refresh(): void { root.broadcast("refresh") }
+    function resync(): void { root.broadcast("resync") }
     function cycleFormat(): void { root.cycleFormat() }
     function toggleWeekStart(): void { root.toggleWeekStart() }
     function open(): void { root.open() }

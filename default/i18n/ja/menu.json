@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -224,12 +212,6 @@
   "appearance.dock": {
     "label": "ドック"
   },
-  "appearance.dock.autohide": {
-    "label": "ドックを自動で隠す"
-  },
-  "appearance.dock.always-on": {
-    "label": "ドックを常に表示"
-  },
   "appearance.dock.position": {
     "label": "ドックの位置"
   },
@@ -257,9 +239,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "フロート型"
-  },
-  "appearance.unlock": {
-    "label": "ロック画面"
   },
   "trigger.toggle": {
     "label": "切り替え"
@@ -389,54 +368,6 @@
   },
   "setup.default": {
     "label": "既定アプリ"
-  },
-  "agent": {
-    "label": "エージェント"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "ブラウザ",
@@ -718,33 +649,6 @@
   "install.terminal.kitty": {
     "label": "Kitty"
   },
-  "install.ai.chatgpt": {
-    "label": "ChatGPT Desktop"
-  },
-  "install.ai.claude": {
-    "label": "Claude Desktop"
-  },
-  "install.ai.grok-bot": {
-    "label": "Grok Bot"
-  },
-  "install.ai.hermes": {
-    "label": "Hermes Desktop"
-  },
-  "install.ai.lm-studio": {
-    "label": "LM Studio"
-  },
-  "install.ai.ollama": {
-    "label": "Ollama"
-  },
-  "install.ai.openclaw": {
-    "label": "OpenClaw"
-  },
-  "install.ai.perplexity": {
-    "label": "Perplexity"
-  },
-  "install.ai.t3-code": {
-    "label": "T3 Code"
-  },
   "install.gaming.steam": {
     "label": "Steam"
   },
@@ -898,9 +802,6 @@
   "remove.security.sudoless-docker": {
     "label": "sudoなしDocker"
   },
-  "remove.ai.hermes": {
-    "label": "Hermes Desktop"
-  },
   "remove.browser.chrome": {
     "label": "Chrome"
   },
@@ -931,35 +832,11 @@
   "remove.service.ssh-agent": {
     "label": "SSH Agent"
   },
-  "remove.ai.chatgpt": {
-    "label": "ChatGPT Desktop"
-  },
-  "remove.ai.claude": {
-    "label": "Claude Desktop"
-  },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
   },
   "remove.dictation.voxtype": {
     "label": "Voxtype"
-  },
-  "remove.ai.grok-bot": {
-    "label": "Grok Bot"
-  },
-  "remove.ai.lm-studio": {
-    "label": "LM Studio"
-  },
-  "remove.ai.ollama": {
-    "label": "Ollama"
-  },
-  "remove.ai.openclaw": {
-    "label": "OpenClaw"
-  },
-  "remove.ai.perplexity": {
-    "label": "Perplexity"
-  },
-  "remove.ai.t3-code": {
-    "label": "T3 Code"
   },
   "remove.gaming.steam": {
     "label": "Steam"
@@ -1108,9 +985,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1128,12 +1002,6 @@
   },
   "update.hardware.trackpad": {
     "label": "トラックパッド"
-  },
-  "update.password.drive": {
-    "label": "ドライブ暗号化"
-  },
-  "update.password.user": {
-    "label": "ユーザー"
   },
   "appearance.windows.gaps-on": {
     "label": "ウィンドウ間隔 オン"
@@ -1193,7 +1061,7 @@
     "label": "ノートPC画面 オフ"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "ディスプレイミラーリング オン"
+    "label": "ミラーリング表示をオン"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "バッテリー % を表示"
@@ -1205,13 +1073,15 @@
     "label": "ウィンドウ"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "ミラーリングをオフ"
+    "label": "ミラーリング表示をオフ"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "ハイブリッドGPUに切替"
+    "label": "dGPUに切り替え",
+    "description": "ハイブリッド専用GPUを有効化"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "内蔵GPUに切替"
+    "label": "iGPUに切り替え",
+    "description": "内蔵GPUのみ使用"
   },
   "trigger.hardware.touchpad-on": {
     "label": "タッチパッドを有効化"
@@ -1224,33 +1094,6 @@
   },
   "trigger.hardware.touchscreen-off": {
     "label": "タッチスクリーンを無効化"
-  },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
   },
   "setup.git": {
     "label": "Git"
@@ -1279,15 +1122,6 @@
   "setup.keyboard.input-methods": {
     "label": "入力メソッド"
   },
-  "install.ai.herdr": {
-    "label": "Herdr Desktop"
-  },
-  "install.ai.amp": {
-    "label": "Amp Desktop"
-  },
-  "remove.ai.amp": {
-    "label": "Amp Desktop"
-  },
   "install.service.notion": {
     "label": "Notion"
   },
@@ -1299,25 +1133,6 @@
   },
   "setup.default.editor.plain": {
     "label": "プレーン"
-  },
-  "agent.harness": {
-    "label": "ハーネス",
-    "title": "デフォルトのハーネス"
-  },
-  "agent.instructions": {
-    "label": "指示"
-  },
-  "agent.make": {
-    "label": "何か作る"
-  },
-  "agent.make.theme": {
-    "label": "テーマを作る"
-  },
-  "agent.make.plugin": {
-    "label": "プラグインを作る"
-  },
-  "agent.make.app": {
-    "label": "アプリを作る"
   },
   "install.browser.chromium": {
     "label": "Chromium"
@@ -1357,7 +1172,292 @@
   "update.games": {
     "label": "Game Vibes Games"
   },
-  "agent.make.game": {
-    "label": "ゲームを作る"
+  "setup.network.hostname": {
+    "label": "ホスト名"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
+  "install.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "install.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "install.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "install.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "install.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "install.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "install.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "install.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "install.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "install.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "install.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "install.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "install.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "install.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "install.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "install.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "install.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "install.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop": {
+    "label": "デスクトップ"
+  },
+  "install.ai.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "install.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.desktop.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "install.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "install.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "install.cli.github": {
+    "label": "GitHub"
+  },
+  "install.cli.hey": {
+    "label": "HEY"
+  },
+  "install.cli.hunk": {
+    "label": "Hunk"
+  },
+  "install.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "install.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "install.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "remove.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "remove.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "remove.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "remove.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "remove.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "remove.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "remove.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "remove.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "remove.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "remove.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "remove.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "remove.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "remove.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "remove.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "remove.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "remove.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "remove.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "remove.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "remove.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "remove.cli": {
+    "label": "CLI",
+    "title": "削除"
+  },
+  "remove.ai.desktop": {
+    "label": "デスクトップ",
+    "title": "削除"
+  },
+  "remove.ai.cli": {
+    "label": "CLI",
+    "title": "削除"
+  },
+  "remove.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "remove.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "remove.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "remove.cli.github": {
+    "label": "GitHub"
+  },
+  "remove.cli.hey": {
+    "label": "HEY"
+  },
+  "remove.cli.hunk": {
+    "label": "Hunk"
+  },
+  "remove.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "remove.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "system.snapshots": {
+    "label": "スナップショット"
+  },
+  "system.snapshots.restore": {
+    "label": "このスナップショットを復元"
+  },
+  "setup.security.passwordless-login": {
+    "label": "パスワードなしログイン"
+  },
+  "setup.default.browser.ladybird": {
+    "label": "Ladybird"
+  },
+  "install.browser.ladybird": {
+    "label": "Ladybird"
+  },
+  "remove.browser.ladybird": {
+    "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "タイリング時の Dock"
+  },
+  "appearance.dock.floating-only": {
+    "label": "フローティングのみ Dock"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock の表示"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "常に表示"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "最初のアプリで隠す"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "常に非表示"
   }
 }

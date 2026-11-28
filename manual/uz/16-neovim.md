@@ -1,42 +1,42 @@
 # Neovim
 
-[Neovim](https://neovim.io/) — 1976-yilda Bill Joy tomonidan yaratilgan [vi editor](<https://en.wikipedia.org/wiki/Vi_(text_editor)>) ning zamonaviy amalga oshirilishi. Bu kiritish rejimi va buyruq rejimi ajratilgan modal editor va nihoyatda chuqur tugmalar buyruqlari toʻplamining kichik bir qismigina oʻrgansangiz ham, bu biroz super kuchdir. Lekin oʻrganish egri chizigʻi ham ancha tik!
+[Neovim](https://neovim.io/) — Bill Joy tomonidan naq 1976-yilda yaratilgan [vi muharriri](<https://en.wikipedia.org/wiki/Vi_(text_editor)>)ning zamonaviy amalga oshirilishi. Bu modal muharrir bo‘lib, unda kiritish rejimi va buyruq rejimi ajratilgan, va nihoyatda chuqur tugma buyruqlari to‘plamining hech bo‘lmasa bir qismini o‘rganib olsangiz, bu bitta super kuchga aylanadi. Lekin o‘rganish egri chizig‘i ham ancha tik!
 
-Agar vim uslubidagi tahrirlashda mutlaqo yangi boʻlsangiz, YouTubeda [ThePrimeagenning Vim As Your Editor seriyasi](https://www.youtube.com/watch?v=X6AR2RMB5tE&list=PLm323Lc7iSW_wuxqmKx_xxNtJC_hJbQ7R) ni koʻrib chiqishingizni tavsiya qilaman. Bu sizga asoslarni oʻrgatadi. Shuni bilingizki, koʻproq oʻxshash asosiy editorlardan farqli oʻlaroq, vimda bazaviy mahoratga erishish sizga koʻproq vaqt oladi. Lekin erishganingizdan keyin, mukofot ham kattaroq boʻladi.
+Agar siz vim uslubidagi tahrirlashga mutlaqo yangi bo‘lsangiz, YouTube’dagi [ThePrimeagen’ning Vim As Your Editor turkumi](https://www.youtube.com/watch?v=X6AR2RMB5tE&list=PLm323Lc7iSW_wuxqmKx_xxNtJC_hJbQ7R)ni ko‘rib chiqishingizni tavsiya qilaman. U sizga asoslarni o‘rgatadi. Shuni bilingki, ko‘proq o‘xshash bo‘lgan asosiy muharrirlardan farqli o‘laroq, vim’da asosiy malakaga ega bo‘lishingiz ko‘proq vaqt oladi. Lekin bunga erishganingizdan keyin, samara ham kattaroq bo‘ladi.
 
-Endi Neovim asosan cheksiz sozlanishi mumkin. Agar haqiqatan ham haddan oshmoqchi boʻlsangiz, oʻz Neovim konfiguratsiyangizni noldan yaratishingiz mumkin. [Typecraftdan Neovimni noldan sozlash haqida](https://www.youtube.com/watch?v=zHTeCSVAFNY) ajoyib kurs bor. Va [ThePrimeagendan ham bor](https://www.youtube.com/watch?v=w7i4amO_zaE).
+Endi Neovim asosan cheksiz darajada sozlanishi mumkin. Agar haqiqatan ham haddan oshmoqchi bo‘lsangiz, o‘zingizning Neovim konfiguratsiyangizni noldan yaratishingiz mumkin. [Typecraft’dan Neovim’ni noldan sozlash bo‘yicha](https://www.youtube.com/watch?v=zHTeCSVAFNY) ajoyib kurs bor. Va [ThePrimeagen’da ham bittasi bor](https://www.youtube.com/watch?v=w7i4amO_zaE).
 
-Lekin Omarchy toʻliq Neovim sozlamasi — `omarchy-nvim` paketi — bilan keladi, u qutidan chiqiboq mumkin boʻlganlarning eng yaxshisini koʻrsatish uchun mehr bilan sozlangan. Bir qator konfiguratsiya yozishingizga toʻgʻri kelmasdan! U Neovim plaginlari va konfiguratsiyalarining distributivi boʻlgan [LazyVim](https://www.lazyvim.org/) ga qurilgan. Bu ajoyib.
+Lekin Omarchy to‘liq Neovim sozlamasi — `omarchy-nvim` paketi — bilan birga keladi, u qutidan chiqqan holda mumkin bo‘lgan eng yaxshi narsalarni namoyish etish uchun mehr bilan sozlangan. Siz bir qator ham konfiguratsiya yozishingizga to‘g‘ri kelmasdan! U Neovim plaginlari va konfiguratsiyalari distributivi bo‘lgan [LazyVim](https://www.lazyvim.org/) asosida qurilgan. U ajoyib.
 
 ## LazyVim asoslari
 
-Yuqorida aytganimdek, bu qisqa kirishda sizga vim oʻrgatmayman, lekin LazyVimning bir nechta asoslarini va qanday harakatlanishni koʻrsatishim mumkin.
+Ta’kidlanganidek, men ushbu qisqa kirishda sizga vim’ni o‘rgatmoqchi emasman, lekin LazyVim’ning bir nechta asoslarini va unda qanday harakatlanishni ko‘rsatib bera olaman.
 
-Avvalambor, Neovimda leader tugmasi gʻoyasi bor. Bu asosan barcha buyruqlarga kirish eshigidir. LazyVim uni `Space` ga oʻrnatgan. Demak shunchaki uni bosing, bir soniya kuting va mana bunday ichki tushuntirilgan bir qator variantlarni koʻrasiz:
+Birinchidan, Neovim’da leader tugmasi tushunchasi bor. Bu asosan barcha buyruqlarga kirish eshigi hisoblanadi. LazyVim uni `Space` qilib belgilagan. Shuning uchun shunchaki uni bosing, bir soniya kuting, va siz shunday ichki tarzda izohlangan bir qator variantlarni ko‘rasiz:
 
-Mana men har doim ishlatadigan baʼzi bazaviy buyruqlar:
+Mana men doim foydalanadigan ba’zi asosiy buyruqlar:
 
-- `Space Space` - Joriy katalogdagi istalgan faylni fuzzy-qidirish.
-- `Space S G` - Oldindan koʻrish bilan grep yordamida barcha fayllarni qidirish.
-- `Space E` - Fayl daraxtini yoqish/oʻchirish.
-- `Ctrl + W W` - Fayl daraxtidan editorga va orqaga sakrash.
-- `Shift + H` - Ochiq tablar (vim ularni buferlar deb ataydi) orasida chapga harakatlanish.
-- `Shift + L` - Ochiq tablar orasida oʻngga harakatlanish.
-- `Space B D` - Tabni yopish.
-- `Space B O` - Joriydan boshqa barcha tablarni yopish.
-- `Space G G` - Joriy katalogdan suzuvchi panelda LazyGit ni ishga tushirish.
-- `Space U W` - Yumshoq oʻrashni almashtirish.
+- `Space Space` - Joriy katalogdagi istalgan faylni noaniq qidiruv bilan topish.
+- `Space S G` - Oldindan ko‘rish bilan grep yordamida barcha fayllarni qidirish.
+- `Space E` - Fayl daraxtini yoqish/o‘chirish.
+- `Ctrl + W W` - Fayl daraxtidan muharrirga va orqaga sakrash.
+- `Shift + H` - Ochiq yorliqlar (vim ularni buffers deb ataydi) orasida chapga o‘tish.
+- `Shift + L` - Ochiq yorliqlar orasida o‘ngga o‘tish.
+- `Space B D` - Yorliqni yopish.
+- `Space B O` - Joriydan boshqa barcha yorliqlarni yopish.
+- `Space G G` - Joriy katalogdan suzuvchi panelda LazyGit’ni ishga tushirish.
+- `Space U W` - Yumshoq o‘rashni yoqish/o‘chirish.
 
-Fayl daraxtida boʻlsangiz (ochish uchun `Space E`, u yerga sakrash uchun `Ctrl + W W`), `a` bilan yangi fayl yoki `A` bilan yangi katalog qoʻshishingiz mumkin. Barcha buyruqlarni koʻrish uchun daraxtda boʻlganingizda `?` ni bosing.
+Fayl daraxtida bo‘lganingizda (`Space E` ochish uchun, `Ctrl + W W` u yerga sakrash uchun), `a` bilan yangi fayl yoki `A` bilan yangi katalog qo‘shishingiz mumkin. Barcha buyruqlarni ko‘rish uchun daraxtda bo‘lganingizda `?` ni bosing.
 
-Agar bazaviy vim tilini oʻzlashtirmoqchi boʻlsangiz, men [uch qismli sintaksis](https://world.hey.com/dhh/wonderful-vi-a1d034d3) va oʻsha ajoyib kombo harakatlarni qanday bajarish haqida yozganman!
+Agar asosiy vim tilini o‘zlashtirmoqchi bo‘lsangiz, men [uch qismli sintaksis](https://world.hey.com/dhh/wonderful-vi-a1d034d3) va o‘sha ajoyib kombinatsion harakatlarni qanday amalga oshirish haqida yozganman!
 
-Barcha mumkin boʻlgan buyruqlarni [LazyVim Keymaps sahifasida](https://www.lazyvim.org/keymaps) koʻrishingiz mumkin.
+Barcha mumkin bo‘lgan buyruqlarni [LazyVim Keymaps sahifasi](https://www.lazyvim.org/keymaps)da ko‘rishingiz mumkin.
 
-## Neovimni boshlash
+## Neovim’ni ishga tushirish
 
-Neovimni `Super + Shift + N` yordamida boshlashingiz mumkin (bogʻlanish standart editingizni ishga tushiradi, bu qutidan chiqiboq Neovim), lekin uni terminaldan ishlashni xohlagan katalogga oʻtib va `n` yozib boshqarish odatda osonroq. `n` — `nvim` uchun taxallus, u standartda joriy katalogni ochishga ishlatadi. Bitta faylni `n myfile.txt` bilan ochishingiz mumkin.
+`Super + Shift + N` standart muharriringizni ishga tushiradi, u yangi o‘rnatishlarda Plain hisoblanadi; uning o‘rniga Neovim ishga tushishi uchun _Setup > Defaults > Editor_ ostida Neovim’ni tanlang. Lekin odatda uni terminaldan, ishlamoqchi bo‘lgan katalogingizga o‘tib, `n` deb yozish orqali boshqarish osonroq. `n` — `nvim` uchun taxallus bo‘lib, u standart holatda joriy katalogdan ochish uchun foydalanadi. Bitta faylni `n myfile.txt` bilan ochishingiz mumkin.
 
-## Sudo tahrirlari uchun Neovimdan foydalanish
+## Neovim’ni sudo tahrirlari uchun ishlatish
 
-Faqat super foydalanuvchi sifatida oʻzgartirishingiz mumkin boʻlgan fayllarni tahrirlashingiz kerak boʻlsa, barcha plaginlaringiz sozlangan holda neovimdan foydalanish uchun `sudoedit /etc/sudoers.d/00-sudo-only-file` ni ishga tushirib foydalanishingiz mumkin.
+Agar faqat super foydalanuvchi sifatida o‘zgartirishingiz mumkin bo‘lgan fayllarni tahrirlashingiz kerak bo‘lsa, `sudoedit /etc/sudoers.d/00-sudo-only-file` ni ishga tushiring. U standart muharriringizni ochadi, shuning uchun agar uni u yerda barcha plaginlaringiz bilan istasangiz, _Setup > Defaults > Editor_ ostida Neovim’ni o‘rnating.

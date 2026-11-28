@@ -159,7 +159,10 @@ Panel {
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
   readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
   readonly property string toggleHint: Networking.wifiEnabled ? Commons.I18n.t("network.turnWifiOff") : Commons.I18n.t("network.turnWifiOn")
-  readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
+  // China offers Alibaba's resolver in place of Cloudflare's and Google's
+  // (docs/regions.md); the region comes with the DNS reading.
+  property string region: "global"
+  readonly property var dnsProviders: region === "cn" ? ["DHCP", "AliDNS", "Custom"] : ["DHCP", "Cloudflare", "Google", "Custom"]
   property int dnsIndex: 0
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
   // Wi-Fi only: on Ethernet the band of a secondary radio is not what the
@@ -226,8 +229,7 @@ Panel {
 
   function toggleNetwork() {
     if (!networkManagerAvailable) return
-    Networking.wifiEnabled = !Networking.wifiEnabled
-    Qt.callLater(function() { root.refresh(true) })
+    Quickshell.execDetached(["omarchy-network-wifi", Networking.wifiEnabled ? "off" : "on"])
   }
 
   ShellIpc {
@@ -332,19 +334,33 @@ Panel {
 
     scannerDevice = nextDevice
 
-    if (scannerDevice)
+    if (scannerDevice && scannerDevice.scannerEnabled !== enabled)
       scannerDevice.scannerEnabled = enabled
   }
 
+  function otherPanelOpen() {
+    if (!bar || typeof bar.moduleWidgets !== "function") return false
+    var peers = bar.moduleWidgets(moduleName)
+    for (var i = 0; i < peers.length; i++)
+      if (peers[i] && peers[i] !== root && peers[i].opened === true) return true
+    return false
+  }
+
+  function releaseScanner() {
+    if (!scannerDevice) return
+    if (otherPanelOpen()) scannerDevice = null
+    else setScannerEnabled(false)
+  }
+
   Component.onDestruction: {
-    if (scannerDevice) scannerDevice.scannerEnabled = false
+    if (scannerDevice && !otherPanelOpen()) scannerDevice.scannerEnabled = false
   }
 
   // KeyboardPanel primes layer-shell focus whenever the panel opens. That's
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
     if (opened) {
-      refresh(true)
+      refresh(!(wifiDevice && wifiDevice.scannerEnabled))
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
@@ -368,7 +384,11 @@ Panel {
       routerPingLatency = -1
       internetPingLatency = -1
       internetPingPacketLoss = 0
-      setScannerEnabled(false)
+      // Quickshell's WifiDevice.scannerEnabled write is synchronous on D-Bus
+      // (~80-100ms), so wait for KeyboardPanel's close fade to finish
+      // (panel.onVisibleChanged) before releasing it; release now only if the
+      // panel is already hidden.
+      if (!panel.visible) releaseScanner()
     }
   }
 
@@ -612,7 +632,7 @@ Panel {
     if (scanWifi === undefined) scanWifi = false
     if (!detailsProc.running) detailsProc.running = true
     if (!dnsProc.running) {
-      dnsProc.command = ["bash", "-c", root.dnsCommand("")]
+      dnsProc.command = ["bash", "-c", root.dnsCommand("") + "; omarchy-region"]
       dnsProc.running = true
     }
     if (!bandProc.running) {
@@ -766,9 +786,11 @@ Panel {
     return Model.wifiIconFor(strength)
   }
 
+  // The provider on the first line, the region on the second.
   function updateDns(raw) {
-    var value = String(raw || "").trim()
-    dnsProvider = value || "DHCP"
+    var lines = String(raw || "").trim().split("\n")
+    dnsProvider = lines[0].trim() || "DHCP"
+    region = (lines[1] || "").trim() || "global"
   }
 
   function updateBand(raw) {
@@ -791,7 +813,7 @@ Panel {
     if (!band || actionProc.running) return
 
     root.pendingBand = band
-    actionProc.command = ["omarchy-network-band", band]
+    actionProc.command = ["omarchy-network-wifi", "band", band]
     actionProc.running = true
   }
 
@@ -859,7 +881,7 @@ Panel {
   }
 
   function runNetworkAction(kind, network, callback) {
-    if (actionKind !== "" || !network) return
+    if (actionKind !== "" || wifiAction.running || !network) return
     var ssid = network.name || ""
     actionSsid = ssid
     switchingNetwork = kind === "connect" && root.kind !== "disconnected"
@@ -868,19 +890,20 @@ Panel {
     actionKind = kind
     failureSsid = ""
     failureReason = ""
-    // Already in the asked-for state: Quickshell ignores such a call, so nothing
-    // would ever signal, and the enterprise script would reconnect a live link.
+    // Already in the asked-for state: no-op without spawning the CLI.
     checkActionCompletion(network)
     if (actionKind === "") return
     callback(network)
-    // Safety net: if onExited never fires (process death, signal handler
-    // throws, etc.), clear the busy state so the row doesn't get stuck on
-    // "Connecting…" / "Disconnecting…" forever.
+    // Safety net: if neither NM nor the CLI settles the action, clear the busy
+    // state so the row doesn't get stuck on "Connecting…" / "Disconnecting…" forever.
     actionTimeout.restart()
   }
 
   function clearNetworkAction() {
     actionTimeout.stop()
+    actionCancelFallback.stop()
+    wifiActionFailDelay.stop()
+    wifiAction.timedOut = false
     if (actionKind === "connect" && passwordSsid === actionSsid) passwordSsid = ""
     failureSsid = ""
     failureReason = ""
@@ -892,6 +915,9 @@ Panel {
   function failNetworkAction(network, reason) {
     if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
     actionTimeout.stop()
+    actionCancelFallback.stop()
+    wifiActionFailDelay.stop()
+    wifiAction.timedOut = false
     failureSsid = actionSsid
     failureKind = actionKind
     failureReason = networkFailureReason(reason, requiresCredentials(network.security))
@@ -926,36 +952,125 @@ Panel {
     else if (actionKind === "forget" && !network.known && !network.stateChanging) clearNetworkAction()
   }
 
+  function runWifiCli(ssid, command, secret) {
+    wifiAction.targetSsid = ssid
+    wifiAction.sendSecret = secret !== undefined
+    wifiAction.secret = secret !== undefined ? secret : ""
+    wifiAction.timedOut = false
+    wifiAction.command = command
+    wifiAction.running = true
+  }
+
+  function wifiConnectCommand(ssid, extraArgs) {
+    var cmd = ["omarchy-network-wifi", "connect"]
+    if (extraArgs) {
+      for (var i = 0; i < extraArgs.length; i++) cmd.push(extraArgs[i])
+    }
+    if (wifiDevice && wifiDevice.name) {
+      cmd.push("--interface")
+      cmd.push(wifiDevice.name)
+    }
+    cmd.push("--")
+    cmd.push(ssid)
+    return cmd
+  }
+
   function connectDirectly(ssid) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connect() })
+    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      runWifiCli(network.name || ssid, wifiConnectCommand(network.name || ssid))
+    })
   }
 
   function connectWithPassphrase(ssid, passphrase) {
-    runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connectWithPsk(passphrase) })
+    runNetworkAction("connect", networkForSsid(ssid), function(network) {
+      runWifiCli(network.name || ssid, wifiConnectCommand(network.name || ssid, ["--password-stdin"]), passphrase)
+    })
   }
 
   function connectEnterprise(ssid, identity, passphrase) {
     runNetworkAction("connect", networkForSsid(ssid), function(network) {
-      enterpriseConnect.secret = passphrase
-      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]
-      enterpriseConnect.running = true
+      runWifiCli(
+        network.name || ssid,
+        wifiConnectCommand(network.name || ssid, ["--identity", identity, "--password-stdin"]),
+        passphrase
+      )
     })
   }
 
-  // Creates and activates the 802.1X profile (see Model.enterpriseConnectScript).
-  // The password goes over stdin, never argv.
+  // Runs Wi-Fi connect/disconnect/forget actions through `omarchy-network-wifi`.
+  // Passphrases travel over stdin, never argv.
   Process {
-    id: enterpriseConnect
+    id: wifiAction
+    property string targetSsid: ""
     property string secret: ""
+    property bool sendSecret: false
+    property bool timedOut: false
     stdinEnabled: true
+    stderr: StdioCollector { id: wifiActionStderr; waitForEnd: true }
     onStarted: {
-      write(secret + "\n")
+      if (sendSecret) write(secret + "\n")
       secret = ""
+      sendSecret = false
+    }
+    onExited: function(exitCode) {
+      var ssid = targetSsid
+      var wasTimedOut = timedOut
+      var errText = String(wifiActionStderr.text || "").trim()
+      targetSsid = ""
+      secret = ""
+      sendSecret = false
+      timedOut = false
+      if (wasTimedOut) {
+        actionCancelFallback.stop()
+        root.finishActionTimeout()
+        return
+      }
+      if (exitCode !== 0 && root.actionKind !== "" && root.actionSsid === ssid) {
+        // Give NetworkManager's own connectionFailed signal a short head start
+        // so specific reasons (Wrong password, reprompt) win over a generic fallback.
+        wifiActionFailDelay.failedSsid = ssid
+        wifiActionFailDelay.failedReason = errText.indexOf("Secrets were required") >= 0
+          ? root.connectionFailReasons.NoSecrets
+          : -1
+        wifiActionFailDelay.restart()
+      }
+    }
+  }
+
+  Timer {
+    id: wifiActionFailDelay
+    property string failedSsid: ""
+    property int failedReason: -1
+    interval: 750
+    repeat: false
+    onTriggered: {
+      if (root.actionKind === "" || root.actionSsid !== failedSsid) return
+      var net = root.networkForSsid(failedSsid)
+      var reason = failedReason
+      if (net) {
+        var ours = root.actionKind === "connect"
+        root.failNetworkAction(net, reason)
+        if (ours && root.shouldRepromptPassphrase(reason, root.requiresCredentials(net.security)))
+          root.openPasswordPrompt(failedSsid)
+      } else {
+        actionTimeout.stop()
+        root.failureSsid = failedSsid
+        root.failureKind = root.actionKind
+        root.failureReason = root.networkFailureReason(reason, false)
+        root.actionSsid = ""
+        root.actionKind = ""
+        root.refresh()
+      }
     }
   }
 
   function disconnect(network) {
-    runNetworkAction("disconnect", network || connectedWifiNetwork, function(net) { net.disconnect() })
+    runNetworkAction("disconnect", network || connectedWifiNetwork, function(net) {
+      var cmd = wifiDevice && wifiDevice.name
+        ? ["omarchy-network-wifi", "disconnect", "--", wifiDevice.name]
+        : ["omarchy-network-wifi", "disconnect"]
+      runWifiCli(net.name || "", cmd)
+    })
   }
 
   // Disconnect from a row's SSID. Rows are primitive snapshots that can outlive
@@ -968,7 +1083,9 @@ Panel {
   }
 
   function forget(net) {
-    runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) { network.forget() })
+    runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) {
+      runWifiCli(network.name || "", ["omarchy-network-wifi", "forget", "--ssid", "--", network.name])
+    })
   }
 
   implicitWidth: button.implicitWidth
@@ -1055,8 +1172,7 @@ Panel {
     }
   }
 
-  // Action runner for DNS provider changes. Wi-Fi actions use the
-  // Quickshell.Networking NetworkManager backend directly.
+  // Action runner for DNS provider and Wi-Fi band changes.
   Process {
     id: actionProc
     stdout: StdioCollector { id: actionStdout; waitForEnd: true }
@@ -1121,26 +1237,49 @@ Panel {
     }
   }
 
+  function finishActionTimeout() {
+    if (!root.actionKind) return
+    var reason
+    if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
+    else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
+    else reason = Commons.I18n.t("network.timedOutForgetting")
+    root.failureSsid = root.actionSsid
+    root.failureKind = root.actionKind
+    root.failureReason = reason
+    root.actionSsid = ""
+    root.actionKind = ""
+    root.refresh()
+  }
+
   Timer {
     id: actionTimeout
-    // Must outlast NetworkManager's 25s supplicant timeout: a wrong saved
-    // PSK fails with WifiAuthTimeout at ~25s, and that failure has to land
-    // while the action is still tracked to show "Wrong password" and reopen
-    // the passphrase prompt.
-    interval: 30000
+    // Must outlast both NetworkManager's 25s supplicant timeout and
+    // omarchy-network-wifi's 28s nmcli wait + cleanup so the CLI settles and
+    // rolls back on its own; if this fires while wifiAction is still running,
+    // signal SIGTERM and wait for cleanup to exit before releasing the action.
+    interval: 35000
     repeat: false
     onTriggered: {
       if (!root.actionKind) return
-      var reason
-      if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
-      else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
-      else reason = Commons.I18n.t("network.timedOutForgetting")
-      root.failureSsid = root.actionSsid
-      root.failureKind = root.actionKind
-      root.failureReason = reason
-      root.actionSsid = ""
-      root.actionKind = ""
-      root.refresh()
+      wifiActionFailDelay.stop()
+      if (wifiAction.running) {
+        wifiAction.timedOut = true
+        wifiAction.signal(15)
+        actionCancelFallback.restart()
+        return
+      }
+      root.finishActionTimeout()
+    }
+  }
+
+  Timer {
+    id: actionCancelFallback
+    interval: 8000
+    repeat: false
+    onTriggered: {
+      wifiAction.timedOut = false
+      wifiAction.running = false
+      root.finishActionTimeout()
     }
   }
 
@@ -1175,6 +1314,7 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
+    onVisibleChanged: if (!visible && !root.opened) root.releaseScanner()
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
@@ -1369,7 +1509,7 @@ Panel {
         Column {
           id: heroLabels
           anchors.left: heroIcon.right
-          anchors.leftMargin: Style.space(14)
+          anchors.leftMargin: Style.heroTitleInset(heroIcon.width)
           anchors.right: parent.right
           anchors.rightMargin: heroActions.width > 0 ? heroActions.width + Style.space(12) : 0
           anchors.verticalCenter: parent.verticalCenter
@@ -1658,39 +1798,21 @@ Panel {
           width: parent.width
           spacing: Style.space(6)
 
-          readonly property int count: 4
+          readonly property int count: root.dnsProviders.length
           readonly property real cellWidth: (width - spacing * (count - 1)) / count
 
-          DnsProviderPill {
-            provider: "DHCP"
-            index: 0
-            tooltipText: Commons.I18n.t("network.dnsFromDhcp")
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
+          Repeater {
+            model: root.dnsProviders
 
-          DnsProviderPill {
-            provider: "Cloudflare"
-            index: 1
-            tooltipText: Commons.I18n.t("network.setDnsTo").arg("Cloudflare")
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
-
-          DnsProviderPill {
-            provider: "Google"
-            index: 2
-            tooltipText: Commons.I18n.t("network.setDnsTo").arg("Google")
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
-          }
-
-          DnsProviderPill {
-            provider: "Custom"
-            index: 3
-            tooltipText: Commons.I18n.t("network.setCustomDns")
-            width: dnsRow.cellWidth
-            onClicked: root.setDns(provider)
+            DnsProviderPill {
+              required property string modelData
+              provider: modelData
+              tooltipText: modelData === "DHCP" ? Commons.I18n.t("network.dnsFromDhcp")
+                : modelData === "Custom" ? Commons.I18n.t("network.setCustomDns")
+                : Commons.I18n.t("network.setDnsTo").arg(modelData)
+              width: dnsRow.cellWidth
+              onClicked: root.setDns(provider)
+            }
           }
         }
       }
@@ -1718,7 +1840,7 @@ Panel {
         id: networkList
         visible: root.wifiStationAvailable
         width: parent.width
-        height: Math.min(contentHeight, Style.space(240))
+        height: Math.min(contentHeight, Style.space(252))
         spacing: Style.space(4)
         clip: true
         boundsBehavior: Flickable.StopAtBounds
@@ -1751,6 +1873,9 @@ Panel {
             id: delegateColumn
             width: parent.width
             spacing: Style.space(4)
+            // A header that follows rows needs air above it, or it reads as
+            // a caption for the row it sits under.
+            topPadding: index > 0 && sectionTitle !== "" ? Style.space(8) : 0
 
             PanelSectionHeader {
               visible: sectionTitle !== ""
@@ -1802,6 +1927,7 @@ Panel {
       if (!isHovered) return
       root.cursorActive = true
       root.focusSection = "band"
+      root.bandAutoFocused = false
       root.bandIndex = pill.slot
     }
   }
@@ -1922,7 +2048,7 @@ Panel {
       height: rowBody.implicitHeight
       hoverEnabled: true
       acceptedButtons: Qt.LeftButton
-      cursorShape: Qt.PointingHandCursor
+      cursorShape: row.isPasswordOpen ? Qt.ArrowCursor : Qt.PointingHandCursor
       enabled: !root.busy
 
       // Move the cursor here when the mouse enters; mouse leaving doesn't
@@ -1938,6 +2064,7 @@ Panel {
         root.focusSection = "wifi"
         root.selectedIndex = row.index
         root.wifiActionFocused = false
+        if (row.isPasswordOpen) return
         if (row.isConnected) {
           root.disconnectRow(row.net.ssid)
           return
@@ -2100,7 +2227,7 @@ Panel {
         id: idField
         visible: row.isEnterprise && !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: connectPwBtn.left
+        anchors.right: pwActions.left
         anchors.top: parent.top
         anchors.rightMargin: Style.space(6)
         placeholderText: Commons.I18n.t("network.identity")
@@ -2124,7 +2251,7 @@ Panel {
         id: pwField
         visible: !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: connectPwBtn.left
+        anchors.right: pwActions.left
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
@@ -2170,34 +2297,39 @@ Panel {
         }
       }
 
-      // Esc closes the prompt (handled by pwField.Keys.onEscapePressed)
-      // so there's no separate cancel button.
-      PanelActionButton {
-        id: connectPwBtn
+      // Not focus targets, so typing carries on in pwField after a click.
+      Row {
+        id: pwActions
         visible: !row.isBusy && !row.isFailed
-        anchors.right: revealPwBtn.left
-        anchors.rightMargin: Style.space(2)
-        anchors.verticalCenter: parent.verticalCenter
-        enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
-        iconText: "󰄬"
-        tooltipText: Commons.I18n.t("network.connect")
-        foreground: root.bar.foreground
-        fontFamily: root.bar.fontFamily
-        onClicked: row.submitCredentials()
-      }
-
-      // 22×22 right-anchored to line up with lockIndicator above. Not a
-      // focus target, so typing carries on in pwField after a click.
-      PanelActionButton {
-        id: revealPwBtn
-        visible: connectPwBtn.visible
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        iconText: passwordPanel.revealed ? "󰈉" : "󰈈"
-        tooltipText: passwordPanel.revealed ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
-        foreground: root.bar.foreground
-        fontFamily: root.bar.fontFamily
-        onClicked: passwordPanel.revealed = !passwordPanel.revealed
+        spacing: Style.space(2)
+
+        PanelActionButton {
+          iconText: passwordPanel.revealed ? "󰈉" : "󰈈"
+          tooltipText: passwordPanel.revealed ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          onClicked: passwordPanel.revealed = !passwordPanel.revealed
+        }
+
+        PanelActionButton {
+          enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
+          iconText: "󰄬"
+          tooltipText: Commons.I18n.t("network.connect")
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          onClicked: row.submitCredentials()
+        }
+
+        PanelActionButton {
+          iconText: "✕"
+          fontSize: Style.font.bodySmall
+          tooltipText: Commons.I18n.t("common.cancel")
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          onClicked: root.cancelPasswordPrompt()
+        }
       }
     }
   }

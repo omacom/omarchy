@@ -109,7 +109,10 @@ package_defaults = [
   ("default/systemd/user/omarchy-tailscale-receive.service", "/usr/lib/systemd/user/omarchy-tailscale-receive.service", "systemd/user/omarchy-tailscale-receive.service"),
   ("default/systemd/user/omarchy-fcitx5.service", "/usr/lib/systemd/user/omarchy-fcitx5.service", "systemd/user/omarchy-fcitx5.service"),
   ("default/systemd/user/omarchy-crash-watch.service", "/usr/lib/systemd/user/omarchy-crash-watch.service", "systemd/user/omarchy-crash-watch.service"),
+  ("default/systemd/user/omarchy-clock-resync.service", "/usr/lib/systemd/user/omarchy-clock-resync.service", "systemd/user/omarchy-clock-resync.service"),
+  ("default/systemd/user/omarchy-clock-resync.timer", "/usr/lib/systemd/user/omarchy-clock-resync.timer", "systemd/user/omarchy-clock-resync.timer"),
   ("default/systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf", "/usr/lib/systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf", "systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf"),
+  ("default/systemd/user/wireplumber.service.d/20-omarchy-soundwire.conf", "/usr/lib/systemd/user/wireplumber.service.d/20-omarchy-soundwire.conf", "systemd/user/wireplumber.service.d/20-omarchy-soundwire.conf"),
   ("default/systemd/zram-generator.conf.d/90-omarchy.conf", "/usr/lib/systemd/zram-generator.conf.d/90-omarchy.conf", "systemd/zram-generator.conf.d/90-omarchy.conf"),
   ("default/systemd/timesyncd.conf.d/10-omarchy.conf", "/usr/lib/systemd/timesyncd.conf.d/10-omarchy.conf", "systemd/timesyncd.conf.d/10-omarchy.conf"),
   ("default/systemd/system/plocate-updatedb.service.d/10-omarchy.conf", "/usr/lib/systemd/system/plocate-updatedb.service.d/10-omarchy.conf", "systemd/system/plocate-updatedb.service.d/10-omarchy.conf"),
@@ -165,6 +168,7 @@ alpm_hooks = [
   "00-omarchy-update-guard.hook",
   "10-omarchy-hyprland-reload-pause.hook",
   "90-omarchy-hyprland-reload-resume.hook",
+  "90-omarchy-boot-splash.hook",
 ]
 for hook in alpm_hooks:
   source = f"default/libalpm/hooks/{hook}"
@@ -375,6 +379,20 @@ fi
 chmod u+w "$toggles_dir"
 [[ $(bar_background) == "opaque" && ! -f $glass_toggle ]] || fail "a bar whose blur can't be turned on keeps its old background" "$(bar_background)"
 pass "a bar whose blur can't change keeps its old background"
+
+# A clear bar's text is lifted until it reads over the wallpaper, and left as
+# the theme has it where it already does.
+if command -v magick >/dev/null; then
+  bar_text_over() {
+    magick -size 64x64 "xc:$1" "$TMPDIR/wallpaper.png"
+    omarchy-bar-text-color top 26 "#a9b1d6" "#1a1b26" --background "$TMPDIR/wallpaper.png" --screen 1920x1080
+  }
+
+  [[ $(bar_text_over "#1a1b26") == "#a9b1d6" ]] || fail "legible theme text stays as it is on a clear bar" "$(bar_text_over "#1a1b26")"
+  [[ $(bar_text_over "#502a6b") == "#c7cce4" ]] || fail "dim theme text is lifted toward white over a dark wallpaper" "$(bar_text_over "#502a6b")"
+  [[ $(bar_text_over "#808080") == "#000000" ]] || fail "text over a mid-tone wallpaper goes as far as black" "$(bar_text_over "#808080")"
+  pass "a clear bar's text reaches a legible contrast over the wallpaper"
+fi
 
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar set omarchy.bluetooth enabled false --json
 grep -Fqx 'shell setBarWidget omarchy.bluetooth enabled false {}' \

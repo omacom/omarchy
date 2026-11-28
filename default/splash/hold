@@ -1,0 +1,142 @@
+#!/bin/bash
+# Keeps the boot splash's last picture on its displays from the splash's stop
+# until the next compositor has taken them. A DRM device puts the console back
+# when its last file closes (drm_lastclose), which the stop would otherwise do;
+# holding a file across the gap leaves the picture for aquamarine to adopt
+# (AQ_SPLASH_ADOPT). omarchy-splash-hold.service runs this just before
+# omarchy-splash-stop.service, on a boot the omarchy-splash late hook leaves the
+# splash up for, and stops it with the display manager.
+#
+# /run/omarchy-splash-hold/adopt exists until a session takes a display: the
+# login screen and the desktop set AQ_SPLASH_ADOPT only while it does, so the
+# splash's last frame goes to whichever comes first. aquamarine adopts whatever
+# a display shows, and after the login screen that is the console
+# (docs/boot-splash.md).
+
+set -uo pipefail
+
+# How long a compositor has from the stop to take the displays before the
+# console comes back. Hyprland takes them a second or two after it.
+cap=20
+adopt=/run/omarchy-splash-hold/adopt
+# boot-splash-hold-test.sh points these at fixtures.
+proc=/proc
+dri=/dev/dri
+
+# Whether process $1 has device $2 open.
+has_open() {
+  local fd
+  for fd in "$proc/$1/fd/"*; do
+    [[ $fd -ef $2 ]] && return 0
+  done
+  return 1
+}
+
+# The DRM devices the splash's sway draws on. systemd didn't start it, which
+# tells it apart as stop does: the initramfs started it in the root cgroup,
+# from which systemd moves it into init.scope as it starts, not a unit's.
+splash_devices() {
+  local pid cgroup card
+  for pid in $(pidof sway); do
+    read -r cgroup 2>/dev/null <"$proc/$pid/cgroup" || continue
+    [[ $cgroup == "0::/" || $cgroup == "0::/init.scope" ]] || continue
+    for card in "$dri"/card*; do
+      if has_open "$pid" "$card"; then
+        echo "$card"
+      fi
+    done
+  done
+}
+
+# Drops DRM master from each fd:device given. A device's first file to open is
+# its master, and logind could then not make the compositor master. sway is the
+# master while the splash is up, but it may just have gone.
+drop_master() {
+  python3 -I - "$@" <<'EOF'
+import errno, fcntl, sys
+
+for arg in sys.argv[1:]:
+    fd, device = arg.split(":", 1)
+    try:
+        fcntl.ioctl(int(fd), 0x641F)  # DRM_IOCTL_DROP_MASTER
+        print(f"{device} had no DRM master, so its opening made one; dropped it")
+    except OSError as error:
+        if error.errno != errno.EINVAL:  # EINVAL: not the master
+            sys.exit(f"cannot drop DRM master of {device}: {error.strerror}")
+EOF
+}
+
+# Waits until logind holds every device in nodes for a session, whose
+# compositor then keeps them open, looking again on each line from fd $events,
+# for $cap seconds at most.
+wait_for_session() {
+  local deadline=$((SECONDS + cap)) node taken
+  while :; do
+    taken=()
+    for node in "${nodes[@]}"; do
+      has_open "$logind" "$node" && taken+=("$node")
+    done
+    if (( ${#taken[@]} > 0 )) && [[ -e $adopt ]]; then
+      rm -f "$adopt"
+      echo "a session has taken ${taken[*]}"
+    fi
+
+    if (( ${#taken[@]} == ${#nodes[@]} )); then
+      echo "letting go: a session has every display"
+      return
+    elif (( SECONDS >= deadline )); then
+      echo "letting go: no session took ${nodes[*]} within $cap seconds"
+      return
+    elif ! read -r -t $((deadline - SECONDS)) -u "$events" _ && (( SECONDS < deadline )); then
+      echo "letting go: the watch on ${nodes[*]} ended"
+      return
+    fi
+  done
+}
+
+# Sourced by boot-splash-hold-test.sh for the functions above.
+[[ ${BASH_SOURCE[0]} == "$0" ]] || return 0
+
+mapfile -t nodes < <(splash_devices)
+if (( ${#nodes[@]} == 0 )); then
+  session=$(cat /run/omarchy-splash/session.pid 2>/dev/null || true)
+  if [[ -n $session ]] && kill -0 "$session" 2>/dev/null; then
+    echo "the splash is running but has no display open; nothing to hold" >&2
+  else
+    echo "the splash is no longer running; nothing to hold" >&2
+  fi
+  systemd-notify --ready
+  exit 0
+fi
+
+# A compositor takes a device through logind, which opens it, then reads the
+# device's events. The open is reported before logind has the file, so the
+# reads look again.
+exec {events}< <(inotifywait -m -e open -e access "${nodes[@]}" 2>&1)
+# It says on stderr once it watches them, and otherwise why not.
+while read -r -u "$events" line; do
+  case $line in
+    "Watches established.") break ;;
+    "Setting up watches.") ;;
+    *) echo "$line" ;;
+  esac
+done
+if [[ $line != "Watches established." ]]; then
+  echo "cannot watch ${nodes[*]} for a session to take them"
+  exit 1
+fi
+
+# Opened once the watch is up, which would otherwise keep them open too.
+opened=()
+for node in "${nodes[@]}"; do
+  exec {fd}<"$node" || exit 1
+  opened+=("$fd:$node")
+done
+drop_master "${opened[@]}" || exit 1
+
+touch "$adopt"
+systemd-notify --ready
+echo "holding ${nodes[*]} for the next compositor"
+
+logind=$(pidof systemd-logind)
+wait_for_session

@@ -1,5 +1,4 @@
 import QtQuick
-import Quickshell
 import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
@@ -330,12 +329,23 @@ Item {
 
           GridView {
             id: grid
+            objectName: "appGrid"
             anchors.fill: parent
             model: root.apps
             clip: true
             cellWidth: root.cellWidth
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
+
+            // Mouse wheels keep the grid's own scrolling.
+            WheelHandler {
+              acceptedDevices: PointerDevice.TouchPad
+              target: null
+              onWheel: function(event) {
+                var bottom = grid.originY + Math.max(0, grid.contentHeight - grid.height)
+                grid.contentY = Math.max(grid.originY, Math.min(bottom, grid.contentY - event.pixelDelta.y * Style.touchpadScrollFactor))
+              }
+            }
 
             delegate: Item {
               id: cell
@@ -417,7 +427,7 @@ Item {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 // The grid would otherwise take a dragging press for a scroll.
                 preventStealing: true
-                onContainsMouseChanged: if (containsMouse && !root.dragging) root.selectedIndex = cell.index
+                onContainsMouseChanged: if (containsMouse && !root.dragging && !root.menuEntry) root.selectedIndex = cell.index
                 onPressed: function(event) {
                   cell.moved = false
                   cell.pressPoint = Qt.point(event.x, event.y)
@@ -433,11 +443,15 @@ Item {
                 onCanceled: if (root.dragging) root.close()
                 onClicked: function(event) {
                   if (cell.moved) return
+                  root.selectedIndex = cell.index
                   if (event.button === Qt.RightButton) {
                     root.openMenu(cell.modelData, cell.mapToItem(panel.contentItem, event.x, event.y))
                     return
                   }
-                  root.menuEntry = null
+                  if (root.menuEntry) {
+                    root.menuEntry = null
+                    return
+                  }
                   root.launch(cell.index)
                 }
               }
@@ -474,6 +488,7 @@ Item {
     // Right-click on an app: open it, or keep it in the dock or take it out.
     BorderSurface {
       id: menu
+      objectName: "appGridMenu"
 
       readonly property var entry: root.menuEntry
       readonly property bool pinned: !!entry && !!root.dock && root.dock.isPinned(String(entry.id || ""))
@@ -490,6 +505,12 @@ Item {
       color: Commons.Color.popups.background
       borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Style.normalBorderWidth)
       padding: Style.spacing.sm
+
+      MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+      }
 
       Column {
         id: menuColumn

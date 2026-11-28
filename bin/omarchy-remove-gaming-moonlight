@@ -5,6 +5,7 @@
 
 set -e
 
+echo "Removing Moonlight..."
 omarchy-pkg-drop moonlight-qt
 
 rm -rf \

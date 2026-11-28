@@ -25,13 +25,12 @@ PATH="$mock_bin:$PATH" HYPRCTL_LOG="$hyprctl_log" "$ROOT/bin/omarchy-hyprland-wi
 
 expected_log="$test_tmp/expected.log"
 cat >"$expected_log" <<'EOF'
-dispatch hl.dsp.window.close({ window = "address:0xabc" })
-dispatch hl.dsp.window.close({ window = "address:0xdef" })
+--batch dispatch hl.dsp.window.close({ window = "address:0xabc" }) ; dispatch hl.dsp.window.close({ window = "address:0xdef" })
 dispatch o.workspaces.focus(1)
 EOF
 
-diff -u "$expected_log" "$hyprctl_log" || fail "close-all targets each window with the Lua dispatcher"
-pass "close-all targets each window with the Lua dispatcher"
+diff -u "$expected_log" "$hyprctl_log" || fail "close-all batches window closes with the Lua dispatcher"
+pass "close-all batches window closes with the Lua dispatcher"
 
 export PATH="$mock_bin:$PATH" HYPRCTL_LOG="$hyprctl_log"
 sleep 0.2 &

@@ -5,13 +5,21 @@ import qs.Commons as Commons
 // One row of a small popup menu, like the dock's right-click menu: a label,
 // a checkmark when `checked`, and `triggered()` on click. The menu owning it
 // closes itself in its handler. `highlighted` lights it as hover does, for a
-// menu walked with the keyboard.
+// menu walked with the keyboard. A row that opens a submenu is marked
+// `submenu`; `hovered` lets the menu open it as the pointer arrives.
 Rectangle {
   id: row
 
   property string text: ""
   property bool checked: false
   property bool highlighted: false
+  property bool submenu: false
+  // The side the submenu opens on, for its mark to point there.
+  property bool submenuBefore: Commons.I18n.rightToLeft
+  readonly property bool hovered: rowMouse.containsMouse
+  // The width the label needs with room kept for a mark after it, for a menu
+  // to size itself to its widest row.
+  readonly property real contentWidth: label.implicitWidth + Style.spacing.controlPaddingX * 3 + Style.font.body
   signal triggered()
 
   width: parent ? parent.width : 0
@@ -20,6 +28,7 @@ Rectangle {
   color: rowMouse.containsMouse || highlighted ? Style.hoverFill : "transparent"
 
   Text {
+    id: label
     anchors.verticalCenter: parent.verticalCenter
     anchors.left: parent.left
     anchors.leftMargin: Style.spacing.controlPaddingX
@@ -31,13 +40,13 @@ Rectangle {
   }
 
   Text {
-    visible: row.checked
+    visible: row.checked || row.submenu
     anchors.verticalCenter: parent.verticalCenter
     anchors.right: parent.right
     anchors.rightMargin: Style.spacing.controlPaddingX
     textFormat: Text.PlainText
-    text: "✓"
-    color: Commons.Color.accent
+    text: row.submenu ? (row.submenuBefore ? "‹" : "›") : "✓"
+    color: row.submenu ? Commons.Color.popups.text : Commons.Color.accent
     font.family: Style.font.family
     font.pixelSize: Style.font.body
   }

@@ -2,4 +2,5 @@
 
 # omarchy:summary=Detect an Intel SOF-capable audio DSP
 
-lspci | grep -qiE '(Multimedia audio controller|Audio device).*Intel'
+# PCI class 0401 (Multimedia audio controller) and 0403 (Audio device) on Intel (8086).
+omarchy-hw-pci --class 0401,0403 8086:*

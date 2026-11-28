@@ -8,4 +8,10 @@ rfkill unblock wifi
 nmcli networking on
 nmcli radio wifi on
 nmcli device wifi rescan 2>/dev/null || true
-rfkill list wifi
+rfkill list wifi || exit $?
+
+hard_blocks=$(LC_ALL=C rfkill --raw --noheadings --output HARD list wifi) || exit $?
+if grep -qx "blocked" <<< "$hard_blocks"; then
+  echo "Wi-Fi is still hardware-blocked; software unblock cannot clear this state." >&2
+  exit 1
+fi

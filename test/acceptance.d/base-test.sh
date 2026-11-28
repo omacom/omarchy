@@ -32,20 +32,34 @@ screenshot() {
   timeout 10 grim "$ARTIFACTS/$1.png" 2>/dev/null || true
 }
 
-screen_contains() {
-  local text="$1"
-  local snapshot="/tmp/omarchy-acceptance-ocr-$$.png"
+_screen_ocr_matches() {
+  local text="$1" deadline="$2" scale="$3"
+  shift 3
 
-  # Capture at 2x scale: tesseract routinely drops small caption text at
-  # native resolution (the weather panel's detail labels, for one).
-  if ! timeout 10 grim -s 2 "$snapshot" 2>/dev/null; then
-    rm -f "$snapshot"
+  local remaining=$((deadline - SECONDS))
+  if ((remaining <= 0)); then
     return 1
   fi
-  tesseract "$snapshot" stdout --psm 11 2>/dev/null | grep -Fi -- "$text" >/dev/null
-  local status=$?
-  rm -f "$snapshot"
-  return $status
+  if ((remaining > 5)); then
+    remaining=5
+  fi
+
+  timeout "$remaining" grim -s "$scale" - 2>/dev/null |
+    timeout "$remaining" tesseract stdin stdout --psm 11 "$@" 2>/dev/null |
+    grep -Fi -- "$text" >/dev/null
+}
+
+screen_contains() {
+  local text="$1"
+  local deadline=${OMARCHY_ACCEPTANCE_WAIT_DEADLINE:-$((SECONDS + 10))}
+
+  # Capture at 2x scale first: tesseract routinely drops small caption text at
+  # native resolution (the weather panel's detail labels, for one). Fall back
+  # to 1x (for upscaled toasts) and 2x Sauvola local thresholding (for dim
+  # placeholder text over bright wallpapers).
+  _screen_ocr_matches "$text" "$deadline" 2 ||
+    _screen_ocr_matches "$text" "$deadline" 1 ||
+    _screen_ocr_matches "$text" "$deadline" 2 -c thresholding_method=2
 }
 
 # Poll a command until it succeeds; screenshot and fail on timeout.
@@ -54,6 +68,7 @@ wait_until() {
   shift 2
 
   local deadline=$((SECONDS + timeout))
+  local OMARCHY_ACCEPTANCE_WAIT_DEADLINE=$deadline
 
   until "$@" >/dev/null 2>&1; do
     if ((SECONDS >= deadline)); then

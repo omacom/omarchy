@@ -75,13 +75,19 @@ else
   fail "commands pads the usage column to at most 48 characters"
 fi
 
-"$CLI" commands --json | jq -e '.ok == true and (.commands | length >= 200)' >/dev/null
+make_tmpdir CLI_META_DIR
+commands_json_file="$CLI_META_DIR/commands.json"
+commands_all_json_file="$CLI_META_DIR/commands-all.json"
+"$CLI" commands --json >"$commands_json_file"
+"$CLI" commands --all --json >"$commands_all_json_file"
+
+jq -e '.ok == true and (.commands | length >= 200)' "$commands_json_file" >/dev/null
 pass "commands --json is valid JSON with full bin coverage"
 
-"$CLI" commands --json | jq -e 'all(.commands[]; .summary != "undocumented")' >/dev/null
+jq -e 'all(.commands[]; .summary != "undocumented")' "$commands_json_file" >/dev/null
 pass "all included commands have summaries"
 
-"$CLI" commands --json | jq -e 'all(.commands[]; has("binary") and has("filename_route") and has("routes") and (has("legacy") | not) and (has("usage") | not) and (has("visibility") | not) and (has("mutates") | not) and (has("interactive") | not))' >/dev/null
+jq -e 'all(.commands[]; has("binary") and has("filename_route") and has("routes") and (has("legacy") | not) and (has("usage") | not) and (has("visibility") | not) and (has("mutates") | not) and (has("interactive") | not))' "$commands_json_file" >/dev/null
 pass "JSON uses binary/routes and omits legacy/usage/extra metadata"
 
 "$CLI" commands --check >/dev/null
@@ -90,34 +96,34 @@ pass "commands --check passes"
 "$CLI" commands --all >/dev/null
 pass "commands --all does not crash"
 
-"$CLI" commands --all --json | jq -e '.commands[] | select(.route == "omarchy hyprland window gaps toggle" and .summary != "undocumented")' >/dev/null
+jq -e '.commands[] | select(.route == "omarchy hyprland window gaps toggle" and .summary != "undocumented")' "$commands_all_json_file" >/dev/null
 pass "fallback commands are inferred and documented"
 
-"$CLI" commands --all --json | jq -e '.commands[] | select(.route == "omarchy dev benchmark cli")' >/dev/null
+jq -e '.commands[] | select(.route == "omarchy dev benchmark cli")' "$commands_all_json_file" >/dev/null
 pass "benchmark command is discoverable in all commands"
 
-"$CLI" commands --json | jq -e '.commands[] | select(.binary == "omarchy-pkg-add" and .route == "omarchy pkg add" and .filename_route == "omarchy pkg add" and (.routes | index("omarchy pkg add")))' >/dev/null
+jq -e '.commands[] | select(.binary == "omarchy-pkg-add" and .route == "omarchy pkg add" and .filename_route == "omarchy pkg add" and (.routes | index("omarchy pkg add")))' "$commands_json_file" >/dev/null
 pass "JSON exposes direct pkg add route"
 
-"$CLI" commands --json | jq -e '.commands[] | select(.binary == "omarchy-install-gaming-xbox-cloud" and .route == "omarchy install gaming xbox-cloud" and .filename_route == "omarchy install gaming xbox cloud" and (.routes | index("omarchy install gaming xbox cloud")))' >/dev/null
+jq -e '.commands[] | select(.binary == "omarchy-install-gaming-xbox-cloud" and .route == "omarchy install gaming xbox-cloud" and .filename_route == "omarchy install gaming xbox cloud" and (.routes | index("omarchy install gaming xbox cloud")))' "$commands_json_file" >/dev/null
 pass "Xbox Cloud installer keeps hyphenated canonical route"
 
-"$CLI" commands --json | jq -e '.commands[] | select(.binary == "omarchy-install-gaming-xbox-controllers" and .route == "omarchy install gaming xbox-controllers" and .filename_route == "omarchy install gaming xbox controllers" and (.routes | index("omarchy install gaming xbox controllers")))' >/dev/null
+jq -e '.commands[] | select(.binary == "omarchy-install-gaming-xbox-controllers" and .route == "omarchy install gaming xbox-controllers" and .filename_route == "omarchy install gaming xbox controllers" and (.routes | index("omarchy install gaming xbox controllers")))' "$commands_json_file" >/dev/null
 pass "Xbox controller installer keeps hyphenated canonical route"
 
-"$CLI" commands --json | jq -e '.commands[] | select(.binary == "omarchy-remove-gaming-xbox-controllers" and .route == "omarchy remove gaming xbox-controllers" and .filename_route == "omarchy remove gaming xbox controllers" and (.routes | index("omarchy remove gaming xbox controllers")))' >/dev/null
+jq -e '.commands[] | select(.binary == "omarchy-remove-gaming-xbox-controllers" and .route == "omarchy remove gaming xbox-controllers" and .filename_route == "omarchy remove gaming xbox controllers" and (.routes | index("omarchy remove gaming xbox controllers")))' "$commands_json_file" >/dev/null
 pass "Xbox controller remover keeps hyphenated canonical route"
 
-"$CLI" commands --json | jq -e '.commands[] | select(.binary == "omarchy-install-gaming-geforce-now" and .route == "omarchy install gaming geforce-now" and .filename_route == "omarchy install gaming geforce now" and (.routes | index("omarchy install gaming geforce now")))' >/dev/null
+jq -e '.commands[] | select(.binary == "omarchy-install-gaming-geforce-now" and .route == "omarchy install gaming geforce-now" and .filename_route == "omarchy install gaming geforce now" and (.routes | index("omarchy install gaming geforce now")))' "$commands_json_file" >/dev/null
 pass "GeForce NOW installer keeps hyphenated canonical route"
 
-"$CLI" commands --json | jq -e '.commands[] | select(.binary == "omarchy-remove-gaming-geforce-now" and .route == "omarchy remove gaming geforce-now" and .filename_route == "omarchy remove gaming geforce now" and (.routes | index("omarchy remove gaming geforce now")))' >/dev/null
+jq -e '.commands[] | select(.binary == "omarchy-remove-gaming-geforce-now" and .route == "omarchy remove gaming geforce-now" and .filename_route == "omarchy remove gaming geforce now" and (.routes | index("omarchy remove gaming geforce now")))' "$commands_json_file" >/dev/null
 pass "GeForce NOW remover keeps hyphenated canonical route"
 
-"$CLI" commands --json | jq -e '.commands[] | select(.binary == "omarchy-install-gaming-gpu-lib32" and .route == "omarchy install gaming gpu-lib32" and .filename_route == "omarchy install gaming gpu lib32" and (.routes | index("omarchy install gaming gpu lib32")))' >/dev/null
+jq -e '.commands[] | select(.binary == "omarchy-install-gaming-gpu-lib32" and .route == "omarchy install gaming gpu-lib32" and .filename_route == "omarchy install gaming gpu lib32" and (.routes | index("omarchy install gaming gpu lib32")))' "$commands_json_file" >/dev/null
 pass "GPU lib32 installer keeps hyphenated canonical route"
 
-"$CLI" commands --json | jq -e '.commands[] | select(.binary == "omarchy-refresh-pacman" and .requires_sudo == true)' >/dev/null
+jq -e '.commands[] | select(.binary == "omarchy-refresh-pacman" and .requires_sudo == true)' "$commands_json_file" >/dev/null
 pass "sudo metadata marks sudo commands"
 
 output=$("$CLI" theme --help)
@@ -175,14 +181,16 @@ output=$("$CLI" menu share) || status=$?
 pass "bare required-arg filename route exits 1"
 assert_output_contains "bare required-arg filename route renders CLI help" "$output" "omarchy share <clipboard|file|folder> [path...]"
 
-CLI="$CLI" python3 <<'PY'
+CLI="$CLI" COMMANDS_JSON_FILE="$commands_json_file" python3 <<'PY'
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import subprocess
 import sys
 
 cli = os.environ['CLI']
-commands = json.loads(subprocess.check_output([cli, 'commands', '--json'], text=True))['commands']
+with open(os.environ['COMMANDS_JSON_FILE']) as fh:
+  commands = json.load(fh)['commands']
 by_group = {}
 for command in commands:
   binary = command['binary']
@@ -191,16 +199,22 @@ for command in commands:
   filename_route = 'omarchy ' + stem.replace('-', ' ')
   by_group.setdefault(group, []).append((binary, filename_route, command['route']))
 
-missing = []
-for group, rows in sorted(by_group.items()):
+def check_group(item):
+  group, rows = item
   proc = subprocess.run([cli, group, '--help'], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   output = proc.stdout + proc.stderr
   if proc.returncode != 0:
-    missing.append((group, '<group-help-failed>', f'exit {proc.returncode}'))
-    continue
-  for binary, filename_route, canonical_route in rows:
-    if filename_route not in output and canonical_route not in output and binary not in output:
-      missing.append((group, binary, filename_route))
+    return [(group, '<group-help-failed>', f'exit {proc.returncode}')]
+  return [
+    (group, binary, filename_route)
+    for binary, filename_route, canonical_route in rows
+    if filename_route not in output and canonical_route not in output and binary not in output
+  ]
+
+missing = []
+with ThreadPoolExecutor(max_workers=os.cpu_count() or 8) as pool:
+  for rows in pool.map(check_group, sorted(by_group.items())):
+    missing.extend(rows)
 
 if missing:
   for row in missing:
@@ -232,13 +246,11 @@ fi
 pass "a group whose commands are all hidden stays out of the top-level listing"
 
 for internal in omarchy-apply-system omarchy-apply-hardware omarchy-apply-lock; do
-  if "$CLI" commands --json | jq -e --arg binary "$internal" \
-    '.commands[] | select(.binary == $binary)' >/dev/null; then
+  if jq -e --arg binary "$internal" '.commands[] | select(.binary == $binary)' "$commands_json_file" >/dev/null; then
     fail "$internal stays out of the default command listing"
   fi
 
-  "$CLI" commands --all --json | jq -e --arg binary "$internal" \
-    '.commands[] | select(.binary == $binary) | select(.hidden)' >/dev/null ||
+  jq -e --arg binary "$internal" '.commands[] | select(.binary == $binary) | select(.hidden)' "$commands_all_json_file" >/dev/null ||
     fail "$internal is still listed by commands --all"
 done
 pass "install-time setup plumbing is hidden from the setup wizards"
@@ -249,7 +261,7 @@ assert_output_contains "hidden setup plumbing still routes" "$output" "omarchy-a
 output=$("$CLI" screenshot --help)
 assert_output_contains "root alias resolves to command help" "$output" "omarchy-capture-screenshot"
 
-"$CLI" commands --json | jq -e '.commands[] | select(.binary == "omarchy-capture-screenshot") | .aliases | index("omarchy screenshot")' >/dev/null
+jq -e '.commands[] | select(.binary == "omarchy-capture-screenshot") | .aliases | index("omarchy screenshot")' "$commands_json_file" >/dev/null
 pass "aliases are included in JSON metadata"
 
 output=$("$CLI" pkg add --help)
@@ -590,13 +602,32 @@ jq -e '.theme == "custom:omarchy" and .model == "keep-me"' "$CLAUDE_TEST_CONFIG/
 pass "claude theme activation preserves configured settings"
 
 make_tmpdir THEME_TMPDIR
-OMARCHY_PATH="$ROOT" HOME="$THEME_TMPDIR" OMARCHY_THEME_HEADLESS=1 "$ROOT/bin/omarchy-theme-set" "Tokyo Night"
+# A dev-linked checkout has no stills: omarchy-themes-backgrounds installs them.
+PACKAGED_THEMES="$THEME_TMPDIR/packaged"
+mkdir -p "$PACKAGED_THEMES/tokyo-night/backgrounds"
+printf 'still' >"$PACKAGED_THEMES/tokyo-night/backgrounds/0-liftoff.webp"
+OMARCHY_PATH="$ROOT" HOME="$THEME_TMPDIR" OMARCHY_PACKAGED_THEMES_PATH="$PACKAGED_THEMES" OMARCHY_THEME_HEADLESS=1 \
+  "$ROOT/bin/omarchy-theme-set" "Tokyo Night"
 background_path=$(readlink -f "$THEME_TMPDIR/.local/state/omarchy/current/background" 2>/dev/null || true)
 expected_background="$THEME_TMPDIR/.local/state/omarchy/current/theme/backgrounds/0-liftoff.webp"
 [[ $background_path == "$expected_background" ]] || fail "headless theme set creates current background symlink"
 [[ -f $background_path ]] || fail "headless theme background target exists"
 [[ ! -e $THEME_TMPDIR/.config/omarchy/current ]] || fail "headless theme set avoids config current state"
-pass "headless theme set creates current background symlink"
+pass "headless theme set takes a dev-linked theme's stills from the package"
+
+# Without the package, the theme's background is drawn from its colors, even
+# beside a file that can't be a background.
+make_tmpdir NOBG_TMPDIR
+mkdir -p "$NOBG_TMPDIR/.config/omarchy/backgrounds/tokyo-night"
+touch "$NOBG_TMPDIR/.config/omarchy/backgrounds/tokyo-night/README.md"
+PATH="$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" HOME="$NOBG_TMPDIR" OMARCHY_PACKAGED_THEMES_PATH="$NOBG_TMPDIR/none" \
+  OMARCHY_THEME_HEADLESS=1 "$ROOT/bin/omarchy-theme-set" "Tokyo Night"
+background_path=$(readlink -f "$NOBG_TMPDIR/.local/state/omarchy/current/background" 2>/dev/null || true)
+[[ $background_path == "$NOBG_TMPDIR/.local/state/omarchy/current/theme/backgrounds/omarchy.png" && -s $background_path ]] ||
+  fail "a theme without backgrounds gets one drawn from its colors" "$background_path"
+[[ $(magick "$background_path" -depth 8 -format '%[hex:p{0,0}]' info:) == 1A1B26* ]] ||
+  fail "the drawn background uses the theme's background color"
+pass "a theme without backgrounds gets one drawn from its colors"
 
 cp "$NEXT_THEME/colors.toml" "$CURRENT_THEME/colors.toml"
 cp "$NEXT_THEME/vscode-theme.json" "$CURRENT_THEME/vscode-theme.json"
@@ -732,20 +763,48 @@ for binary in \
   pass "binary is executable: $binary"
 done
 
-while IFS= read -r binary_path; do
-  header=$(awk '
-    NR == 1 && /^#!/ { next }
-    /^[[:space:]]*$/ { if (seen) print; next }
-    /^[[:space:]]*#/ { seen=1; print; next }
-    { exit }
-  ' "$binary_path")
+ROOT="$ROOT" python3 - <<'PY' || exit 1
+import os, re, sys
 
-  grep -q '^# omarchy:summary=' <<<"$header" || fail "metadata summary is present: $binary_path"
-  ! grep -q '^# omarchy:binary=' <<<"$header" || fail "metadata does not repeat inferred binary: $binary_path"
-  ! grep -q '^# omarchy:args=$' <<<"$header" || fail "metadata does not include empty args: $binary_path"
-  ! grep -Eq '^# omarchy:(legacy|usage|visibility|mutates|interactive)=' <<<"$header" || fail "metadata avoids removed fields: $binary_path"
-  ! grep -Eq '^# omarchy:requires-sudo=false$' <<<"$header" || fail "metadata omits false booleans: $binary_path"
-done < <(find "$ROOT/bin" -maxdepth 1 -type f -executable -name 'omarchy-*' | sort)
+bin_dir = os.path.join(os.environ['ROOT'], 'bin')
+removed_re = re.compile(r'^# omarchy:(legacy|usage|visibility|mutates|interactive)=')
+
+for name in sorted(os.listdir(bin_dir)):
+  if not name.startswith('omarchy-'):
+    continue
+  path = os.path.join(bin_dir, name)
+  if not (os.path.isfile(path) and os.access(path, os.X_OK)):
+    continue
+  header = []
+  seen = False
+  with open(path, 'r', errors='replace') as fh:
+    for i, line in enumerate(fh, 1):
+      line = line.rstrip('\r\n')
+      if i == 1 and line.startswith('#!'):
+        continue
+      if not line.strip():
+        if seen:
+          header.append(line)
+        continue
+      if line.lstrip().startswith('#'):
+        seen = True
+        header.append(line)
+        continue
+      break
+  def die(msg):
+    print(f'not ok - {msg}: {path}', file=sys.stderr)
+    sys.exit(1)
+  if not any(l.startswith('# omarchy:summary=') for l in header):
+    die('metadata summary is present')
+  if any(l.startswith('# omarchy:binary=') for l in header):
+    die('metadata does not repeat inferred binary')
+  if any(l == '# omarchy:args=' for l in header):
+    die('metadata does not include empty args')
+  if any(removed_re.match(l) for l in header):
+    die('metadata avoids removed fields')
+  if any(l == '# omarchy:requires-sudo=false' for l in header):
+    die('metadata omits false booleans')
+PY
 pass "all executable bins have slim self-documenting metadata"
 
 make_tmpdir TMPDIR
@@ -797,6 +856,23 @@ assert_output_contains "partial metadata command dispatches" "$output" "partial-
 
 output=$("$TMPDIR/omarchy" body metadata test)
 assert_output_contains "body metadata command dispatches by filename" "$output" "body-metadata-ok"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Subcommand metadata test\n'
+  printf '# omarchy:subcommand=use <id> — Use a thing\n'
+  printf '# omarchy:subcommand=reset — Reset the thing\n'
+  printf 'echo subcmd-ran\n'
+} >"$TMPDIR/omarchy-subcmd"
+chmod +x "$TMPDIR/omarchy-subcmd"
+
+output=$("$TMPDIR/omarchy" subcmd --help)
+assert_output_contains "each subcommand gets its own row and summary" "$output" "omarchy subcmd use <id>  Use a thing"
+assert_output_contains "a bare subcommand gets its own row and summary" "$output" "omarchy subcmd reset     Reset the thing"
+
+output=$("$TMPDIR/omarchy" subcmd 2>&1) || true
+[[ $output != *"subcmd-ran"* ]] || fail "subcommands make a bare invocation show help"
+pass "subcommands make a bare invocation show help"
 
 # A trailing --help must render help even when the route only partially
 # resolves, leaving unresolved words ahead of the flag (e.g. `update aur --help`
@@ -924,12 +1000,25 @@ if (( EUID != 0 )); then
   chmod 755 "$TMPDIR/omarchy-zz-unreadable"
   rm -f "$TMPDIR/omarchy-zz-unreadable"
   pass "an alias dispatch reads only the commands that can own its route"
+
+  # An unreadable executable earlier in the sorted glob must not abort the
+  # batch header scan and hide subsequent readable commands.
+  printf '#!/bin/bash\n\n# omarchy:summary=Unreadable first command\necho unreadable\n' >"$TMPDIR/omarchy-aa-unreadable"
+  printf '#!/bin/bash\n\n# omarchy:summary=Readable later command\necho readable\n' >"$TMPDIR/omarchy-zz-readable"
+  chmod 111 "$TMPDIR/omarchy-aa-unreadable"
+  chmod 755 "$TMPDIR/omarchy-zz-readable"
+  output=$("$TMPDIR/omarchy" commands 2>"$TMPDIR/unreadable.err")
+  [[ $(<"$TMPDIR/unreadable.err") == *"Permission denied"* ]] ||
+    fail "an unreadable command still reports permission denied" "$(<"$TMPDIR/unreadable.err")"
+  assert_output_contains "an unreadable command does not hide later commands" "$output" "omarchy zz readable"
+  chmod 755 "$TMPDIR/omarchy-aa-unreadable"
+  rm -f "$TMPDIR/omarchy-aa-unreadable" "$TMPDIR/omarchy-zz-readable" "$TMPDIR/unreadable.err"
 fi
 
 # The same guarantee against the real command table, timed: an alias dispatch
-# that loads every header costs what help on it costs (about 190ms either way
-# before the candidates-only path, against 13ms after). Timing both in the same
-# run keeps the check independent of how fast the machine is.
+# that loads every header costs what help on it costs (about 47ms either way
+# without the candidates-only path, against 11ms with it). Timing both in the
+# same run keeps the check independent of how fast the machine is.
 make_tmpdir ROUTER_BIN
 cp -a "$ROOT/bin/." "$ROUTER_BIN/"
 # The real header, so the alias resolves as shipped, over a body that takes no
@@ -939,28 +1028,44 @@ cp -a "$ROOT/bin/." "$ROUTER_BIN/"
   printf 'echo screenshot-stub-ran\n'
 } >"$ROUTER_BIN/omarchy-capture-screenshot"
 
-# Timed on /proc/uptime, which counts from boot: this suite runs in the first
-# minute of a CI VM, when time sync can step the wall clock EPOCHREALTIME reads.
-fastest_ms() {
-  local best="" start end elapsed
+# Timed on CLOCK_MONOTONIC at microsecond resolution: this suite runs in the
+# first minute of a CI VM (when time sync can step the wall clock EPOCHREALTIME
+# reads), and /proc/uptime's 10ms ticks quantize ~11ms vs ~47ms runs too coarsely.
+fastest_us() {
+  python3 - "$@" <<'PY'
+import subprocess, sys, time
 
-  for _ in 1 2 3 4 5; do
-    read -r start _ </proc/uptime
-    "$@" >/dev/null 2>&1
-    read -r end _ </proc/uptime
-    elapsed=$(( (${end/./} - ${start/./}) * 10 ))
-    if [[ -z $best ]] || (( elapsed < best )); then
-      best=$elapsed
-    fi
-  done
-  echo "$best"
+cmd = sys.argv[1:]
+best = None
+for _ in range(5):
+  start = time.monotonic_ns()
+  subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+  elapsed = (time.monotonic_ns() - start) // 1000
+  if best is None or elapsed < best:
+    best = elapsed
+print(best)
+PY
 }
 
 [[ $("$ROUTER_BIN/omarchy" screenshot) == "screenshot-stub-ran" ]] || fail "omarchy screenshot dispatches to the capture command"
-alias_ms=$(fastest_ms "$ROUTER_BIN/omarchy" screenshot)
-full_ms=$(fastest_ms "$ROUTER_BIN/omarchy" screenshot --help)
-if (( alias_ms * 4 > full_ms )); then
-  printf 'omarchy screenshot took %dms; loading the whole table for its help took %dms.\n' "$alias_ms" "$full_ms" >&2
+alias_us=$(fastest_us "$ROUTER_BIN/omarchy" screenshot) || fail "timing alias dispatch failed"
+full_us=$(fastest_us "$ROUTER_BIN/omarchy" screenshot --help) || fail "timing full command table load failed"
+alias_ms=$(printf '%d.%d' "$(( alias_us / 1000 ))" "$(( (alias_us % 1000) / 100 ))")
+full_ms=$(printf '%d.%d' "$(( full_us / 1000 ))" "$(( (full_us % 1000) / 100 ))")
+if (( alias_us * 2 > full_us )); then
+  printf 'omarchy screenshot took %sms; loading the whole table for its help took %sms.\n' "$alias_ms" "$full_ms" >&2
   fail "an alias dispatch costs a fraction of loading the whole command table"
 fi
 pass "an alias dispatch costs a fraction of loading the whole command table (${alias_ms}ms vs ${full_ms}ms)"
+
+# Routing and prefix help must not glob against filenames in the current
+# working directory or treat glob metacharacters in arguments as wildcards.
+make_tmpdir GLOB_PWD
+: >"$GLOB_PWD/i"
+output=$(cd "$GLOB_PWD" && "$ROOT/bin/omarchy" agent account --help)
+assert_output_contains "flag-only parent metadata does not glob against files in PWD" "$output" "agent account commands:"
+
+if output=$("$ROOT/bin/omarchy" '*' 2>&1); then
+  fail "wildcard input must not match prefix help"
+fi
+assert_output_contains "wildcard input reports unknown command" "$output" "Unknown Omarchy command"

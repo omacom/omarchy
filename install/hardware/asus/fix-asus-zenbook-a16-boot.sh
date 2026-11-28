@@ -1,27 +1,9 @@
-# Disk unlock and sleep on the ASUS Zenbook A16 UX3607OA (Snapdragon X2 Elite).
+# Disk unlock and display power on the ASUS Zenbook A16 UX3607OA (Snapdragon X2 Elite).
 
 mkinitcpio_dir=${OMARCHY_ZENBOOK_A16_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 limine_config_dir=${OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR:-/etc/limine-entry-tool.d}
-sleep_config_dir=${OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR:-/etc/systemd/sleep.conf.d}
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3607OA"; then
-  # Neither sleep mode is reliable yet. Resuming from deep sleep, PSCI system
-  # suspend, resets the SoC. Suspend to idle survives a short nap, but the SoC
-  # never collapses its CX rail (qcom_stats cxsd stays at 0, with a PCIe link
-  # timing out on L2 entry), and an overnight suspend hung until a forced power
-  # off. Keep the laptop awake until suspend reaches real SoC sleep.
-  # The shared file name is what omarchy-sleep-disabled looks for to hide
-  # Suspend from the menu; the one suspend to idle was set in goes away.
-  mkdir -p "$sleep_config_dir"
-  rm -f "$sleep_config_dir/zenbook-a16.conf"
-  cat >"$sleep_config_dir/omarchy-sleep-disabled.conf" <<'CONF'
-[Sleep]
-AllowSuspend=no
-AllowHibernation=no
-AllowSuspendThenHibernate=no
-AllowHybridSleep=no
-CONF
-
   # Bring up the keyboard, the embedded controller and the USB-C and USB-A
   # chains before disk unlock. The ? skips a module a kernel does not have.
   # The DSP driver stays out: listing it here would bypass the USB-root guard.
@@ -44,10 +26,9 @@ done
 unset firmware directory suffix
 CONF
 
-  # Plymouth leaves the panel black at the unlock prompt, so ask for the
-  # passphrase on the text console instead.
-  mkdir -p "$limine_config_dir"
-  cat >"$limine_config_dir/zenbook-a16.conf" <<'CONF'
-KERNEL_CMDLINE[default]+=" console=tty0 plymouth.enable=0"
-CONF
+  # console=tty0 puts the console on the panel, not a serial port, for an
+  # unlock prompt the boot splash leaves to it. Enable Panel Self Refresh
+  # (msm.psr_enabled=1, covering eDP and DP sinks) so the display controller
+  # suspends on static screens (~2-2.5 W saved on the internal OLED panel).
+  OMARCHY_BOOT_LIMINE_DROPINS=$limine_config_dir omarchy-boot-cmdline set zenbook-a16 console=tty0 msm.psr_enabled=1
 fi

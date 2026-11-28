@@ -1,8 +1,8 @@
-# 常见问题
+# 常见问题解答
 
-### 如何在键盘布局之间切换？
+### 如何切换键盘布局？
 
-编辑你的 `~/.config/hypr/input.lua` 文件，并添加以下内容，即可使用 `Left Alt + Right Alt` 在布局之间切换：
+编辑你的 `~/.config/hypr/input.lua` 文件，并添加以下内容，以便用 `Left Alt + Right Alt` 在布局之间切换：
 
 ```
 hl.config({
@@ -14,11 +14,11 @@ hl.config({
 })
 ```
 
-配置多个布局后，状态栏会自动显示你当前的键盘布局（你也可以点击它进行切换）。
+一旦你配置了多个布局，状态栏就会自动显示你当前的键盘布局（你也可以点击它来切换）。
 
-### 如何将时钟格式更改为 12 小时制？
+### 如何将时钟格式改为 12 小时制？
 
-右键点击状态栏中的时钟，即可循环切换常见格式，包括 12 小时制格式。你也可以直接设置格式：
+右键点击状态栏中的时钟，可在常用格式之间循环切换，包括 12 小时制格式。你也可以直接设置格式：
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
@@ -28,54 +28,54 @@ omarchy bar set omarchy.clock format "dddd h:mm AP"
 
 ### 如何更改我的时区？
 
-在 Omarchy 菜单中运行 _Setup > Region > Timezone_，然后从列表中选择。如果时区正确，但时钟本身出现了偏移，_Update > Time_ 会为你重启时间同步。
+在 Omarchy 菜单中运行 _设置 > 区域 > 时区_，并从列表中选择。如果时区正确，但时钟本身已经漂移，_更新 > 时间_ 会为你重启时间同步。
 
 ### 如何更改我的 DNS、共享我的 Wi-Fi 或检查我的连接速度？
 
-这些都在[网络](35-networking.md)中。
+这些都位于[网络](35-networking.md)中。
 
 ### 如何检查我的磁盘速度有多快？
 
-_Trigger > Speed Test > Disk Speed Test_ 会实时测量你的驱动器的读取和写入速度，或者从终端运行 `omarchy disk speedtest`。
+_触发 > 速度测试 > 磁盘速度测试_ 可以实时测量你驱动器上的读取和写入速度，或者在终端中运行 `omarchy disk speedtest`。
 
 ### 如何添加打印机？
 
-打印功能已经开箱即用地设置好并正在运行，你可以从应用启动器（`Super + Space`）中的 _Print Settings_ 自行添加每台打印机。
+打印功能开箱即已设置好并正在运行，你可以在应用启动器（`Super + Alt + Space`）中从 _打印设置_ 自行添加每台打印机。
 
-选择 _Add_，并给它一点时间进行查找：通过 USB 连接的打印机，以及大多数网络打印机，都会自动为你找到。如果你的打印机不在列表中，选择 _Network Printer > Internet Printing Protocol (ipp)_ 并输入它的地址——打印机自身的显示屏或它的网页会告诉你那是什么，通常类似 `192.168.1.50`，队列为 `ipp/print`。然后 _Forward_ 会提供一个驱动程序，其中现代打印机使用免驱动程序的 _IPP Everywhere_ 配置文件效果最好，而较旧的打印机需要该型号自带的驱动程序。
+选择 _添加_，并给它一点时间查找：通过 USB 插入的打印机以及大多数网络打印机都会为你找到。如果你的打印机不在列表中，请选择 _网络打印机 > Internet Printing Protocol (ipp)_ 并输入其地址——打印机自身的显示屏或其网页会告诉你那是什么，通常类似 `192.168.1.50`，队列为 `ipp/print`。然后 _下一步_ 会提供一个驱动程序，其中现代打印机使用无驱动的 _IPP Everywhere_ 配置文件效果最佳，而较旧的打印机则需要该型号自带的驱动程序。
 
-右键点击打印机并选择 _Set as Default_，可选择你的应用首先使用哪一台，选择 _Properties_ 可设置纸张大小、双面打印和质量。
+右键点击打印机并选择 _设为默认_，以选择你的应用优先使用哪一台，并选择 _属性_ 来设置纸张大小、双面打印和质量。
 
-自动发现功能，即网络上的打印机无需添加即可出现，在重做期间已暂时关闭，这就是为什么上面的第一步需要你自己完成而不是自动完成的原因。打印到 PDF 文件完全不需要任何打印机也可以完成。
+自动发现（即网络上的打印机无需添加即可出现）目前暂时关闭，正在重新改造，这就是为什么上面的第一步需要你自己完成，而不是自动完成。打印到 PDF 文件则完全不需要任何打印机。
 
-### 如何更改截图或屏幕录制的保存位置？
+### 如何更改截图或录屏的保存位置？
 
-保存的截图默认进入 `~/Pictures/Screenshots`。要使用另一个目录，请将以下内容添加到 `~/.config/uwsm/env.d/` 下的文件中（比如 `~/.config/uwsm/env.d/capture`）：
+默认情况下，保存的截图会存到 `~/Pictures/Screenshots`。要使用另一个目录，请将以下内容添加到 `~/.config/uwsm/env.d/` 下的一个文件中（如 `~/.config/uwsm/env.d/capture`）：
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-你也可以使用 `OMARCHY_SCREENRECORD_DIR` 对屏幕录制做同样的事情。
+你也可以使用 `OMARCHY_SCREENRECORD_DIR` 对录屏做同样的操作。
 
-Omasnap 会自动创建它的截图目录。你自己创建屏幕录制目录，然后重启 Omarchy，任何一个环境更改都会生效。
+Omasnap 会自动创建其截图目录。录屏目录请自行创建，然后重启 Omarchy，让任一环境更改生效。
 
 ### 如何让我的 Apple Studio Display 上的扬声器 + 摄像头正常工作？
 
-你以为只要插上 USB C 一切就应该能工作，但遗憾的是情况并非如此。我发现的能让它可靠工作的解决方案是使用[WJESOG DisplayPort + USB-A => USB-C 线缆](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/)。然后扬声器和摄像头就能完美地工作。
+你会以为只要插上 USB C 就应该一切正常，但遗憾的是并非如此。我发现能让它可靠工作的方法是使用 [WJESOG DisplayPort + USB-A => USB-C 线缆](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/)。然后扬声器和摄像头就运转得无比顺畅。
 
-请记住，Omarchy 为 Apple 显示器（Studio 和 XDR 两者都有）内置了亮度控制，使用常规的键盘亮度按钮即可。
+请记住，Omarchy 为 Apple Displays（Studio 和 XDR 均包括在内）内置了亮度控制，使用常规的键盘亮度按钮即可。
 
-### 如何移除所有额外的软件？
+### 如何去掉所有多余的软件？
 
-如果你不想要 Obsidian 或 LibreOffice 或任何其他预装的东西等程序，你可以非常轻松地移除它。
+如果你不想要 Obsidian 或 LibreOffice 等程序，或任何其他预装的东西，你可以非常轻松地将其移除。
 
-运行 _Remove > Package_ 来查看每一个已安装的软件包。然后你可以用 tab 选择任何你想移除的软件包，并用 return 开始移除你已选择的一切。
+运行 _移除 > 软件包_ 可查看已安装的每一个软件包。然后你可以用 tab 选择任何你想要移除的软件包，并用 return 开始移除你选中的所有内容。
 
-你也可以使用 Omarchy 菜单中的 _Remove > Web App_ 来移除任何你不想要的预装 Web 应用。
+你也可以使用 Omarchy 菜单中的 _移除 > Web 应用_ 来移除任何你不想要的预装 Web 应用。
 
-或者运行 _Remove > Preinstalls_，一次性扫除所有预装的额外内容——Web 应用、TUI 和可选应用程序。启动它们的快捷键会随之消失，因此你将得到一份干净的绑定清单，可以在 `~/.config/hypr/bindings.lua` 中用你自己的绑定来填满它。
+或者运行 _移除 > 预装软件_，一次性扫除所有预装的额外内容——Web 应用、TUIs 和可选应用程序。启动它们的热键也会随之消失，因此你会得到一份干净的绑定空白清单，可以在 `~/.config/hypr/bindings.lua` 中填入你自己的绑定。
 
 ---
 
-有关错误和损坏的部分，请参阅[故障排查部分](45-troubleshooting.md)。
+如需处理错误和损坏的部分，请参见[故障排除部分](45-troubleshooting.md)。

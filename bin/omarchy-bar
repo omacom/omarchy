@@ -2,7 +2,15 @@
 
 # omarchy:summary=Configure the bar and its widget layout
 # omarchy:group=bar
-# omarchy:args=use <id> | reset | defaults | position [top|bottom|left|right] | background [opaque|glassy|none|cycle] | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement] | get <id> <key>
+# omarchy:subcommand=use <id> — Use a bar option as the active bar
+# omarchy:subcommand=reset — Return to the built-in Omarchy bar
+# omarchy:subcommand=defaults — Restore the default bar and service widgets
+# omarchy:subcommand=position [top|bottom|left|right] — Set the bar position, or print it when given none
+# omarchy:subcommand=background [opaque|glassy|none|cycle] — Set the bar background, or print it when given none
+# omarchy:subcommand=put <id> [placement] — Put a widget on the bar, leaving one already there where it is
+# omarchy:subcommand=move <id> [placement] — Move a widget within or between sections
+# omarchy:subcommand=set <id> <key> <value> [--json] [placement] — Set a per-widget option
+# omarchy:subcommand=get <id> <key> — Print a per-widget option
 # omarchy:examples=omarchy bar use local.neon-bar | omarchy bar put omarchy.keyboard-layout --after omarchy.clock | omarchy bar move omarchy.weather --section centerBegin --index 0 | omarchy bar set omarchy.clock format HH:mm
 
 set -euo pipefail

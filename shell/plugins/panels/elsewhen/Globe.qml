@@ -3,7 +3,6 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
-import qs.Ui
 import "GlobeModel.js" as Solar
 import "Model.js" as Model
 
@@ -549,6 +548,10 @@ Item {
 
     MouseArea {
       anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: pressed ? Qt.ClosedHandCursor
+        : (containsMouse && root.hitAt(mouseX - canvas.width / 2, mouseY - canvas.height / 2) >= 0
+          ? Qt.PointingHandCursor : Qt.OpenHandCursor)
       property real lastX: 0
       property real lastY: 0
       property bool moved: false
@@ -560,6 +563,7 @@ Item {
         root.velocity = 0
       }
       onPositionChanged: function(mouse) {
+        if (!pressed) return
         var dx = mouse.x - lastX, dy = mouse.y - lastY
         if (Math.abs(dx) + Math.abs(dy) > 2) moved = true
         root.spin -= dx * root.dragSpinRate

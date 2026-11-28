@@ -62,18 +62,6 @@
   "learn.hyprland": {
     "label": "Hyprland"
   },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
-  },
   "learn.herdr-keybindings": {
     "label": "Herdr"
   },
@@ -224,12 +212,6 @@
   "appearance.dock": {
     "label": "ডক"
   },
-  "appearance.dock.autohide": {
-    "label": "ডক স্বয়ংক্রিয় লুকান"
-  },
-  "appearance.dock.always-on": {
-    "label": "ডক সবসময় চালু"
-  },
   "appearance.dock.position": {
     "label": "ডকের অবস্থান"
   },
@@ -257,9 +239,6 @@
   },
   "appearance.workspace-layout.floating": {
     "label": "ভাসমান"
-  },
-  "appearance.unlock": {
-    "label": "আনলক"
   },
   "trigger.toggle": {
     "label": "টগল"
@@ -389,54 +368,6 @@
   },
   "setup.default": {
     "label": "ডিফল্টসমূহ"
-  },
-  "agent": {
-    "label": "এজেন্ট"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "ব্রাউজার",
@@ -718,33 +649,6 @@
   "install.terminal.kitty": {
     "label": "Kitty"
   },
-  "install.ai.chatgpt": {
-    "label": "ChatGPT Desktop"
-  },
-  "install.ai.claude": {
-    "label": "Claude Desktop"
-  },
-  "install.ai.grok-bot": {
-    "label": "Grok Bot"
-  },
-  "install.ai.hermes": {
-    "label": "Hermes Desktop"
-  },
-  "install.ai.lm-studio": {
-    "label": "LM Studio"
-  },
-  "install.ai.ollama": {
-    "label": "Ollama"
-  },
-  "install.ai.openclaw": {
-    "label": "OpenClaw"
-  },
-  "install.ai.perplexity": {
-    "label": "Perplexity"
-  },
-  "install.ai.t3-code": {
-    "label": "T3 Code"
-  },
   "install.gaming.steam": {
     "label": "Steam"
   },
@@ -898,9 +802,6 @@
   "remove.security.sudoless-docker": {
     "label": "sudo ছাড়া Docker"
   },
-  "remove.ai.hermes": {
-    "label": "Hermes Desktop"
-  },
   "remove.browser.chrome": {
     "label": "Chrome"
   },
@@ -931,35 +832,11 @@
   "remove.service.ssh-agent": {
     "label": "SSH Agent"
   },
-  "remove.ai.chatgpt": {
-    "label": "ChatGPT Desktop"
-  },
-  "remove.ai.claude": {
-    "label": "Claude Desktop"
-  },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
   },
   "remove.dictation.voxtype": {
     "label": "Voxtype"
-  },
-  "remove.ai.grok-bot": {
-    "label": "Grok Bot"
-  },
-  "remove.ai.lm-studio": {
-    "label": "LM Studio"
-  },
-  "remove.ai.ollama": {
-    "label": "Ollama"
-  },
-  "remove.ai.openclaw": {
-    "label": "OpenClaw"
-  },
-  "remove.ai.perplexity": {
-    "label": "Perplexity"
-  },
-  "remove.ai.t3-code": {
-    "label": "T3 Code"
   },
   "remove.gaming.steam": {
     "label": "Steam"
@@ -1108,9 +985,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1128,12 +1002,6 @@
   },
   "update.hardware.trackpad": {
     "label": "ট্র্যাকপ্যাড"
-  },
-  "update.password.drive": {
-    "label": "ড্রাইভ এনক্রিপশন"
-  },
-  "update.password.user": {
-    "label": "ব্যবহারকারী"
   },
   "appearance.windows.gaps-on": {
     "label": "উইন্ডো ফাঁক চালু"
@@ -1193,7 +1061,7 @@
     "label": "ল্যাপটপ ডিসপ্লে বন্ধ"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "ডিসপ্লে মিররিং চালু"
+    "label": "মিরর ডিসপ্লে চালু"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "ব্যাটারি % দেখান"
@@ -1205,13 +1073,15 @@
     "label": "উইন্ডো"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "ডিসপ্লে মিররিং বন্ধ"
+    "label": "মিরর ডিসপ্লে বন্ধ"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "হাইব্রিড GPU-তে যান"
+    "label": "dGPU-তে স্যুইচ",
+    "description": "হাইব্রিড ডেডিকেটেড GPU সক্রিয় করুন"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "ইন্টিগ্রেটেড GPU-তে যান"
+    "label": "iGPU-তে স্যুইচ",
+    "description": "শুধুমাত্র ইন্টিগ্রেটেড GPU ব্যবহার করুন"
   },
   "trigger.hardware.touchpad-on": {
     "label": "টাচপ্যাড চালু করুন"
@@ -1224,33 +1094,6 @@
   },
   "trigger.hardware.touchscreen-off": {
     "label": "টাচস্ক্রিন বন্ধ করুন"
-  },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
   },
   "setup.git": {
     "label": "Git"
@@ -1279,15 +1122,6 @@
   "setup.keyboard.input-methods": {
     "label": "ইনপুট পদ্ধতি"
   },
-  "install.ai.herdr": {
-    "label": "Herdr Desktop"
-  },
-  "install.ai.amp": {
-    "label": "Amp Desktop"
-  },
-  "remove.ai.amp": {
-    "label": "Amp Desktop"
-  },
   "install.service.notion": {
     "label": "Notion"
   },
@@ -1299,25 +1133,6 @@
   },
   "setup.default.editor.plain": {
     "label": "সাধারণ"
-  },
-  "agent.harness": {
-    "label": "হার্নেস",
-    "title": "ডিফল্ট হার্নেস"
-  },
-  "agent.instructions": {
-    "label": "নির্দেশাবলী"
-  },
-  "agent.make": {
-    "label": "কিছু বানান"
-  },
-  "agent.make.theme": {
-    "label": "থিম বানান"
-  },
-  "agent.make.plugin": {
-    "label": "প্লাগইন বানান"
-  },
-  "agent.make.app": {
-    "label": "অ্যাপ বানান"
   },
   "install.browser.chromium": {
     "label": "Chromium"
@@ -1357,7 +1172,292 @@
   "update.games": {
     "label": "গেমের আমেজ গেমগুলো"
   },
-  "agent.make.game": {
-    "label": "গেম বানান"
+  "setup.network.hostname": {
+    "label": "হোস্টনেম"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
+  "install.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "install.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "install.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "install.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "install.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "install.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "install.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "install.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "install.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "install.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "install.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "install.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "install.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "install.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "install.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "install.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "install.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "install.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "remove.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "remove.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "remove.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "remove.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "remove.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "remove.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "remove.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "remove.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "remove.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "remove.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "remove.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "remove.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "remove.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "remove.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "remove.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "remove.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "remove.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "remove.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "remove.cli": {
+    "label": "CLI",
+    "title": "সরান"
+  },
+  "remove.ai.desktop": {
+    "label": "ডেস্কটপ",
+    "title": "সরান"
+  },
+  "remove.ai.cli": {
+    "label": "CLI",
+    "title": "সরান"
+  },
+  "remove.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "remove.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "remove.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "remove.cli.github": {
+    "label": "GitHub"
+  },
+  "remove.cli.hey": {
+    "label": "HEY"
+  },
+  "remove.cli.hunk": {
+    "label": "Hunk"
+  },
+  "remove.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "remove.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "install.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop": {
+    "label": "ডেস্কটপ"
+  },
+  "install.ai.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "install.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.desktop.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "install.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "install.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "install.cli.github": {
+    "label": "GitHub"
+  },
+  "install.cli.hey": {
+    "label": "HEY"
+  },
+  "install.cli.hunk": {
+    "label": "Hunk"
+  },
+  "install.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "install.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "system.snapshots": {
+    "label": "স্ন্যাপশট"
+  },
+  "system.snapshots.restore": {
+    "label": "এই স্ন্যাপশট পুনরুদ্ধার করুন"
+  },
+  "setup.security.passwordless-login": {
+    "label": "পাসওয়ার্ডবিহীন লগইন"
+  },
+  "setup.default.browser.ladybird": {
+    "label": "Ladybird"
+  },
+  "install.browser.ladybird": {
+    "label": "Ladybird"
+  },
+  "remove.browser.ladybird": {
+    "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "টাইলিংয়ে Dock"
+  },
+  "appearance.dock.floating-only": {
+    "label": "শুধু ভাসমানে Dock"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock দৃশ্যমানতা"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "সবসময় চালু"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "প্রথম অ্যাপে লুকায়"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "সবসময় লুকানো"
   }
 }

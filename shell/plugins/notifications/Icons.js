@@ -31,7 +31,7 @@ function siteNames(source) {
 }
 
 // What to look for, in order. A site comes first and its browser last, and a
-// site's names only as exact icon-theme names: a fuzzy desktop-entry match on
+// site's names only as exact icon names: a fuzzy desktop-entry match on
 // a domain label is how mail.google.com ends up wearing Google Contacts. The
 // hint of a browser notification always names the browser, so it waits too.
 // An anonymous sender (omarchy-action, notify-send) names no app: looked up,

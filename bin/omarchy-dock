@@ -1,9 +1,14 @@
 #!/bin/bash
 
-# omarchy:summary=Configure the dock shown on floating workspaces
+# omarchy:summary=Configure the app dock
 # omarchy:group=dock
-# omarchy:args=position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
-# omarchy:examples=omarchy dock position left | omarchy dock pin folio
+# omarchy:subcommand=position [top|bottom|left|right] — Set the dock position, or print it when given none
+# omarchy:subcommand=visibility [always|first-app|hidden] — Keep the dock out always, until the workspace has a window, or only while the pointer is at its edge; prints the setting when given none
+# omarchy:subcommand=tiling [on|off|toggle] — Show the dock on tiled workspaces too, or print the setting
+# omarchy:subcommand=pinned [<desktop-id>...] — Set the pinned apps in dock order, or print them
+# omarchy:subcommand=pin <desktop-id> — Keep an app in the dock
+# omarchy:subcommand=unpin <desktop-id> — Remove an app from the dock
+# omarchy:examples=omarchy dock position left | omarchy dock visibility always | omarchy dock pin folio
 
 set -euo pipefail
 
@@ -15,9 +20,12 @@ Usage: omarchy dock <command> [args...]
 
   position [top|bottom|left|right]     Dock position; prints the current one
                                        when given none
-  autohide [on|off|toggle]             Hide the dock until the pointer reaches
-                                       its edge; prints on or off when given
-                                       none
+  visibility [always|first-app|hidden] When the dock is out: always, until the
+                                       workspace has a window, or only while
+                                       the pointer is at its edge; prints the
+                                       setting when given none
+  tiling [on|off|toggle]               Show the dock on tiled workspaces too;
+                                       prints on or off when given none
   pinned [<desktop-id>...]             Pinned desktop ids in dock order; prints
                                        them one per line when given none
   pin <desktop-id>                     Keep an app in the dock
@@ -42,28 +50,44 @@ cmd_position() {
   echo "Dock position set to $position"
 }
 
-current_autohide() {
-  jq -r 'if .dock.autohide == true then "on" else "off" end' "$(source_file)"
+# A shell.json from before this setting said autohide, which hid the dock
+# always; without either, the dock hides once its workspace has a window.
+cmd_visibility() {
+  if (( $# == 0 )); then
+    jq -r '.dock.visibility // (if .dock.autohide == true then "hidden" else "first-app" end)' "$(source_file)"
+    return
+  fi
+
+  local visibility="$1"
+  (( $# == 1 )) || fail "visibility takes a single value"
+  [[ $visibility =~ ^(always|first-app|hidden)$ ]] || fail "visibility must be always, first-app, or hidden"
+  commit "$NORMALIZE | .dock.visibility = \$visibility | del(.dock.autohide)" --arg visibility "$visibility"
+  echo "Dock visibility set to $visibility"
 }
 
-cmd_autohide() {
+# On unless turned off, so a shell.json without the key has the tiled dock.
+current_tiling() {
+  jq -r 'if .dock.tiling == false then "off" else "on" end' "$(source_file)"
+}
+
+cmd_tiling() {
   if (( $# == 0 )); then
-    current_autohide
+    current_tiling
     return
   fi
 
   local value="$1"
-  (( $# == 1 )) || fail "autohide takes a single value"
+  (( $# == 1 )) || fail "tiling takes a single value"
   if [[ $value == "toggle" ]]; then
-    if [[ $(current_autohide) == "on" ]]; then
+    if [[ $(current_tiling) == "on" ]]; then
       value=off
     else
       value=on
     fi
   fi
-  [[ $value =~ ^(on|off)$ ]] || fail "autohide must be on, off, or toggle"
-  commit "$NORMALIZE | .dock.autohide = (\$value == \"on\")" --arg value "$value"
-  echo "Dock auto-hide turned $value"
+  [[ $value =~ ^(on|off)$ ]] || fail "tiling must be on, off, or toggle"
+  commit "$NORMALIZE | .dock.tiling = (\$value == \"on\")" --arg value "$value"
+  echo "Dock on tiled workspaces turned $value"
 }
 
 cmd_pinned() {
@@ -109,7 +133,8 @@ command="${1:-}"
 
 case "$command" in
   position) cmd_position "$@" ;;
-  autohide) cmd_autohide "$@" ;;
+  visibility) cmd_visibility "$@" ;;
+  tiling) cmd_tiling "$@" ;;
   pinned) cmd_pinned "$@" ;;
   pin) cmd_pin "$@" ;;
   unpin) cmd_unpin "$@" ;;

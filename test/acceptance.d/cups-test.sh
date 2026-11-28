@@ -33,10 +33,21 @@ for path in \
 done
 pass "automatic printer discovery leaves no package files"
 
-systemctl is-enabled --quiet cups.service || fail "CUPS is enabled"
-systemctl is-active --quiet cups.service || fail "CUPS is running"
-timeout 10 lpstat -r >/dev/null 2>&1 || fail "the CUPS scheduler answers"
-pass "CUPS is enabled, running, and answering"
+! systemctl is-enabled --quiet cups.service 2>/dev/null ||
+  fail "CUPS service is not eagerly enabled at boot"
+systemctl is-enabled --quiet cups.socket || fail "CUPS socket is enabled"
+systemctl is-enabled --quiet cups.path || fail "CUPS path is enabled"
+systemctl is-active --quiet cups.socket || fail "CUPS socket is listening"
+if systemctl is-active --quiet cups.service 2>/dev/null && sudo -n true 2>/dev/null; then
+  sudo -n systemctl stop cups.service
+  sudo -n systemctl start cups.socket
+  ! systemctl is-active --quiet cups.service 2>/dev/null ||
+    fail "CUPS stays inactive until a client connects"
+fi
+[[ $(LC_ALL=C timeout 10 lpstat -r 2>&1) == "scheduler is running" ]] ||
+  fail "the CUPS scheduler answers on demand"
+systemctl is-active --quiet cups.service || fail "CUPS activates on demand"
+pass "CUPS is socket-activated and answers on demand"
 
 policy_metadata=$(stat -c '%U:%G %a' /etc/cups/cups-files.conf)
 [[ $policy_metadata == "root:cups 640" ]] ||

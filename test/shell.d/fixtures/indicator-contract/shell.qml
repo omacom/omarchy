@@ -191,6 +191,18 @@ ShellRoot {
     return null
   }
 
+  function hoverIndicator(slot, hovered) {
+    var children = slot.children[0].item.children
+    for (var i = 0; i < children.length; i++) {
+      var area = children[i]
+      if (area.hoverEnabled === undefined || typeof area.entered !== "function") continue
+      if (hovered) area.entered()
+      else area.exited()
+      return
+    }
+    fail("indicator has no hover area")
+  }
+
   // Rows and columns lay out on the next frame, and this fixture has no window
   // to draw one. Run the pending layouts innermost first, as a frame would.
   function layOut(item) {
@@ -393,7 +405,7 @@ ShellRoot {
         var zone = hiddenBlockZone()
         var hiddenZone = zone ? fromEdge(span(zone)) : null
         root.assertTrue(!!zone, label + ": the widget has a hover zone for its hidden icons")
-        tray.setIndicatorAreaHovered(true)
+        root.hoverIndicator(nightLight, true)
 
         Qt.callLater(function() {
           root.layOut(tray)
@@ -417,13 +429,25 @@ ShellRoot {
           } else {
             root.fail(label + ": Stay Awake shows in the revealed inactive block")
           }
-          tray.setIndicatorAreaHovered(false)
+          if (stayAwake) {
+            root.hoverIndicator(stayAwake, true)
+            root.hoverIndicator(nightLight, false)
+            root.assertTrue(tray.indicatorItemHovered, label + ": entering the next icon before leaving the previous keeps the reveal")
+            root.hoverIndicator(stayAwake, false)
+          } else {
+            root.hoverIndicator(nightLight, false)
+          }
           idleService.setIdleEnabled(false)
 
           Qt.callLater(function() {
             var actual = tray.activeIndicatorIds.join(",")
             root.assertTrue(actual === awayFromEdge, label + ": a newly active icon lands away from the fixed edge, expected " + awayFromEdge + ", got " + actual)
-            finish()
+            root.hoverIndicator(nightLight, true)
+            nightlightService.setNightlight(false)
+            root.after(200, function() {
+              root.assertTrue(!tray.indicatorItemHovered, label + ": removing a hovered active icon releases its hold")
+              finish()
+            })
           })
         })
       })
@@ -476,6 +500,7 @@ ShellRoot {
         remoteSession.moduleName = "RemoteSession"
         root.injectBar(remoteSession)
         root.assertTrue(remoteSession.active === false, "Remote Session starts inactive without a gliff server")
+        root.assertTrue(remoteSession.pressable === false, "Remote Session is not pressable")
         remoteSessionService.active = true
         remoteSessionService.peers = ["10.0.0.5"]
         root.assertTrue(remoteSession.active === true, "Remote Session follows the service state")

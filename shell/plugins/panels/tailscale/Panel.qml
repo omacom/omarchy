@@ -1,8 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Quickshell
-import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -779,12 +777,12 @@ Panel {
                     root.activateMullvadRegionCursor()
                   }
                   Keys.onPressed: function(event) {
-                    if (event.key === Qt.Key_Down || event.text === "j") {
+                    if (event.key === Qt.Key_Down) {
                       root.moveMullvadRegionCursor(1)
                       event.accepted = true
                       return
                     }
-                    if (event.key === Qt.Key_Up || event.text === "k") {
+                    if (event.key === Qt.Key_Up) {
                       root.moveMullvadRegionCursor(-1)
                       event.accepted = true
                       return
@@ -974,7 +972,10 @@ Panel {
               parent: peerList
               width: Style.space(280)
               padding: 0
-              modal: false
+              // Modal so clicking outside closes the menu without passing
+              // through to a peer row underneath and reopening it.
+              modal: true
+              dim: false
               focus: true
               closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
               function handleKey(event) {
@@ -1205,7 +1206,7 @@ Panel {
         color: accountRow.selectedAccount || accountRow.switchingAccount ? root.foreground : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
-        width: Style.space(22)
+        Layout.preferredWidth: Style.space(22)
         horizontalAlignment: Text.AlignHCenter
         Layout.alignment: Qt.AlignVCenter
         opacity: accountRow.switchingAccount || accountRow.renameInFlight ? 0.45 : 1.0
@@ -1294,8 +1295,12 @@ Panel {
       anchors.fill: parent
       acceptedButtons: Qt.LeftButton
       hoverEnabled: true
-      cursorShape: Qt.ArrowCursor
+      cursorShape: copyButton.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
       onContainsMouseChanged: if (containsMouse) root.setPeerCursor(peerRow.rowIndex)
+      onClicked: {
+        root.setPeerCursor(peerRow.rowIndex)
+        peerRow.openCopyMenu()
+      }
     }
 
     RowLayout {
@@ -1360,6 +1365,7 @@ Panel {
       PanelActionButton {
         id: copyButton
         iconText: "󰆏"
+        tooltipText: Commons.I18n.t("network.copyToClipboard")
         foreground: root.foreground
         fontFamily: root.fontFamily
         enabled: peerRow.peerIp !== "" || peerRow.peerName !== "" || peerRow.peerDns !== "" || peerRow.peerIpv6 !== ""

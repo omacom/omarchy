@@ -29,9 +29,8 @@ PopupWindow {
   readonly property real screenW: popupScreen ? popupScreen.width : 0
   readonly property real screenH: popupScreen ? popupScreen.height : 0
   // Thickness of the painted bar strip on this screen, notch floor
-  // included. The bar window spans its whole screen (only the strip inside
-  // it is painted and takes input), so the window's dimensions say nothing
-  // about the bar.
+  // included. The bar window's size trails the strip while it settles into
+  // a new edge or thickness, so the window can lag the bar.
   readonly property real barThickness: !bar ? 0
     : (typeof bar.barSizeFor === "function" && popupScreen ? bar.barSizeFor(popupScreen.name) : bar.barSize)
   readonly property real availableCardWidth: screenW > 0
@@ -94,7 +93,6 @@ PopupWindow {
   }
 
   anchor {
-    id: popupAnchor
     window: anchorItem ? anchorItem.QsWindow.window : null
     adjustment: PopupAdjustment.Slide
     edges: Edges.Top | Edges.Left
@@ -141,8 +139,10 @@ PopupWindow {
           cy = Math.max(root.margin, Math.min(cy, window.height - popupHeight - root.margin))
         }
 
-        popupAnchor.rect.x = Math.round(cx)
-        popupAnchor.rect.y = Math.round(cy)
+        // qmllint disable unresolved-type
+        root.anchor.rect.x = Math.round(cx)
+        root.anchor.rect.y = Math.round(cy)
+        // qmllint enable unresolved-type
         return
       }
 
@@ -154,8 +154,10 @@ PopupWindow {
         point.y = Math.max(root.margin, Math.min(point.y, window.height - popupHeight - root.margin))
       }
 
-      popupAnchor.rect.x = Math.round(point.x)
-      popupAnchor.rect.y = Math.round(point.y)
+      // qmllint disable unresolved-type
+      root.anchor.rect.x = Math.round(point.x)
+      root.anchor.rect.y = Math.round(point.y)
+      // qmllint enable unresolved-type
     }
   }
 

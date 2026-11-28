@@ -2,7 +2,7 @@
 
 You can add your own themes to `~/.config/omarchy/themes`. Just copy one of the existing ones as a base (look in `/usr/share/omarchy/themes`), then tweak to your delight. As long as your theme is inside that folder, it'll be included in the theme selection menu.
 
-The main file you have to tweak is `colors.toml`. That defines the color set that's then used to generate configurations for the terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian, and the entire Omarchy shell (top bar, menu, notifications, OSD, and lock screen).
+The main file you have to tweak is `colors.toml`. That defines the color set that's then used to generate configurations for the terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian, Qt apps, the keyboard backlight, the input method, the screen-share picker, the app icons, several AI tools (Claude, Pi, Hermes, T3 Code, Herdr), and the entire Omarchy shell (top bar, menu, notifications, OSD, and lock screen).
 
 You can also use the included Aether application to create a new theme using a lovely GUI interface to play with colors and search for backgrounds. Just start it from the app grid on `Super + Alt + Space`.
 
@@ -20,9 +20,9 @@ Omarchy tells the two apart by whether the theme has its own git repo inside it,
 
 If you're making a light mode theme, set `mode = "light"` at the top of your `colors.toml`. Then it'll automatically be paired with light mode for all the apps. (The old way of dropping an empty file called `light.mode` in the root of your theme still works too.)
 
-### Unlock image
+### Boot and login screens
 
-Themes supplied with `unlock.png` and `preview-unlock.png` images will be listed under _Appearance > Unlock_. Your `unlock.png` should preferably be a transparent png. And you can create the preview image using `omarchy plymouth preview`.
+The screen that asks for the drive password at boot, and the login screen, draw the Omarchy logo in your theme's `accent` color on its `background`, with the password field in its `foreground` and `red` for a wrong password. There's nothing extra to ship for them: Omarchy no longer uses a theme's `unlock.png` or `preview-unlock.png`. On Apple Silicon Macs, the drive password screen keeps Omarchy's default look whatever the theme.
 
 ### Theming apps Omarchy doesn't cover
 

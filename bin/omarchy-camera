@@ -1,0 +1,555 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Control the tuned webcam's live image settings
+# omarchy:group=camera
+# omarchy:subcommand=status [--json] — Show current camera image settings
+# omarchy:subcommand=brightness [-1.0..1.0] — Show or set camera brightness
+# omarchy:subcommand=gamma [0.5..3.0] — Show or set camera gamma
+# omarchy:subcommand=contrast [0.0..2.0] — Show or set camera contrast
+# omarchy:subcommand=saturation [0.0..2.0] — Show or set camera saturation
+# omarchy:subcommand=warmth [-1.0..1.0] — Show or set camera white-balance warmth (cool to warm)
+# omarchy:subcommand=tint [-1.0..1.0] — Show or set camera white-balance tint (green to magenta)
+# omarchy:subcommand=set <key=value ...> — Set multiple camera image controls at once
+# omarchy:subcommand=reset [control] — Restore all controls (or one control) to defaults
+# omarchy:examples=omarchy camera status | omarchy camera warmth 0.25 | omarchy camera brightness -- -0.10 | omarchy camera reset
+
+"""CLI for live camera image controls, state inspection, and stream watching."""
+
+import ctypes
+import errno
+import fcntl
+import json
+import math
+import os
+import select
+import shlex
+import signal
+import socket
+import stat
+import struct
+import subprocess
+import sys
+
+PR_SET_PDEATHSIG = 1
+VIDIOC_SUBSCRIBE_EVENT = 0x4020565A
+VIDIOC_DQEVENT = 0x80885659
+V4L2_EVENT_PRI_CLIENT_USAGE = 0x10E00001
+V4L2_EVENT_SUB_FL_SEND_INITIAL = 1
+
+SYS_V4L_DIR = "/sys/devices/virtual/video4linux"
+
+# (key, env_key, min_val, max_val, fallback_default, signed)
+CONTROLS = (
+    ("brightness", "BRIGHTNESS", -1.0, 1.0, 0.0, True),
+    ("gamma", "GAMMA", 0.5, 3.0, 1.5, False),
+    ("contrast", "CONTRAST", 0.0, 2.0, 1.0, False),
+    ("saturation", "SATURATION", 0.0, 2.0, 1.0, False),
+    ("warmth", "WARMTH", -1.0, 1.0, 0.0, True),
+    ("tint", "TINT", -1.0, 1.0, 0.0, True),
+)
+
+CONTROL_MAP = {c[0]: c for c in CONTROLS}
+
+USAGE = """\
+Usage: omarchy camera [--json] <command> [args...]
+
+  status [--json]                   Show current camera image settings
+  brightness [--live] [-1.0..1.0]   Show or set camera brightness
+  gamma [--live] [0.5..3.0]         Show or set camera gamma
+  contrast [--live] [0.0..2.0]      Show or set camera contrast
+  saturation [--live] [0.0..2.0]    Show or set camera saturation
+  warmth [--live] [-1.0..1.0]       Show or set white-balance warmth (cool to warm)
+  tint [--live] [-1.0..1.0]         Show or set white-balance tint (green to magenta)
+  set [--live] <key=value ...>      Set multiple camera image controls at once
+  reset [control]                   Restore all controls (or one control) to defaults
+  watch                             Stream active/inactive state and live-apply stdin commands
+"""
+
+
+class UsageError(Exception):
+    pass
+
+
+def config_home() -> str:
+    return os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+
+
+def env_file_path() -> str:
+    return os.environ.get(
+        "OMARCHY_CAMERA_RELAY_ENV",
+        os.path.join(config_home(), "omarchy", "camera-relay.env"),
+    )
+
+
+def relay_socket_path() -> str:
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    return os.environ.get(
+        "OMARCHY_CAMERA_RELAY_SOCKET",
+        os.path.join(runtime_dir, "omarchy-camera-relay.sock"),
+    )
+
+
+def tuning_bin_path() -> str:
+    override = os.environ.get("OMARCHY_CAMERA_TUNING_BIN")
+    if override:
+        return override
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    return os.path.join(script_dir, "omarchy-camera-tuning")
+
+
+def parse_shell_env(path: str) -> dict[str, str]:
+    data: dict[str, str] = {}
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            for raw_line in fh:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, raw_val = line.split("=", 1)
+                key = key.strip()
+                raw_val = raw_val.strip()
+                if not raw_val:
+                    data[key] = ""
+                    continue
+                try:
+                    parts = shlex.split(raw_val)
+                    data[key] = parts[0] if parts else ""
+                except ValueError:
+                    data[key] = raw_val.strip("\"'")
+    except OSError:
+        return {}
+    return data
+
+
+def read_shipped_defaults(tuning_name: str) -> dict[str, float]:
+    defaults = {c[0]: c[4] for c in CONTROLS}
+    omarchy_path = os.environ.get("OMARCHY_PATH", "")
+    if not tuning_name or not omarchy_path:
+        return defaults
+    conf_path = os.path.join(
+        omarchy_path, "default", "camera", "tunings", tuning_name, "tuning.conf"
+    )
+    parsed = parse_shell_env(conf_path)
+    for key, _env_key, lo, hi, fallback, _signed in CONTROLS:
+        raw = parsed.get(key)
+        if raw:
+            try:
+                val = float(raw)
+                if math.isfinite(val):
+                    defaults[key] = max(lo, min(hi, val))
+            except ValueError:
+                pass
+    return defaults
+
+
+def read_state() -> dict:
+    env = parse_shell_env(env_file_path())
+    installed = bool(env.get("CAMERA_NAME") or env.get("TUNING_NAME"))
+    tuning_name = env.get("TUNING_NAME", "")
+    defaults = read_shipped_defaults(tuning_name)
+    values: dict[str, float] = {}
+    for key, env_key, lo, hi, _fallback, _signed in CONTROLS:
+        raw = env.get(env_key, "")
+        val = defaults[key]
+        if raw:
+            try:
+                parsed = float(raw)
+                if math.isfinite(parsed):
+                    val = max(lo, min(hi, parsed))
+            except ValueError:
+                pass
+        values[key] = round(val, 6)
+
+    width = int(env["WIDTH"]) if env.get("WIDTH", "").isdigit() else 1920
+    height = int(env["HEIGHT"]) if env.get("HEIGHT", "").isdigit() else 1080
+
+    return {
+        "installed": installed,
+        "tuning": tuning_name,
+        "label": env.get("CARD_LABEL") or "Camera",
+        "description": env.get("DESCRIPTION", ""),
+        "width": width,
+        "height": height,
+        "format": env.get("FORMAT") or "NV12",
+        "framerate": env.get("FRAMERATE") or "30/1",
+        "values": values,
+        "defaults": {k: round(v, 6) for k, v in defaults.items()},
+    }
+
+
+def format_wire_value(value: float) -> str:
+    num = 0.0 if abs(value) < 1e-6 else float(value)
+    text = f"{num:.6f}".rstrip("0").rstrip(".")
+    return "0" if text in ("", "-0") else text
+
+
+def format_value(key: str, value: float, include_plus: bool = False) -> str:
+    num = 0.0 if abs(value) < 1e-6 else float(value)
+    wire = format_wire_value(num)
+    if "." in wire and len(wire.split(".", 1)[1]) > 2:
+        text = wire
+    else:
+        text = f"{num:.2f}"
+    if include_plus and CONTROL_MAP[key][5] and num > 0:
+        return "+" + text
+    return text
+
+
+def parse_control_value(key: str, raw: str) -> float:
+    _k, _env, lo, hi, _fb, _signed = CONTROL_MAP[key]
+    try:
+        val = float(raw)
+    except ValueError as exc:
+        raise UsageError(f"invalid {key} value '{raw}' (expected number in [{lo:g}, {hi:g}])") from exc
+    if not math.isfinite(val):
+        raise UsageError(f"invalid {key} value '{raw}'")
+    if val < lo or val > hi:
+        raise UsageError(f"{key} value {val:g} out of range [{lo:g}, {hi:g}]")
+    return 0.0 if abs(val) < 1e-6 else val
+
+
+def send_live_datagram(updates: dict[str, float], sock: socket.socket | None = None) -> bool:
+    if not updates:
+        return True
+    payload = " ".join(f"{k}={format_wire_value(v)}" for k, v in updates.items()).encode("utf-8")
+    sock_path = relay_socket_path()
+    owned = sock is None
+    if owned:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        sock.sendto(payload, sock_path)
+        return True
+    except OSError:
+        return False
+    finally:
+        if owned and sock is not None:
+            sock.close()
+
+
+def persist_updates(updates: dict[str, float]) -> None:
+    cmd = [tuning_bin_path(), "set"] + [
+        f"{k}={format_wire_value(v)}" for k, v in updates.items()
+    ]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout).strip()
+        raise RuntimeError(err or f"omarchy-camera-tuning exited with status {proc.returncode}")
+
+
+def persist_reset_all() -> None:
+    proc = subprocess.run(
+        [tuning_bin_path(), "reset"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout).strip()
+        raise RuntimeError(err or f"omarchy-camera-tuning exited with status {proc.returncode}")
+
+
+def print_status(state: dict, as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(state))
+        return
+    if not state["installed"]:
+        print("Camera tuning is not installed on this machine.")
+        return
+    print(f"Camera:      {state['label']} ({state['width']}x{state['height']} {state['format']} {state['framerate']})")
+    if state["description"]:
+        print(f"Tuning:      {state['description']}")
+    for key, _env, _lo, _hi, _fb, _signed in CONTROLS:
+        val = state["values"][key]
+        default = state["defaults"][key]
+        suffix = "" if abs(val - default) <= 0.005 else f" (default {format_value(key, default, True)})"
+        print(f"{key.capitalize()+':':13s}{format_value(key, val, True)}{suffix}")
+
+
+def find_loopback_device(card_label: str) -> str | None:
+    v4l_dir = os.environ.get("OMARCHY_V4L_VIRTUAL_PATH", SYS_V4L_DIR)
+    dev_dir = os.environ.get("OMARCHY_DEV_PATH", "/dev")
+    try:
+        entries = sorted(os.listdir(v4l_dir))
+    except OSError:
+        return None
+    for entry in entries:
+        name_path = os.path.join(v4l_dir, entry, "name")
+        try:
+            with open(name_path, "r", encoding="utf-8") as fh:
+                if fh.read().strip() == card_label:
+                    dev_path = os.path.join(dev_dir, entry)
+                    if os.path.exists(dev_path):
+                        return dev_path
+        except OSError:
+            continue
+    return None
+
+
+def parse_watch_command(line: str, defaults: dict[str, float]) -> dict[str, float]:
+    tokens = line.strip().split()
+    if not tokens:
+        return {}
+    if tokens[0] == "reset":
+        if len(tokens) == 1:
+            return dict(defaults)
+        target = tokens[1]
+        if target in CONTROL_MAP:
+            return {target: defaults[target]}
+        return {}
+    updates: dict[str, float] = {}
+    if len(tokens) == 2 and tokens[0] in CONTROL_MAP and "=" not in tokens[0]:
+        try:
+            updates[tokens[0]] = parse_control_value(tokens[0], tokens[1])
+        except UsageError:
+            return {}
+        return updates
+    for tok in tokens:
+        if "=" not in tok:
+            continue
+        k, raw_v = tok.split("=", 1)
+        if k not in CONTROL_MAP:
+            continue
+        try:
+            updates[k] = parse_control_value(k, raw_v)
+        except UsageError:
+            continue
+    return updates
+
+
+def emit_watch(text: str) -> None:
+    sys.stdout.write(text + "\n")
+    sys.stdout.flush()
+
+
+def cmd_watch() -> int:
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
+    try:
+        ctypes.CDLL("libc.so.6").prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+    except OSError:
+        pass
+
+    state = read_state()
+    dev_path = find_loopback_device(state["label"])
+    if not dev_path:
+        emit_watch("inactive")
+        return 0
+
+    try:
+        fd = os.open(dev_path, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        emit_watch("inactive")
+        return 0
+
+    try:
+        sub = struct.pack(
+            "III5I",
+            V4L2_EVENT_PRI_CLIENT_USAGE,
+            0,
+            V4L2_EVENT_SUB_FL_SEND_INITIAL,
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+        fcntl.ioctl(fd, VIDIOC_SUBSCRIBE_EVENT, sub)
+    except OSError:
+        os.close(fd)
+        emit_watch("inactive")
+        return 0
+
+    poller = select.poll()
+    poller.register(fd, select.POLLPRI | select.POLLERR | select.POLLHUP)
+
+    stdin_fd = sys.stdin.fileno()
+    watch_stdin = False
+    try:
+        st_mode = os.fstat(stdin_fd).st_mode
+        if stat.S_ISFIFO(st_mode) or stat.S_ISSOCK(st_mode):
+            os.set_blocking(stdin_fd, False)
+            poller.register(stdin_fd, select.POLLIN)
+            watch_stdin = True
+    except OSError:
+        pass
+
+    ctrl_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    defaults = state["defaults"]
+    last_state: str | None = None
+    event_buf = bytearray(136)
+    stdin_buf = b""
+
+    try:
+        while True:
+            events = poller.poll()
+            for ev_fd, mask in events:
+                if ev_fd == fd:
+                    if mask & (select.POLLERR | select.POLLHUP):
+                        if last_state != "inactive":
+                            emit_watch("inactive")
+                        return 0
+                    if mask & select.POLLPRI:
+                        while True:
+                            try:
+                                fcntl.ioctl(fd, VIDIOC_DQEVENT, event_buf)
+                            except OSError as exc:
+                                if exc.errno in (errno.EAGAIN, errno.ENOENT):
+                                    break
+                                return 0
+                            ev_type = struct.unpack_from("I", event_buf, 0)[0]
+                            if ev_type != V4L2_EVENT_PRI_CLIENT_USAGE:
+                                continue
+                            client_count = struct.unpack_from("I", event_buf, 8)[0]
+                            next_state = "active" if client_count > 0 else "inactive"
+                            if next_state != last_state:
+                                emit_watch(next_state)
+                                last_state = next_state
+                elif watch_stdin and ev_fd == stdin_fd:
+                    if mask & select.POLLIN:
+                        try:
+                            chunk = os.read(stdin_fd, 4096)
+                        except OSError:
+                            chunk = b""
+                        if chunk:
+                            stdin_buf += chunk
+                            while b"\n" in stdin_buf:
+                                raw_line, stdin_buf = stdin_buf.split(b"\n", 1)
+                                updates = parse_watch_command(
+                                    raw_line.decode("utf-8", errors="ignore"),
+                                    defaults,
+                                )
+                                if updates:
+                                    send_live_datagram(updates, ctrl_sock)
+                        elif mask & select.POLLHUP:
+                            poller.unregister(stdin_fd)
+                            watch_stdin = False
+                    elif mask & (select.POLLHUP | select.POLLERR):
+                        poller.unregister(stdin_fd)
+                        watch_stdin = False
+    finally:
+        ctrl_sock.close()
+        os.close(fd)
+
+
+def parse_args(argv: list[str]) -> tuple[bool, bool, list[str]]:
+    as_json = False
+    live_only = False
+    rest: list[str] = []
+    after_dash = False
+    for arg in argv:
+        if not after_dash and arg == "--":
+            after_dash = True
+            continue
+        if not after_dash and arg == "--json":
+            as_json = True
+            continue
+        if not after_dash and arg == "--live":
+            live_only = True
+            continue
+        rest.append(arg)
+    return as_json, live_only, rest
+
+
+def main(argv: list[str]) -> int:
+    if any(a in ("-h", "--help") for a in argv[:2]) and "--" not in argv[:2]:
+        print(USAGE, end="")
+        return 0
+
+    as_json, live_only, args = parse_args(argv)
+    cmd = args[0] if args else "status"
+    rest = args[1:]
+
+    if cmd == "watch":
+        return cmd_watch()
+
+    if cmd == "status":
+        if rest:
+            raise UsageError("status takes no positional arguments")
+        print_status(read_state(), as_json)
+        return 0
+
+    if cmd in CONTROL_MAP:
+        state = read_state()
+        if not rest:
+            val = state["values"][cmd]
+            if as_json:
+                print(json.dumps({cmd: val}))
+            else:
+                print(format_value(cmd, val))
+            return 0
+        if len(rest) > 1:
+            raise UsageError(f"Usage: omarchy camera {cmd} [--live] [value]")
+        val = parse_control_value(cmd, rest[0])
+        if live_only:
+            if not send_live_datagram({cmd: val}):
+                raise RuntimeError("camera relay live control socket is not available")
+        else:
+            persist_updates({cmd: val})
+        if as_json:
+            print(json.dumps(read_state()))
+        else:
+            print(f"{cmd}={format_value(cmd, val)}")
+        return 0
+
+    if cmd == "set":
+        if not rest:
+            raise UsageError("Usage: omarchy camera set [--live] <key=value ...>")
+        updates: dict[str, float] = {}
+        for item in rest:
+            if "=" not in item:
+                raise UsageError(f"invalid argument '{item}' (expected key=value)")
+            key, raw_val = item.split("=", 1)
+            if key not in CONTROL_MAP:
+                allowed = ", ".join(CONTROL_MAP)
+                raise UsageError(f"unknown control '{key}' (allowed: {allowed})")
+            updates[key] = parse_control_value(key, raw_val)
+        if live_only:
+            if not send_live_datagram(updates):
+                raise RuntimeError("camera relay live control socket is not available")
+        else:
+            persist_updates(updates)
+        if as_json:
+            print(json.dumps(read_state()))
+        else:
+            print(" ".join(f"{k}={format_value(k, v)}" for k, v in updates.items()))
+        return 0
+
+    if cmd == "reset":
+        if len(rest) > 1:
+            raise UsageError("Usage: omarchy camera reset [control]")
+        state = read_state()
+        if not rest:
+            if live_only:
+                if not send_live_datagram(state["defaults"]):
+                    raise RuntimeError("camera relay live control socket is not available")
+            else:
+                persist_reset_all()
+        else:
+            target = rest[0]
+            if target not in CONTROL_MAP:
+                allowed = ", ".join(CONTROL_MAP)
+                raise UsageError(f"unknown control '{target}' (allowed: {allowed})")
+            default_val = state["defaults"][target]
+            if live_only:
+                if not send_live_datagram({target: default_val}):
+                    raise RuntimeError("camera relay live control socket is not available")
+            else:
+                persist_updates({target: default_val})
+        if as_json:
+            print(json.dumps(read_state()))
+        else:
+            print_status(read_state(), False)
+        return 0
+
+    raise UsageError(f"unknown command '{cmd}'\n\n{USAGE}")
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except UsageError as exc:
+        sys.stderr.write(f"omarchy-camera: {exc}\n")
+        raise SystemExit(2)
+    except RuntimeError as exc:
+        sys.stderr.write(f"omarchy-camera: {exc}\n")
+        raise SystemExit(1)

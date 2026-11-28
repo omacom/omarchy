@@ -141,13 +141,7 @@ if (( ! needs_rebuild )) && [[ ! -d $sys_module/hid_asus && ! -d $sys_module/hid
 fi
 
 if (( needs_rebuild )); then
-  log=$(mktemp)
-  trap 'rm -f "$log"' EXIT
-  sudo limine-mkinitcpio 2>&1 | tee "$log"
-  status=("${PIPESTATUS[@]}")
-
-  # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
-  if (( status[0] != 0 || status[1] != 0 )) || grep -q 'mkinitcpio failed for kernel' "$log"; then
+  if ! sudo omarchy-boot-rebuild; then
     echo "Could not rebuild the boot image; run omarchy-device-keyboard-toprow $state again once that is fixed." >&2
     exit 1
   fi

@@ -45,6 +45,9 @@
           "id": "omarchy.tray"
         },
         {
+          "id": "omarchy.camera"
+        },
+        {
           "id": "omarchy.keyboard-layout"
         },
         {
@@ -54,10 +57,13 @@
           "id": "omarchy.bluetooth"
         },
         {
-          "id": "omarchy.network"
+          "id": "omarchy.mv7plus"
         },
         {
           "id": "omarchy.audio"
+        },
+        {
+          "id": "omarchy.network"
         },
         {
           "id": "omarchy.monitor"
@@ -74,11 +80,13 @@
       "folio",
       "omarchy-browser",
       "omarchy-terminal",
+      "omarchy-agent",
       "omacalc",
       "omawrite",
       "hype",
-      "monologue",
-      "cliamp"
+      "cliamp",
+      "Game Vibes",
+      "monologue"
     ]
   },
   "plugins": []

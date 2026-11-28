@@ -7,7 +7,7 @@ Read this before changing which app opens something, adding a web app or TUI lau
 | Role | Default | Change it with |
 |------|---------|----------------|
 | Terminal | foot | `omarchy default terminal <alacritty\|foot\|ghostty\|kitty>` |
-| Browser | Google Chrome | `omarchy default browser <chromium\|chrome\|brave\|brave-origin\|edge\|firefox\|zen>` |
+| Browser | Google Chrome | `omarchy default browser <chromium\|chrome\|brave\|brave-origin\|edge\|firefox\|zen\|ladybird>` |
 | Editor (GUI and `$EDITOR`) | Plain | `omarchy default editor <plain\|code\|cursor\|zed\|sublime_text\|helix\|vim\|emacs\|nvim>` |
 | Dictation | Superwhisper | `omarchy default dictation <superwhisper\|voxtype\|hex>` |
 | Coding agent | chosen at first use | `omarchy default agent <claude\|codex\|opencode\|pi\|...>` |
@@ -21,7 +21,7 @@ Each `omarchy default` command prints the current choice when run without an arg
 
 `xdg-mime default` writes `~/.config/mimeapps.list`, which overrides Omarchy's defaults in `/usr/share/applications/mimeapps.list`. Leave `~/.config/hyprland-mimeapps.list` alone: it routes web links through `omarchy-browser.desktop`, which opens them in whichever browser is the default.
 
-Omarchy also ships Omacalc, Omacut (video trimming), Hype (presentations), Monologue (webcam recording), Signed (PDF signing), Obsidian, LibreOffice, Pinta, LocalSend, Fantasi (image and media models), btop (Activity), and the HEY, ChatGPT and Grok web apps. `omarchy menu keybindings --print` shows which of them have hotkeys.
+Omarchy also ships Omacalc, Omacut (video trimming), Hype (presentations), Monologue (webcam recording), Signed (PDF signing), Obsidian, LibreOffice, Pinta, LocalSend, Fantasi (image and media models), Flowtunes (endless music from the local music model), btop (Activity), and the HEY, ChatGPT and Grok web apps. `omarchy menu keybindings --print` shows which of them have hotkeys.
 
 ## Web Apps and TUIs
 

@@ -39,7 +39,7 @@ migration_entries() {
 
   for file in "$MIGRATIONS_DIR"/*.sh; do
     [[ -f $file ]] || continue
-    filename=$(basename "$file")
+    filename=${file##*/}
     printf '%s\t%s\t%s\n' "$filename" "$file" "$STATE_DIR/$filename"
   done
 }
@@ -69,14 +69,14 @@ wait_for_pacman_transaction() {
   local lock_file=/var/lib/pacman/db.lck
 
   [[ -e $lock_file ]] || return 0
-  echo "Waiting for pacman transaction to finish before running Omarchy migrations..."
+  echo "$(omarchy-i18n update.migrationsWaiting)"
 
   for _ in {1..900}; do
     [[ -e $lock_file ]] || return 0
     sleep 1
   done
 
-  echo "Pacman transaction is still running; Omarchy migrations will retry on next login."
+  echo "$(omarchy-i18n update.migrationsDeferred)"
   exit 0
 }
 
@@ -85,12 +85,26 @@ wait_for_pacman_transaction
 mkdir -p "$STATE_DIR"
 [[ -d $MIGRATIONS_DIR ]] || exit 0
 
+deferred=0
 while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 
   if [[ ! -f $marker ]]; then
-    echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
-    OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&-
+    echo -e "\e[32m\n$(omarchy-i18n update.migration "${name%.sh}")\e[0m"
+    status=0
+    OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&- || status=$?
+
+    # 75 (EX_TEMPFAIL) means the migration is waiting on a package that has not
+    # landed yet, such as a dev checkout ahead of its settings package. It stays
+    # pending and holds back the rest of the queue, but the update goes on.
+    if (( status == 75 )); then
+      echo "$(omarchy-i18n update.migrationDeferred "${name%.sh}")"
+      deferred=1
+      break
+    elif (( status != 0 )); then
+      exit $status
+    fi
+
     mkdir -p "$(dirname "$marker")"
     touch "$marker"
   fi
@@ -98,5 +112,8 @@ done 3< <(migration_entries)
 
 # Clear a login-time notification the user left sitting there and then resolved
 # by running migrations some other way. The substring matches both the current
-# and legacy notification titles.
-omarchy-notification-dismiss "Omarchy Migrations" >/dev/null 2>&1 || true
+# and legacy notification titles. A deferred migration is still pending, so its
+# reminder stays.
+if (( ! deferred )); then
+  omarchy-notification-dismiss "Omarchy Migrations" >/dev/null 2>&1 || true
+fi

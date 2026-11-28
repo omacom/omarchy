@@ -144,6 +144,43 @@ ShellRoot {
     },
     function() {
       check(panel.passwordSsid === "", "a prompt closes once its network connects, with no error left behind it")
+      panel.bandAvailable = ["2.4", "5"]
+      panel.bandSelected = "5"
+      panel.bandAutoFocused = true
+      panel.focusSection = "band"
+      panel.cursorActive = true
+      panel.testEnsureContent()
+      panel.openPasswordPrompt("Home")
+    },
+    function() {
+      function findDescendant(item, match) {
+        if (!item) return null
+        if (match(item)) return item
+        var kids = item.children || []
+        for (var i = 0; i < kids.length; i++) {
+          var hit = findDescendant(kids[i], match)
+          if (hit) return hit
+        }
+        return null
+      }
+      var pill = findDescendant(panel.testBandRow, function(item) { return item.band === "5" })
+      check(pill !== null, "band pill delegate is instantiated")
+      if (pill) {
+        pill.hovered(true)
+        check(!panel.bandAutoFocused && panel.bandIndex === pill.slot && pill.hasCursor, "hovering a band pill clears bandAutoFocused")
+      }
+      var homeDelegate = panel.testNetworkList.itemAtIndex(panel.wifiIndexForSsid("Home"))
+      var homeRow = findDescendant(homeDelegate, function(item) { return item.isPasswordOpen !== undefined })
+      var rowMouse = homeRow ? findDescendant(homeRow, function(item) { return item.acceptedButtons === Qt.LeftButton }) : null
+      var cancelBtn = homeRow ? findDescendant(homeRow, function(item) { return item.iconText === "✕" }) : null
+      check(homeRow !== null && rowMouse !== null && cancelBtn !== null, "open password row exposes header click area and cancel button")
+      if (homeRow && rowMouse && cancelBtn) {
+        check(rowMouse.cursorShape === Qt.ArrowCursor, "open password row header shows arrow cursor")
+        rowMouse.clicked(null)
+        check(panel.passwordSsid === "Home" && panel.actionKind === "" && home.calls === 0, "clicking an open password row header does not drop or reconnect")
+        cancelBtn.clicked()
+        check(panel.passwordSsid === "" && rowMouse.cursorShape === Qt.PointingHandCursor, "clicking Cancel closes the password prompt cleanly")
+      }
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()
     }

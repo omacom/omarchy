@@ -1,0 +1,196 @@
+#!/usr/bin/ash
+# Starts the splash: sway on the displays, running the splash's Quickshell
+# config and nothing else. The omarchy-splash hook runs this in the background
+# and records its pid; it ends when sway does.
+
+run=/run/omarchy-splash
+
+# The GPU's own KMS driver, given up to 8 seconds like plymouthd's
+# DeviceTimeout, before settling for the firmware framebuffer (simpledrm,
+# efidrm or vesadrm), which the native driver would take away mid-prompt.
+#
+# sway draws in CPU memory, and every GPU shows a copy of what changed
+# (wlroots does that for its software renderer only with a patch; without it,
+# only the first GPU's displays light up). The first GPU is the one sway calls
+# its own: the firmware's boot display, which is the likeliest to work.
+find_cards() {
+  native=""
+  firmware=""
+  for card in /sys/class/drm/card*; do
+    name=${card##*/}
+    case $name in *-*) continue ;; esac
+    [ -e "/dev/dri/$name" ] || continue
+    # A GPU without display connectors, like a Raspberry Pi's v3d, renders
+    # only: it is not the display the wait is for.
+    has_connectors "$card" || continue
+    # A card whose driver can't be read, as when the firmware framebuffer is
+    # being unbound for the GPU's own driver, would otherwise pass for native.
+    driver=$(readlink "$card/device/driver") || continue
+    case ${driver##*/} in
+      simple-framebuffer | efi-framebuffer | vesa-framebuffer)
+        firmware=${firmware:+$firmware:}/dev/dri/$name
+        continue
+        ;;
+    esac
+    if [ "$(cat "$card/device/boot_vga" 2>/dev/null)" = 1 ]; then
+      native=/dev/dri/$name${native:+:$native}
+    else
+      native=${native:+$native:}/dev/dri/$name
+    fi
+  done
+}
+
+has_connectors() {
+  for connector in "$1"-*; do
+    [ -e "$connector" ] && return 0
+  done
+  return 1
+}
+
+# Looks for a native GPU every tenth of a second, $1 times at most: there is
+# no file watcher in the initramfs.
+wait_native() {
+  i=0
+  find_cards
+  while [ -z "$native" ] && [ ! -e "$run/stopping" ] && [ "$i" -lt "$1" ]; do
+    sleep 0.1
+    i=$((i + 1))
+    find_cards
+  done
+}
+
+wait_native 80
+[ ! -e "$run/stopping" ] || exit 0
+devices=${native:-$firmware}
+if [ -z "$devices" ]; then
+  echo "omarchy-splash: no display to draw on"
+  exit 1
+fi
+echo "omarchy-splash: drawing on $devices"
+touch "$run/starting"
+
+# amdgpu powers a GPU down once no display is connected to it, and a GPU that
+# is powered down misses a display plugged in later. The GPUs stay powered
+# while the splash is up; stop hands them back to the kernel.
+keep_awake() {
+  local ifs=$IFS device control
+  IFS=:
+  for device in $native; do
+    control=/sys/class/drm/${device##*/}/device/power/control
+    if [ "$(cat "$control" 2>/dev/null)" = auto ] && echo on >"$control"; then
+      echo "$control" >>"$run/awake"
+    fi
+  done
+  IFS=$ifs
+}
+keep_awake
+
+# The keyboard the image was built with (layouts): the XKB settings of
+# vconsole.conf, all of them left to libxkbcommon's defaults when it names no
+# XKBLAYOUT.
+setting() {
+  sed -n "s/^$1=//p" /usr/lib/omarchy-splash/vconsole.conf 2>/dev/null
+}
+
+# Plymouth starts with the console's Num Lock and Caps Lock.
+lit() {
+  for led in /sys/class/leds/input*::"$1"/brightness; do
+    [ -r "$led" ] && [ "$(cat "$led")" != 0 ] && return 0
+  done
+  return 1
+}
+
+layout=$(setting XKBLAYOUT)
+keymap=$(setting KEYMAP)
+if [ -z "$layout" ] && [ -n "$keymap" ] && [ "$keymap" != us ] && [ "$keymap" != @kernel ]; then
+  # Plymouth read the keys of a console with a KEYMAP but no XKBLAYOUT through
+  # the kernel keymap: `plymouth ask-for-password` leaves the password to the
+  # console, where the keymap hook loaded it. Setup writes an XKB layout for
+  # every keymap it offers, and the splash's migration for the ones older
+  # installs lack, so this is a keymap set some other way.
+  echo "omarchy-splash: vconsole.conf sets KEYMAP=$keymap but no XKBLAYOUT; the password is asked on the console"
+  touch "$run/console-keys"
+fi
+
+# The layouts, for the prompt's keyboard to switch between (ui/shell.qml).
+export OMARCHY_SPLASH_XKBLAYOUT="$layout" OMARCHY_SPLASH_XKBVARIANT="$(setting XKBVARIANT)"
+
+{
+  echo "input type:keyboard {"
+  if [ -n "$layout" ]; then
+    printf '  xkb_layout "%s"\n' "$layout"
+    for pair in model:XKBMODEL variant:XKBVARIANT options:XKBOPTIONS; do
+      value=$(setting "${pair#*:}")
+      [ -n "$value" ] && printf '  xkb_%s "%s"\n' "${pair%%:*}" "$value"
+    done
+  fi
+  lit numlock && echo "  xkb_numlock enabled"
+  lit capslock && echo "  xkb_capslock enabled"
+  # The kernel's own autorepeat, which Plymouth's keys came from.
+  echo "  repeat_delay 250"
+  echo "  repeat_rate 30"
+  echo "}"
+} >"$run/input.conf"
+
+# wlroots hands each client its keymap through a POSIX shared memory file, and
+# the initramfs's /dev has no /dev/shm. stop unmounts it again.
+if ! mountpoint -q /dev/shm; then
+  mkdir -p /dev/shm
+  mount -t tmpfs -o nosuid,nodev,mode=1777 shm /dev/shm && touch "$run/shm"
+fi
+
+mkdir -m 0700 -p "$run/runtime" "$run/home"
+export XDG_RUNTIME_DIR="$run/runtime"
+export HOME="$run/home"
+export WLR_RENDERER=pixman
+export WLR_DRM_DEVICES="$devices"
+export WLR_LIBINPUT_NO_DEVICES=1
+export QT_QPA_PLATFORM=wayland
+export QT_QUICK_BACKEND=software
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+# Plymouth composed dead keys with the C locale's table.
+unset LANG LC_ALL LC_CTYPE
+
+# omarchy.splash.debug on the kernel command line puts sway's debug log in
+# session.log.
+debug=""
+case " $(cat /proc/cmdline) " in
+  *" omarchy.splash.debug "*) debug=--debug ;;
+esac
+
+# seatd puts the console into graphics mode and turns its keyboard off, so
+# keys typed into the prompt never reach the tty behind it.
+#
+# sway ends with its one client (ui-launch), and the session with sway, but for
+# one case: the GPU's own driver binding after the splash settled for the
+# firmware framebuffer takes that framebuffer away, and sway with it. The
+# splash starts again on the GPU, as Plymouth moves to it, and the new
+# Quickshell picks up the pending request. Escape ($run/dismissed) and stop
+# ($run/stopping) end it for good.
+while :; do
+  seatd-launch -- sway $debug --config /usr/lib/omarchy-splash/sway.conf
+  status=$?
+  rm -f "$run/ready"
+  if [ -e "$run/stopping" ] || [ -e "$run/dismissed" ] || [ "$devices" != "$firmware" ]; then
+    exit "$status"
+  fi
+  wait_native 30
+  [ -n "$native" ] || exit "$status"
+  # seatd-launch returns before its seatd has let go of the seat, and a second
+  # seatd refuses to start while the first's socket is there.
+  i=0
+  while pidof seatd >/dev/null && [ "$i" -lt 30 ]; do
+    sleep 0.1
+    i=$((i + 1))
+  done
+  if pidof seatd >/dev/null; then
+    killall -9 seatd
+    rm -f /run/seatd.sock
+  fi
+  # stop, if it came during those waits, found no sway to end.
+  [ ! -e "$run/stopping" ] || exit "$status"
+  devices=$native
+  export WLR_DRM_DEVICES="$devices"
+  echo "omarchy-splash: the GPU's own driver took the display; drawing on $devices"
+  keep_awake
+done
