@@ -17,6 +17,9 @@ assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loose
 assertEqual(dock.normalizePosition('diagonal'), 'bottom', 'dock falls back to the bottom')
 assertEqual(dock.normalizePosition(undefined), 'bottom', 'dock sits at the bottom by default')
 assert(dock.isVertical('right') && !dock.isVertical('top'), 'dock runs vertically on the left and right')
+assertEqual(dock.nearestEdge(100, 500, 1600, 1000, 'top'), 'left', 'a dock dragged near the left edge moves there')
+assertEqual(dock.nearestEdge(800, 40, 1600, 1000, 'top'), 'left', "a dock dragged to the bar's edge goes to the next closest one")
+assertEqual(dock.nearestEdge(800, 40, 1600, 1000, ''), 'top', 'without a bar every edge is open to the dock')
 
 assertDeepEqual(
   dock.pinnedIds({ pinned: ['chromium', 'org.gnome.Nautilus.desktop', 'chromium', ''] }, { pinned: ['spotify'] }),

@@ -47,7 +47,7 @@ PanelWindow {
   readonly property bool autohide: !!dock && (dock.autohide || fullscreenMode === 1 || !floating)
   property bool revealed: false
   readonly property bool menuOpen: menuItem !== null || settingsMenu
-  readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || insertIndex >= 0)
+  readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || movingDock || insertIndex >= 0)
   readonly property bool contentShown: shown && !tucked
 
   readonly property int gap: Style.spacing.xs
@@ -83,6 +83,10 @@ PanelWindow {
   property point dropPoint
   // Where an app dragged in from the app grid would land, or -1.
   property int insertIndex: -1
+  // The apps button dragged toward another screen edge moves the dock there,
+  // to any edge but the bar's.
+  property bool movingDock: false
+  readonly property string barEdge: dock && dock.shell && dock.shell.bar ? String(dock.shell.bar.position || "top") : ""
 
   // Where this window sits on its screen, which a point from the app grid's
   // fullscreen surface is given in: against its edge, clear of the space
@@ -124,10 +128,10 @@ PanelWindow {
   }
 
   // The slot a point along the dock falls before, counting from the first app,
-  // which comes after the layout and apps buttons.
+  // which comes after the apps button.
   function slotIndexAt(point) {
     var along = window.vertical ? point.y : point.x
-    var first = window.slotSize * 2
+    var first = window.slotSize
     var count = window.dock ? window.dock.itemModel.count : 0
     return Math.max(0, Math.min(count, Math.round((along - first) / window.slotSize)))
   }
@@ -226,7 +230,7 @@ PanelWindow {
     // Long enough to cross a gap between the edge and the icons, no longer.
     interval: 150
     onTriggered: {
-      if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging) window.revealed = false
+      if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging && !window.movingDock) window.revealed = false
     }
   }
 
@@ -305,7 +309,6 @@ PanelWindow {
       anchors.centerIn: parent
       columns: window.vertical ? 1 : appRepeater.count + 2
 
-      LayoutSlot {}
       AppsSlot {}
 
       Repeater {
@@ -314,6 +317,8 @@ PanelWindow {
 
         delegate: AppSlot {}
       }
+
+      LayoutSlot {}
     }
   }
 
@@ -345,7 +350,8 @@ PanelWindow {
     id: layoutSlot
 
     readonly property string mode: window.dock && window.dock.modes[window.workspaceId] ? window.dock.modes[window.workspaceId] : "dwindle"
-    property real displayedShift: window.insertIndex >= 0 ? -window.slotSize / 2 : 0
+    // Last in the dock, so it steps aside the other way from the apps button.
+    property real displayedShift: window.insertIndex >= 0 ? window.slotSize / 2 : 0
 
     Behavior on displayedShift {
       enabled: window.animateShifts
@@ -391,6 +397,43 @@ PanelWindow {
     id: appsSlot
 
     property real displayedShift: window.insertIndex >= 0 ? -window.slotSize / 2 : 0
+    property point pressPoint
+    property bool dragged: false
+
+    mouse.cursorShape: window.movingDock ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+
+    // Where the pointer is on the screen, which the dock's edge is chosen by.
+    function screenPoint(event) {
+      var at = window.origin()
+      var point = appsSlot.mapToItem(window.contentItem, event.x, event.y)
+      return Qt.point(at.x + point.x, at.y + point.y)
+    }
+
+    mouse.onPressed: function(event) {
+      appsSlot.dragged = false
+      if (event.button === Qt.LeftButton) appsSlot.pressPoint = Qt.point(event.x, event.y)
+    }
+
+    // Past a short way from where it was pressed, the press is a move of the
+    // whole dock rather than a click.
+    mouse.onPositionChanged: function(event) {
+      if (!(appsSlot.mouse.pressedButtons & Qt.LeftButton) || window.movingDock) return
+      if (Math.hypot(event.x - appsSlot.pressPoint.x, event.y - appsSlot.pressPoint.y) < Style.space(6)) return
+      window.closeMenu()
+      appsSlot.dragged = true
+      window.movingDock = true
+    }
+
+    mouse.onReleased: function(event) {
+      if (!window.movingDock) return
+      window.movingDock = false
+      var point = appsSlot.screenPoint(event)
+      var edge = DockModel.nearestEdge(point.x, point.y, window.screen.width, window.screen.height, window.barEdge)
+      if (edge && edge !== window.position) Util.execDetached("omarchy-dock position " + edge)
+      if (window.autohide) hideTimer.restart()
+    }
+
+    mouse.onCanceled: window.movingDock = false
 
     Behavior on displayedShift {
       enabled: window.animateShifts
@@ -403,6 +446,11 @@ PanelWindow {
     }
 
     mouse.onClicked: function(event) {
+      // A drag ends in a release over the button, which is not a click on it.
+      if (appsSlot.dragged) {
+        appsSlot.dragged = false
+        return
+      }
       if (event.button === Qt.RightButton) {
         window.openSettingsMenu(appsSlot)
         return
