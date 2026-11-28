@@ -9,8 +9,13 @@ restart_pid_one=""
 restart_pid_two=""
 
 cleanup() {
-  [[ -n $restart_pid_one ]] && kill "$restart_pid_one" 2>/dev/null || true
+  [[ -n $restart_pid_one ]] && kill -KILL "$restart_pid_one" 2>/dev/null || true
   [[ -n $restart_pid_two ]] && kill "$restart_pid_two" 2>/dev/null || true
+  if [[ -f $test_tmp/restart-pids.fixtures ]]; then
+    while read -r pid; do kill -KILL "$pid" 2>/dev/null || true; done <"$test_tmp/restart-pids.fixtures"
+  fi
+  [[ -n $restart_pid_one ]] && wait "$restart_pid_one" 2>/dev/null || true
+  [[ -n $restart_pid_two ]] && wait "$restart_pid_two" 2>/dev/null || true
   rm -rf "$test_tmp"
 }
 trap cleanup EXIT
@@ -164,6 +169,19 @@ fi
 SH
 
 chmod +x "$restart_bin/qs" "$restart_bin/quickshell" "$restart_bin/hyprctl" "$restart_bin/systemd-cat" "$restart_bin/systemctl" "$restart_bin/busctl"
+
+# Keep process discovery real, but expose only this test's fixture processes.
+export OMARCHY_TEST_REAL_PGREP
+OMARCHY_TEST_REAL_PGREP=$(command -v pgrep)
+cat >"$restart_bin/pgrep" <<'SH'
+#!/bin/bash
+for pid in $("$OMARCHY_TEST_REAL_PGREP" "$@"); do
+  if grep -Fxq "$pid" "$OMARCHY_TEST_QS_STATE.fixtures" 2>/dev/null; then
+    printf '%s\n' "$pid"
+  fi
+done
+SH
+chmod +x "$restart_bin/pgrep"
 
 sleep 30 &
 restart_pid_one=$!
@@ -329,3 +347,122 @@ wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 [[ $(<"$restart_state") == 303 ]] || fail "restart with a worktree shell leaves one fresh session shell"
 pass "restart stops a worktree's shell and leaves other Quickshell configs alone"
+
+# Recover through the real supervisor: a nonzero shell death must not make
+# the old launcher start another shell beside the requested replacement.
+kill "$restart_pid_two" 2>/dev/null || true
+wait "$restart_pid_two" 2>/dev/null || true
+restart_pid_two=""
+wedged_bin="$test_tmp/wedged"
+quickshell_runtime="$runtime_dir/quickshell"
+mkdir -p "$wedged_bin" "$quickshell_runtime/by-id/wedged" "$quickshell_runtime/by-id/live" "$quickshell_runtime/by-pid"
+cat >"$wedged_bin/quickshell" <<'SH'
+#!/bin/bash
+printf '%s\n' "$$" >>"$OMARCHY_TEST_WEDGED_PIDS"
+kill -STOP "$$"
+SH
+chmod +x "$wedged_bin/quickshell"
+export OMARCHY_TEST_WEDGED_PIDS="$restart_state.fixtures"
+PATH="$wedged_bin:$restart_bin:$PATH" OMARCHY_PATH="$restart_root" \
+  "$ROOT/bin/omarchy-launch-shell" >"$test_tmp/supervisor.log" 2>&1 &
+restart_pid_one=$!
+for (( attempt = 0; attempt < 100; attempt++ )); do
+  [[ -s $restart_state.fixtures ]] && break
+  sleep 0.01
+done
+[[ -s $restart_state.fixtures ]] || fail "supervised shell fixture starts"
+read -r restart_pid_two <"$restart_state.fixtures"
+for (( attempt = 0; attempt < 100; attempt++ )); do
+  [[ $(awk '{ print $3 }' "/proc/$restart_pid_two/stat") == "T" ]] && break
+  sleep 0.01
+done
+[[ $(awk '{ print $3 }' "/proc/$restart_pid_two/stat") == "T" ]] || fail "wedged shell fixture stops itself"
+ln -s ../by-id/wedged "$quickshell_runtime/by-pid/$restart_pid_two"
+ln -s ../by-id/live "$quickshell_runtime/by-pid/$$"
+: >"$restart_state"
+rm -f "$test_tmp/strays"
+
+run_recovery_restart() {
+  PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+    timeout 10 "$ROOT/bin/omarchy-restart-shell" >"$test_tmp/recovery.out" 2>&1
+}
+
+run_recovery_restart || fail "restart with a wedged shell succeeds" "$(cat "$test_tmp/recovery.out")"
+if [[ -d /proc/$restart_pid_two && $(awk '{ print $3 }' "/proc/$restart_pid_two/stat") != "Z" ]]; then
+  fail "restart stops a wedged shell missing from the registry"
+fi
+for (( attempt = 0; attempt < 40; attempt++ )); do
+  kill -0 "$restart_pid_one" 2>/dev/null || break
+  sleep 0.05
+done
+if kill -0 "$restart_pid_one" 2>/dev/null; then
+  fail "restart stops the wedged shell's supervising launcher" "$(cat "$test_tmp/supervisor.log")"
+fi
+[[ ! -e $quickshell_runtime/by-id/wedged && ! -L $quickshell_runtime/by-pid/$restart_pid_two ]] || fail "restart drops a stopped shell's runtime state"
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+restart_pid_two=""
+[[ -d $quickshell_runtime/by-id/live ]] || fail "restart keeps a live instance's runtime state"
+[[ $(<"$restart_state") == 303 ]] || fail "restart with a wedged shell leaves one fresh session shell"
+pass "restart stops a wedged shell and its supervisor and reclaims dead runtime state"
+
+: >"$restart_state.fixtures"
+"$wedged_bin/quickshell" --path "$worktree_root/shell" >/dev/null 2>&1 &
+restart_pid_one=$!
+"$wedged_bin/quickshell" -p "$other_root/shell" >/dev/null 2>&1 &
+restart_pid_two=$!
+for (( attempt = 0; attempt < 100; attempt++ )); do
+  [[ $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") == "T" && $(awk '{ print $3 }' "/proc/$restart_pid_two/stat") == "T" ]] && break
+  sleep 0.01
+done
+[[ $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") == "T" ]] || fail "worktree shell fixture stops itself"
+[[ $(awk '{ print $3 }' "/proc/$restart_pid_two/stat") == "T" ]] || fail "non-Omarchy shell fixture stops itself"
+: >"$restart_state"
+run_recovery_restart || fail "restart recovers an unregistered worktree shell"
+if [[ -d /proc/$restart_pid_one && $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") != "Z" ]]; then
+  fail "restart stops an unregistered shell from another Omarchy checkout"
+fi
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+pass "restart recovers an unregistered worktree shell using --path"
+[[ -r /proc/$restart_pid_two/stat && $(awk '{ print $3 }' "/proc/$restart_pid_two/stat") == "T" ]] || fail "signal recovery leaves a non-Omarchy Quickshell config running"
+kill -KILL "$restart_pid_two" 2>/dev/null || true
+wait "$restart_pid_two" 2>/dev/null || true
+restart_pid_two=""
+pass "signal recovery leaves a non-Omarchy Quickshell config running"
+
+# Model a kernel that refuses signals, so success cannot rest on kill's return
+# code or on a replacement answering while the old instance is still alive.
+: >"$restart_state.fixtures"
+"$wedged_bin/quickshell" -p "$restart_root/shell" >/dev/null 2>&1 &
+restart_pid_one=$!
+for (( attempt = 0; attempt < 100; attempt++ )); do
+  [[ -s $restart_state.fixtures && $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") == "T" ]] && break
+  sleep 0.01
+done
+[[ $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") == "T" ]] || fail "unkillable shell fixture stops itself"
+cat >"$test_tmp/refuse-signals" <<'SH'
+kill() {
+  [[ ${@: -1} == "$OMARCHY_TEST_UNKILLABLE_PID" ]] && return 1
+  builtin kill "$@"
+}
+SH
+: >"$restart_state"
+: >"$dispatch_log"
+if BASH_ENV="$test_tmp/refuse-signals" OMARCHY_TEST_UNKILLABLE_PID="$restart_pid_one" run_recovery_restart; then
+  fail "restart refuses to launch beside a shell that survives signals"
+fi
+[[ ! -s $dispatch_log ]] || fail "failed termination dispatches no replacement"
+kill -0 "$restart_pid_one" 2>/dev/null || fail "signal-refusal fixture stays alive"
+kill -KILL "$restart_pid_one" 2>/dev/null || true
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+pass "restart refuses to launch beside a surviving shell"
