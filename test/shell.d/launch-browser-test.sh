@@ -254,6 +254,18 @@ launch_webapp() {
     OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
     bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app" 2>/dev/null || true
 }
+
+# A machine whose only Chromium-based browser is Helium still opens its web
+# apps there; Chrome and Chromium come first when present.
+cat >"$XDG_DATA_DIRS/applications/helium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=helium %U
+EOF
+cp "$mock_bin/firefox" "$mock_bin/helium"
+launch_webapp
+grep -F -- '-- helium --app=https://example.test/app' "$launch_log" >/dev/null ||
+  fail "a web app falls back to Helium without Chrome or Chromium" "$(cat "$launch_log" 2>/dev/null)"
+
 cat >"$XDG_DATA_DIRS/applications/chromium.desktop" <<'EOF'
 [Desktop Entry]
 Exec=chromium %U
@@ -270,4 +282,4 @@ cp "$mock_bin/chromium" "$mock_bin/google-chrome-stable"
 launch_webapp
 grep -F -- '-- google-chrome-stable --app=https://example.test/app' "$launch_log" >/dev/null ||
   fail "a web app falls back to Chrome over Chromium" "$(cat "$launch_log" 2>/dev/null)"
-pass "web app launcher falls back to Chrome, then Chromium, when the default is not Chromium-based"
+pass "web app launcher falls back to Chrome, then Chromium, then Helium, when the default is not Chromium-based"
