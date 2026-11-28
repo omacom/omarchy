@@ -87,6 +87,13 @@ build() {
     warning "omarchy-splash: $arrow (adwaita-cursors) is missing; the pointer is drawn unscaled"
   fi
 
+  # Images built without early KMS drivers (such as pre-built generic UKIs)
+  # can opt in with OMARCHY_SPLASH_NO_KMS=1 so session draws on simpledrm
+  # immediately instead of waiting 8 seconds for a native GPU driver.
+  if [[ -n ${OMARCHY_SPLASH_NO_KMS:-} ]]; then
+    add_file /dev/null /usr/lib/omarchy-splash/no-kms 644
+  fi
+
   for script in answer plymouth power-button session stop ui-launch; do
     add_file "$source/$script" "/usr/lib/omarchy-splash/$script" 755
   done
