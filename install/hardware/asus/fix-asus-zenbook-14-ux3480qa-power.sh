@@ -18,6 +18,8 @@
 
 nm_conf_dir=${OMARCHY_ZENBOOK_UX3480QA_NM_CONF_DIR:-/etc/NetworkManager/conf.d}
 udev_rules_dir=${OMARCHY_ZENBOOK_UX3480QA_UDEV_RULES_DIR:-/etc/udev/rules.d}
+run_udev_dir=${OMARCHY_ZENBOOK_UX3480QA_RUN_UDEV_DIR:-/run/udev}
+platform_devices_dir=${OMARCHY_ZENBOOK_UX3480QA_PLATFORM_DEVICES_DIR:-/sys/bus/platform/devices}
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3480QA"; then
   mkdir -p "$nm_conf_dir"
@@ -56,13 +58,13 @@ RULES
   # Apply the rules immediately on a live booted system (first-boot setup,
   # omarchy-apply-hardware, and upgrades), skipping install chroots where
   # /run/udev is bind-mounted from the live ISO.
-  if [[ $udev_rules_dir == "/etc/udev/rules.d" && -d /run/udev ]] &&
+  if [[ ($udev_rules_dir == "/etc/udev/rules.d" || -n ${OMARCHY_ZENBOOK_UX3480QA_RUN_UDEV_DIR:-}) && -d $run_udev_dir ]] &&
     ! systemd-detect-virt --chroot -q 2>/dev/null &&
     command -v udevadm >/dev/null 2>&1; then
     udevadm control --reload >/dev/null 2>&1 || true
-    if [[ -d /sys/bus/platform/devices/a200000.usb ]]; then
+    if [[ -d $platform_devices_dir/a200000.usb ]]; then
       udevadm trigger --action=change --sysname-match="a200000.usb" --subsystem-match=platform >/dev/null 2>&1 || true
-      for child in /sys/bus/platform/devices/a200000.usb/xhci-hcd.*; do
+      for child in "$platform_devices_dir"/a200000.usb/xhci-hcd.*; do
         [[ -d $child ]] || continue
         udevadm trigger --action=change --sysname-match="$(basename "$child")" --subsystem-match=platform >/dev/null 2>&1 || true
       done
