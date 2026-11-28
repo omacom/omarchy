@@ -36,6 +36,14 @@ Omarchy is installed with encryption by default. It's the safe, responsible choi
 
 But in special circumstances, like remote Omarchy installs on protected computers or for throw-away installations without sensitive data, you may want to install without encryption. You can hit `Ctrl + C` on the disk formatting confirmation to switch to an encryption-less installation.
 
+### The welcome tour
+
+The first time you log in, Omarchy greets you with a short tour of the choices worth making early: how windows arrange themselves (tiling, scrolling, or floating), how dictation works, whether to add a coding agent, whether to run a local AI model on your own machine (offered only if your hardware supports it), and Tailscale. Each step previews the option live, so you can see what it does before anything changes.
+
+Nothing changes until you confirm on the last screen. Skip the whole thing with `Escape` or _Skip_ and your system stays on Omarchy's defaults. If you picked anything that needs installing, one terminal opens and works through it in turn; if you also chose to add an agent, the agents panel opens cleanly once that terminal closes. Once closed, the tour won't open again on its own.
+
+You can take the tour again any time under _Setup > Welcome_ in the Omarchy menu (`Super + Space`), or with `omarchy launch setup`.
+
 ### Language
 
 Omarchy speaks 50 languages — the same set as omarchy.org — and English is the default. To switch, open the Omarchy menu and go to _Setup > Region > Language_, or run `omarchy language <code>` in a terminal (`omarchy language list` shows the codes). The menu, desktop, and Omarchy's own notifications change language immediately, and every application you open afterwards follows too. Apps that were already open switch once you restart them.

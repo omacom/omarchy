@@ -69,6 +69,18 @@ if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
   export WAYLAND_DISPLAY="${display:-wayland-1}"
 fi
 
+# A fresh install greets its first login with the welcome tour, an overlay that
+# holds the keyboard until it is closed. Nobody is there to close it, so it is
+# marked taken for a first run that has not reached it yet, and closed for one
+# that has, for as long as first run could still open it: until it has
+# finished, or half a minute has passed.
+omarchy-done mark welcome-tour
+tour_deadline=$((SECONDS + 30))
+until omarchy-done check first-run-user || (( SECONDS >= tour_deadline )); do
+  OMARCHY_SHELL_IPC_TIMEOUT=1s omarchy-shell -q shell hide omarchy.setup
+  sleep 0.5
+done
+
 shopt -s nullglob
 tests=()
 for test in "$TEST_DIR"/*-test.sh; do

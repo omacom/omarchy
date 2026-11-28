@@ -18,6 +18,8 @@ removed, so an inline trailing comment breaks the parse. A file that fails to
 parse contributes no entries — a broken user extension silently drops every
 user entry while the shipped menu keeps working.
 
+Welcome, the plugin behind _Setup > Welcome_, reads the same two files for its workspace layout, dictation, and Tailscale choices so rows and translations stay in one place. [`setup.md`](setup.md) covers how it works.
+
 ## Entry schema
 
 Entries are object keys. The dotted id is the tree: `trigger.share.file` is a

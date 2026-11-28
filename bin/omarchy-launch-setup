@@ -1,0 +1,135 @@
+#!/bin/bash
+
+# omarchy:summary=Open the Omarchy welcome tour
+# omarchy:args=[--wait]
+
+set -euo pipefail
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-launch-setup [--wait]
+
+Opens the Omarchy welcome tour.
+
+  --wait  Return once Welcome has been closed, printing the steps a finished
+          tour set off (and markers for steps reached), one a line. Fails if
+          Welcome never reached the screen, or went away without being closed.
+USAGE
+}
+
+wait_for_close=0
+seen_operand=0
+while (($#)); do
+  case "$1" in
+    --wait)
+      wait_for_close=1
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    welcome)
+      if (( seen_operand )); then
+        echo "Unexpected argument: $1" >&2
+        usage >&2
+        exit 1
+      fi
+      seen_operand=1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+# Welcome answers a wait in a directory of its own: a file for each outcome
+# marker, and `closed` last. The directory is also the request's id so a second
+# opening cannot steal an earlier caller's wait.
+reply=""
+if (( wait_for_close )); then
+  reply=$(mktemp -d -p "${XDG_RUNTIME_DIR:-/run/user/$UID}" omarchy-setup.XXXXXX)
+  trap 'rm -rf "$reply"' EXIT
+fi
+
+request_state() {
+  OMARCHY_SHELL_IPC_TIMEOUT=1s omarchy-shell shell call omarchy.setup state "$reply" 2>/dev/null || true
+}
+
+closed_soon() {
+  local deadline=$((SECONDS + 5))
+
+  until [[ -e $reply/closed ]] || (( SECONDS >= deadline )); do
+    sleep 0.1
+  done
+  [[ -e $reply/closed ]]
+}
+
+patience=15
+expires=0
+if (( wait_for_close )); then
+  expires=$((EPOCHSECONDS + patience))
+fi
+
+payload=$(jq -nc --arg reply "$reply" --argjson expires "$expires" '{ reply: $reply, expires: $expires }')
+
+if [[ $(omarchy-shell shell summon omarchy.setup "$payload") != "ok" ]]; then
+  echo "omarchy-launch-setup: the shell could not open Welcome" >&2
+  exit 1
+fi
+
+if (( wait_for_close )); then
+  deadline=$((SECONDS + patience))
+  ours=0
+  until [[ -e $reply/closed ]]; do
+    state=$(request_state)
+    if [[ $state == "shown" ]]; then
+      break
+    elif [[ $state == "opening" ]]; then
+      ours=1
+    elif (( ours )) && [[ $state == "other" || $state == "unknown" ]]; then
+      if closed_soon; then
+        break
+      else
+        echo "omarchy-launch-setup: Welcome was closed before it reached the screen" >&2
+        exit 1
+      fi
+    fi
+
+    if (( SECONDS >= deadline )) && [[ ! -e $reply/closed ]]; then
+      omarchy-shell -q shell call omarchy.setup cancel "$reply"
+      echo "omarchy-launch-setup: Welcome never reached the screen" >&2
+      exit 1
+    fi
+    sleep 0.1
+  done
+
+  ticks=0
+  silent=0
+  until [[ -e $reply/closed ]]; do
+    sleep 0.1
+    (( ++ticks % 20 == 0 )) || continue
+
+    state=$(request_state)
+    if [[ $state == "shown" ]]; then
+      silent=0
+    elif [[ $state == "other" || $state == "unknown" ]] || (( ++silent >= 15 )); then
+      if ! closed_soon; then
+        echo "omarchy-launch-setup: Welcome went away without being closed" >&2
+        exit 1
+      fi
+    fi
+  done
+
+  for step in "$reply"/*; do
+    step=${step##*/}
+    [[ $step == "closed" ]] || echo "$step"
+  done
+fi

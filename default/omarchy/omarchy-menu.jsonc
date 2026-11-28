@@ -181,6 +181,7 @@
   "trigger.tests.disk-speedtest": {"icon":"󰋊","label":"Disk Speed Test","action":"omarchy-shell shell summon omarchy.disk-speedtest"},
 
   // Setup
+  "setup.welcome": {"icon":"","iconFont":"omarchy","label":"Welcome","description":"Take the welcome tour again","action":"omarchy-launch-setup"},
   "setup.default": {"icon":"","label":"Defaults","aliases":["default","defaults"]},
   "setup.default.browser": {"icon":"","label":"Browser","title":"Default Browser"},
   "setup.default.browser.chromium": {"icon":"","label":"Chromium","checked":"[[ \"$(omarchy-default-browser)\" == \"chromium\" ]]","action":"omarchy-default-browser chromium"},

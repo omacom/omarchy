@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.setup",
+  "name": "Welcome",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "The Omarchy welcome tour for essential desktop settings",
+  "kinds": [
+    "overlay"
+  ],
+  "entryPoints": {
+    "overlay": "Setup.qml"
+  }
+}

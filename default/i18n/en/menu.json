@@ -502,6 +502,10 @@
   "setup.network.qr": {
     "label": "QR Code"
   },
+  "setup.welcome": {
+    "label": "Welcome",
+    "description": "Take the welcome tour again"
+  },
   "setup.default": {
     "label": "Defaults"
   },

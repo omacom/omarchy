@@ -91,6 +91,9 @@ omarchy-notification-wait || log_first_run "Timed out waiting for notification s
 # Superwhisper places its bar panel through the shell, so it waits for it too.
 run_first_run_step "configure Superwhisper dictation" \
   bash "$OMARCHY_PATH/install/user/first-run/superwhisper.sh"
+# The toasts wait for the tour to be closed.
+run_first_run_step "show the welcome tour" \
+  bash "$OMARCHY_PATH/install/user/first-run/welcome-tour.sh"
 # Each send returns only once the server has taken the toast, so sending in
 # order is enough to stack them newest-on-top.
 run_first_run_step "show welcome notification" \

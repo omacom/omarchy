@@ -1,0 +1,261 @@
+#!/bin/bash
+
+# omarchy:summary=Set up what the welcome tour picked: workspace layout, dictation, Tailscale, a local model and an agent
+# omarchy:args=[--install] [--layout <dwindle|scrolling|floating>] [--dictation <backend>] [--dictation-mode <cloud|offline|offline_lite>] [--tailscale] [--local-ai <recipe>] [--agent]
+# omarchy:hidden=true
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-setup-essentials [--install] [--layout <dwindle|scrolling|floating>]
+                                [--dictation <backend>] [--dictation-mode <cloud|offline|offline_lite>]
+                                [--tailscale] [--local-ai <recipe>] [--agent]
+
+Sets up each thing named, one after another. The layout changes at once. The
+rest install, so they are handed to a floating terminal, where they wait for
+a connection first. --agent opens the agents panel once any terminal closes.
+
+  --install  Run the installs here instead: this is that terminal.
+USAGE
+}
+
+needs_value() {
+  if [[ -z ${2:-} || $2 == -* ]]; then
+    echo "$1 needs a value" >&2
+    usage >&2
+    exit 1
+  fi
+}
+
+layout="" dictation="" dictation_mode="" local_ai=""
+tailscale=0 agent=0 here=0
+
+while (($#)); do
+  case "$1" in
+    --install)
+      here=1
+      ;;
+    --layout)
+      needs_value "$@"
+      layout=$2
+      shift
+      ;;
+    --dictation)
+      needs_value "$@"
+      dictation=$2
+      shift
+      ;;
+    --dictation-mode)
+      needs_value "$@"
+      dictation_mode=$2
+      shift
+      ;;
+    --local-ai)
+      needs_value "$@"
+      local_ai=$2
+      shift
+      ;;
+    --agent)
+      agent=1
+      ;;
+    --tailscale)
+      tailscale=1
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+if [[ -n $layout && ! $layout =~ ^(dwindle|scrolling|floating)$ ]]; then
+  echo "Unknown workspace layout: $layout" >&2
+  exit 1
+fi
+
+if [[ -n $dictation && ! $dictation =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "Invalid name: $dictation" >&2
+  exit 1
+fi
+
+if [[ -n $dictation_mode && ! $dictation_mode =~ ^(cloud|offline|offline_lite)$ ]]; then
+  echo "Invalid dictation mode: $dictation_mode" >&2
+  exit 1
+fi
+
+if [[ -n $dictation_mode && $dictation != "superwhisper" ]]; then
+  echo "--dictation-mode requires --dictation superwhisper" >&2
+  exit 1
+fi
+
+if [[ -n $local_ai && ! $local_ai =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  echo "Invalid recipe: $local_ai" >&2
+  exit 1
+fi
+
+installs=()
+[[ -z $dictation ]] || installs+=(--dictation "$dictation")
+[[ -z $dictation_mode ]] || installs+=(--dictation-mode "$dictation_mode")
+(( ! tailscale )) || installs+=(--tailscale)
+[[ -z $local_ai ]] || installs+=(--local-ai "$local_ai")
+
+if [[ -z $layout ]] && (( ${#installs[@]} == 0 && ! agent )); then
+  usage >&2
+  exit 1
+fi
+
+failed=()
+declined=()
+
+heading() {
+  printf '\n\033[1m%s\033[0m\n' "$1"
+}
+
+report() {
+  local summary
+
+  if (( ${#failed[@]} > 0 )); then
+    printf -v summary '%s, ' "${failed[@]}"
+    printf '\nCould not set up: %s\n' "${summary%, }" >&2
+  fi
+  if (( ${#declined[@]} > 0 )); then
+    printf -v summary '%s, ' "${declined[@]}"
+    printf '\nLeft as it was: %s\n' "${summary%, }" >&2
+  fi
+}
+
+open_agents_panel() {
+  if omarchy-shell omarchy.agents open; then
+    omarchy-done mark agent-setup-invitation
+    omarchy-notification-dismiss "$(omarchy-i18n firstRun.agentTitle)" >/dev/null 2>&1 || true
+  else
+    failed+=("the agents panel")
+  fi
+}
+
+install_all() {
+  local status interrupted=0
+  trap 'interrupted=1' INT
+
+  status=0
+  nm-online -q -x -t 30 || status=$?
+  (( ! interrupted && status != 130 )) || exit 130
+
+  if (( status != 0 )); then
+    heading "Waiting for an internet connection"
+    echo "Connect from the network panel in the bar, and this carries on by itself."
+    until nm-online -q -t 86400; do
+      status=$?
+      (( ! interrupted && status != 130 )) || exit 130
+      sleep 1 || true
+      (( ! interrupted )) || exit 130
+    done
+  fi
+
+  configure_superwhisper_mode() {
+    local sw_status=0 active_mode model_id
+    superwhisper models select "$dictation_mode" >/dev/null || sw_status=$?
+    if (( interrupted || sw_status == 130 )); then
+      exit 130
+    elif (( sw_status != 0 )); then
+      failed+=("dictation mode")
+      return
+    fi
+    if [[ $dictation_mode != "cloud" ]]; then
+      # Superwhisper auto-selects offline_lite on <12 GB RAM, so inspect the
+      # active processing mode before queueing any missing offline models.
+      active_mode=$(superwhisper models show 2>/dev/null | jq -r '.processing // empty' 2>/dev/null || true)
+      active_mode=${active_mode:-$dictation_mode}
+      while IFS= read -r model_id; do
+        [[ -n $model_id ]] || continue
+        echo "Downloading Superwhisper model: $model_id"
+        superwhisper models download "$model_id" >/dev/null || true
+      done < <(superwhisper models show 2>/dev/null | jq -r --arg m "$active_mode" '.processingModes[]? | select(.value == $m) | .missing[]?' 2>/dev/null)
+    fi
+  }
+
+  if [[ -n $dictation ]]; then
+    heading "Setting up dictation with $dictation"
+    if [[ $dictation == "superwhisper" && -n $dictation_mode && $(omarchy-default-dictation 2>/dev/null) == "superwhisper" ]] && omarchy-cmd-present superwhisper; then
+      configure_superwhisper_mode
+    elif omarchy-cmd-present "omarchy-install-dictation-$dictation"; then
+      status=0
+      "omarchy-install-dictation-$dictation" || status=$?
+      if (( interrupted || status == 130 )); then
+        exit 130
+      elif (( status == 0 )); then
+        if [[ $(omarchy-default-dictation 2>/dev/null) != "$dictation" ]]; then
+          declined+=("dictation")
+        elif [[ $dictation == "superwhisper" && -n $dictation_mode ]] && omarchy-cmd-present superwhisper; then
+          configure_superwhisper_mode
+        fi
+      else
+        failed+=("dictation")
+      fi
+    else
+      echo "No installer available for dictation backend: $dictation" >&2
+      failed+=("dictation")
+    fi
+  fi
+
+  if (( tailscale )); then
+    heading "Setting up Tailscale"
+    status=0
+    omarchy-install-service-tailscale || status=$?
+    if (( interrupted || status == 130 )); then
+      exit 130
+    elif (( status != 0 )); then
+      failed+=("Tailscale")
+    fi
+  fi
+
+  if [[ -n $local_ai ]]; then
+    heading "Setting up a local model"
+    status=0
+    omarchy-models use --detach "$local_ai" || status=$?
+    if (( interrupted || status == 130 )); then
+      exit 130
+    elif (( status != 0 )); then
+      failed+=("the local model")
+    fi
+  fi
+}
+
+if [[ -n $layout ]]; then
+  omarchy-hyprland-workspace-layout-default "$layout" || failed+=("the workspace layout")
+fi
+
+# Installs run in one floating presentation terminal. When --agent is also
+# requested, wait until the user acknowledges the terminal's Done/Failed prompt
+# and let the terminal close cleanly before opening the Agents panel, so the
+# panel never collides with a waiting terminal underneath.
+if (( ${#installs[@]} > 0 && ! here )); then
+  if (( ${#failed[@]} > 0 )); then
+    installs=(--layout "$layout" "${installs[@]}")
+  fi
+
+  install_cmd="omarchy-setup-essentials --install ${installs[*]@Q}"
+  if (( agent )); then
+    source omarchy-restart-gum
+    presentation_script="omarchy-show-logo; $install_cmd; code=\$?; if (( code != 130 )); then addr=''; if [[ -n \${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then addr=\$(hyprctl -j clients 2>/dev/null | jq -r --argjson p \"\$PPID\" 'first(.[] | select(.pid == \$p) | .address) // empty' || true); [[ -n \$addr ]] || addr=\$(hyprctl -j activewindow 2>/dev/null | jq -r 'select(.class == \"org.omarchy.terminal\") | .address // empty' || true); fi; omarchy-show-done \$code && setsid -f bash -c 'pid=\$1; addr=\$2; deadline=\$((SECONDS + 5)); while kill -0 \"\$pid\" 2>/dev/null; do (( SECONDS < deadline )) || exit 0; sleep 0.05; done; if [[ -n \$addr && -n \${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then while hyprctl -j clients 2>/dev/null | jq -e --arg a \"\$addr\" \"any(.[]; .address == \\\$a)\" >/dev/null 2>&1; do (( SECONDS < deadline )) || exit 0; sleep 0.05; done; fi; exec omarchy-setup-essentials --agent' _ \$\$ \"\$addr\" >/dev/null 2>&1 </dev/null; fi; exit \$code"
+    exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.terminal --title=Omarchy -e bash -c "$presentation_script"
+  else
+    exec omarchy-launch-floating-terminal-with-presentation "$install_cmd"
+  fi
+else
+  (( ${#installs[@]} == 0 )) || install_all
+
+  if (( agent )); then
+    open_agents_panel
+  fi
+
+  report
+  if (( ${#failed[@]} > 0 )); then
+    exit 1
+  fi
+fi
