@@ -547,6 +547,7 @@ BarWidget {
             width: 16
             height: 16
             icon: rowRoot.modelData.icon
+            tint: root.foreground
           }
 
           Text {
@@ -850,12 +851,15 @@ BarWidget {
     }
   }
 
-  // Renders a tray icon, recoloring symbolic icons to the bar foreground so
-  // they stay visible on any theme (a raw symbolic icon keeps its baked-in
-  // fill and disappears against a matching background).
+  // Renders a tray icon, recoloring symbolic icons so they stay visible on
+  // any theme (a raw symbolic icon keeps its baked-in fill and disappears
+  // against a matching background).
   component TrayIcon: Item {
     id: trayIconRoot
     required property var icon
+    // Bar icons follow the bar text color; the manage popup passes its
+    // own text color so icons stay readable on the popup background.
+    property color tint: root.bar ? root.bar.barForeground : Commons.Color.foreground
     readonly property bool symbolic: root.iconIsSymbolic(icon)
 
     Image {
@@ -872,11 +876,11 @@ BarWidget {
       layer.enabled: trayIconRoot.symbolic
     }
 
-    // Paint the foreground through the icon's alpha. MultiEffect's colorization
+    // Paint the tint through the icon's alpha. MultiEffect's colorization
     // keeps the source's lightness, so a dark fill stayed dark on a dark bar.
     Rectangle {
       anchors.fill: trayIconImage
-      color: root.foreground
+      color: trayIconRoot.tint
       visible: trayIconRoot.symbolic
       layer.enabled: trayIconRoot.symbolic
       layer.effect: MultiEffect {
