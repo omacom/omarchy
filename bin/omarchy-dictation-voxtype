@@ -4,7 +4,20 @@
 # omarchy:args=<start|stop|toggle>
 
 case "${1:-}" in
-  start|toggle) voxtype record "$1" ;;
+  start|toggle)
+    if ! omarchy-cpu-isa --avx2; then
+      voxtype_path=$(command -v voxtype 2>/dev/null || true)
+      if [[ -n $voxtype_path ]]; then
+        case $(readlink -f "$voxtype_path" 2>/dev/null) in
+          *voxtype-avx2 | *voxtype-avx512 | *voxtype-onnx-avx2 | *voxtype-onnx-avx512)
+            echo "Warning: $voxtype_path is an AVX2/AVX-512 build on a CPU without AVX2, so it will crash. Reinstall voxtype-bin >= 1.1.0 for the baseline build, or build from source (issue #8197)." >&2
+            exit 1
+            ;;
+        esac
+      fi
+    fi
+    voxtype record "$1"
+    ;;
   stop)
     if omarchy-cmd-missing voxtype || [[ $(voxtype status) == "stopped" ]]; then
       exit 0

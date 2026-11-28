@@ -74,6 +74,16 @@ elif [[ $mode == "check" ]]; then
   exit 1
 fi
 
+# Bun's plain x86_64 target requires AVX2 (#7881), so an agent whose Omarchy
+# package ships that build cannot run on a CPU below x86-64-v3. Freebuff's
+# package ships the baseline build, which runs without AVX2, so it stays out
+# of this gate; extend it as upstream reports land. The installed/--check
+# exits above mean only a real install reaches this.
+if [[ $agent == "claude" ]] && ! omarchy-cpu-isa --avx2; then
+  echo "Warning: claude bundles a Bun runtime that needs AVX2, which this CPU lacks, so it will crash on launch. Skip it, or run it under a baseline Bun build or qemu-user emulation (issue #7881)." >&2
+  exit 1
+fi
+
 # Every agent is one of Omarchy's curated apps, so installing it asks for no
 # password at the machine. pkexec's 126, a prompt dismissed where one is shown,
 # is passed on as is.

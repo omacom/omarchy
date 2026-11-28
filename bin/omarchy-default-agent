@@ -89,6 +89,8 @@ elif [[ $agent == "pi" || $agent == "local" ]]; then
   agent_install() { true; }
 else
   agent_present() { omarchy-install-ai-cli --check "$agent"; }
+  # The installer refuses a Bun-bundled agent this CPU cannot run, so every
+  # caller of it (menu, --select, account sign-in) gets the same gate.
   agent_install() { omarchy-install-ai-cli "$agent"; }
 fi
 

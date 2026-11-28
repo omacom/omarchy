@@ -9,6 +9,9 @@ voxtype_lib_path="${OMARCHY_VOXTYPE_LIB_PATH:-/usr/lib/voxtype}"
 
 if omarchy-cmd-missing voxtype; then
   if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n dictation.installVoxtype)"; then
+    if ! omarchy-cpu-isa --avx2; then
+      echo "Warning: this CPU has no AVX2. voxtype-bin 1.1.0+ selects its x86-64-v2 baseline build, so dictation works but transcription is slower. If the package is older than 1.1.0 it has no baseline build and will crash; upgrade it or build from source (issue #8197)." >&2
+    fi
     omarchy-pkg-add wtype voxtype-bin
   else
     exit 0
@@ -20,7 +23,9 @@ mkdir -p "$config_home/voxtype"
 if [[ ! -e $config_home/voxtype/config.toml ]]; then
   cp "$OMARCHY_PATH/default/voxtype/config.toml" "$config_home/voxtype/"
   # A Vulkan runtime is not enough: aarch64 voxtype-bin ships no Vulkan backend.
-  if omarchy-hw-vulkan && [[ -x $voxtype_lib_path/voxtype-vulkan ]]; then
+  # The Vulkan build needs AVX2 (Haswell), so do not force the GPU backend on a
+  # host without it; voxtype-bin's baseline selection then runs the CPU build.
+  if omarchy-hw-vulkan && omarchy-cpu-isa --avx2 && [[ -x $voxtype_lib_path/voxtype-vulkan ]]; then
     voxtype setup gpu --enable || true
   fi
 fi

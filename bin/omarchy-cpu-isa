@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# omarchy:summary=Print the x86-64 microarchitecture level and whether the CPU has AVX2
+# omarchy:args=[--json | --avx2 | --atleast <v1|v2|v3|v4>]
+# omarchy:examples=omarchy cpu isa | omarchy cpu isa --avx2
+
+# Feature flags from /proc/cpuinfo, or lscpu when it is not readable. A caller
+# or test may supply them directly so the level logic runs without this host.
+if [[ -n ${OMARCHY_CPU_FLAGS:-} ]]; then
+  features=$OMARCHY_CPU_FLAGS
+elif ! omarchy-hw-x86; then
+  # The x86-64 microarchitecture levels are an x86 idea. Elsewhere the tools these
+  # gates protect ship native binaries, so the x86-64-v3 requirement does not
+  # apply and every check passes.
+  case "${1:-}" in
+    --json) printf '{"level":"none","avx2":true}\n'; exit 0 ;;
+    --help | -h) echo "Usage: omarchy cpu isa [--json | --avx2 | --atleast <v1|v2|v3|v4>]"; exit 0 ;;
+    --avx2) exit 0 ;;
+    --atleast)
+      case "${2:-}" in
+        v1 | v2 | v3 | v4) exit 0 ;;
+        *) echo "Usage: omarchy-cpu-isa --atleast <v1|v2|v3|v4>" >&2; exit 2 ;;
+      esac
+      ;;
+    "") printf 'level=none\navx2=yes\n'; exit 0 ;;
+    *) echo "Usage: omarchy cpu isa [--json | --avx2 | --atleast <v1|v2|v3|v4>]" >&2; exit 2 ;;
+  esac
+else
+  features=$(
+    {
+      sed -n 's/^flags[[:space:]]*:[[:space:]]*//p' /proc/cpuinfo 2>/dev/null
+      if omarchy-cmd-present lscpu; then
+        lscpu 2>/dev/null | sed -n 's/^Flags:[[:space:]]*//p'
+      fi
+    } | tr ' ' '\n' | tr '[:upper:]' '[:lower:]' | sort -u | paste -sd' '
+  )
+fi
+
+has() { [[ " $features " == *" $1 "* ]]; }
+
+# Each level is cumulative: a v4 machine must also carry every v3 and v2
+# feature, so a VM exposing the AVX-512 flags while masking movbe is v2, not
+# v4, and --atleast v3 cannot pass for it.
+has_v2() { has cx16 && has popcnt && has lahf_lm && { has sse3 || has pni; } && has sse4_1 && has sse4_2 && has ssse3; }
+has_v3() { has avx && has avx2 && has bmi1 && has bmi2 && has f16c && has fma && { has lzcnt || has abm; } && has movbe && has xsave; }
+has_v4() { has avx512f && has avx512dq && has avx512cd && has avx512bw && has avx512vl; }
+
+level=$(if has_v2 && has_v3 && has_v4; then
+  printf 'v4'
+elif has_v2 && has_v3; then
+  printf 'v3'
+elif has_v2; then
+  printf 'v2'
+else
+  printf 'v1'
+fi)
+
+if has avx2; then avx2_value=true; else avx2_value=false; fi
+
+case "${1:-}" in
+  --json) printf '{"level":"%s","avx2":%s}\n' "$level" "$avx2_value" ;;
+  --avx2) has avx2 ;;
+  --atleast)
+    case "${2:-}" in
+      v1) exit 0 ;;
+      v2) [[ $level == "v2" || $level == "v3" || $level == "v4" ]] ;;
+      v3) [[ $level == "v3" || $level == "v4" ]] ;;
+      v4) [[ $level == "v4" ]] ;;
+      *) echo "Usage: omarchy-cpu-isa --atleast <v1|v2|v3|v4>" >&2; exit 2 ;;
+    esac
+    ;;
+  --help | -h) echo "Usage: omarchy cpu isa [--json | --avx2 | --atleast <v1|v2|v3|v4>]" ;;
+  "") if has avx2; then printf 'level=%s\navx2=yes\n' "$level"; else printf 'level=%s\navx2=no\n' "$level"; fi ;;
+  *) echo "Usage: omarchy cpu isa [--json | --avx2 | --atleast <v1|v2|v3|v4>]" >&2; exit 2 ;;
+esac
