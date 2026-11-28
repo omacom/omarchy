@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # omarchy:summary=Install one of the approved terminals and set it as the default for Omarchy (Super + Return etc).
-# omarchy:args=<alacritty|foot|ghostty|kitty>
+# omarchy:args=<alacritty|foot|ghostty|kitty|wezterm>
 # omarchy:requires-sudo=true
 
 if (($# == 0)); then
-  echo "Usage: omarchy-install-terminal [alacritty|foot|ghostty|kitty]"
+  echo "Usage: omarchy-install-terminal [alacritty|foot|ghostty|kitty|wezterm]"
   exit 1
 fi
 
@@ -17,6 +17,7 @@ alacritty) desktop_id="Alacritty.desktop" ;;
 foot) desktop_id="foot.desktop" ;;
 ghostty) desktop_id="com.mitchellh.ghostty.desktop" ;;
 kitty) desktop_id="kitty.desktop" ;;
+wezterm) desktop_id="org.wezfurlong.wezterm.desktop" ;;
 *)
   echo "Unknown terminal: $package"
   exit 1
@@ -31,13 +32,24 @@ if omarchy-pkg-add $package; then
   if [[ $package == "alacritty" ]]; then
     mkdir -p ~/.local/share/applications
     cp "$OMARCHY_PATH/default/alacritty/$desktop_id" ~/.local/share/applications/
-  elif [[ $package == "foot" ]]; then
+  elif [[ $package == "foot" || $package == "wezterm" ]]; then
     mkdir -p ~/.local/share/applications
-    cp "$OMARCHY_PATH/applications/$desktop_id" ~/.local/share/applications/
+    if [[ $package == "foot" || ( ! -e ~/.local/share/applications/$desktop_id && ! -L ~/.local/share/applications/$desktop_id ) ]]; then
+      cp "$OMARCHY_PATH/applications/$desktop_id" ~/.local/share/applications/
+    fi
   fi
 
   # Copy default config for optional terminals when missing
-  if [[ ! -e ~/.config/$package ]]; then
+  if [[ $package == "wezterm" ]]; then
+    omarchy-theme-set-templates --file wezterm.lua "$HOME/.local/state/omarchy/current/theme" || exit 1
+    # Do not shadow a configuration from another supported WezTerm location.
+    if [[ ! -e ~/.config/wezterm/wezterm.lua && ! -L ~/.config/wezterm/wezterm.lua &&
+      ! -e ~/.wezterm.lua && ! -L ~/.wezterm.lua && -z ${WEZTERM_CONFIG_FILE:-} &&
+      ! -e ${XDG_CONFIG_HOME:-$HOME/.config}/wezterm/wezterm.lua && ! -L ${XDG_CONFIG_HOME:-$HOME/.config}/wezterm/wezterm.lua ]]; then
+      mkdir -p ~/.config/wezterm
+      cp "$OMARCHY_PATH/config/wezterm/wezterm.lua" ~/.config/wezterm/
+    fi
+  elif [[ ! -e ~/.config/$package ]]; then
     cp -Rpf "$OMARCHY_PATH/config/$package" ~/.config/
   fi
 
@@ -49,4 +61,5 @@ $desktop_id
 EOF
 else
   echo "Failed to install $package"
+  exit 1
 fi

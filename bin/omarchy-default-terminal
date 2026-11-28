@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set the default terminal used by xdg-terminal-exec
-# omarchy:args=[alacritty|foot|ghostty|kitty]
+# omarchy:args=[alacritty|foot|ghostty|kitty|wezterm]
 # omarchy:examples=omarchy default terminal ghostty | omarchy default terminal kitty
 
 installing=false
@@ -16,6 +16,7 @@ terminal_binary_for_desktop_id() {
   foot.desktop) TERMINAL_BINARY="foot" ;;
   com.mitchellh.ghostty.desktop) TERMINAL_BINARY="ghostty" ;;
   kitty.desktop) TERMINAL_BINARY="kitty" ;;
+  org.wezfurlong.wezterm.desktop) TERMINAL_BINARY="wezterm" ;;
   *) return 1 ;;
   esac
 }
@@ -72,8 +73,9 @@ alacritty) terminal="alacritty"; desktop_id="Alacritty.desktop"; name="Alacritty
 foot) terminal="foot"; desktop_id="foot.desktop"; name="Foot"; glyph= ;;
 ghostty) terminal="ghostty"; desktop_id="com.mitchellh.ghostty.desktop"; name="Ghostty"; glyph= ;;
 kitty) terminal="kitty"; desktop_id="kitty.desktop"; name="Kitty"; glyph= ;;
+wezterm) terminal="wezterm"; desktop_id="org.wezfurlong.wezterm.desktop"; name="WezTerm"; glyph= ;;
 *)
-  echo "Usage: omarchy-default-terminal <alacritty|foot|ghostty|kitty>"
+  echo "Usage: omarchy-default-terminal <alacritty|foot|ghostty|kitty|wezterm>"
   exit 1
   ;;
 esac
@@ -83,6 +85,15 @@ if omarchy-cmd-missing "$terminal"; then
     exec omarchy-launch-floating-terminal-with-presentation omarchy-default-terminal --install "$terminal"
   else
     omarchy-install-terminal "$terminal" || exit 1
+  fi
+fi
+
+# WezTerm installed outside Omarchy still needs its launch arguments.
+if [[ $terminal == "wezterm" ]]; then
+  applications_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+  if [[ ! -e $applications_dir/$desktop_id && ! -L $applications_dir/$desktop_id ]]; then
+    mkdir -p "$applications_dir" &&
+      cp "$OMARCHY_PATH/applications/$desktop_id" "$applications_dir/" || exit 1
   fi
 fi
 

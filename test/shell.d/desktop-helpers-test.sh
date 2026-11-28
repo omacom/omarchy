@@ -68,6 +68,33 @@ HOME="$tmp/home" XDG_RUNTIME_DIR="$tmp" PATH="$tmp/bin:$ROOT/bin:$PATH" "$ROOT/b
   fail "omarchy-display-text-size reset clears base-size in symlinked shell.toml" "$(<"$tmp/dots/shell.toml")"
 pass "omarchy-display-text-size preserves symlinked shell and terminal configs"
 
+# The same text-size command updates an optional WezTerm config, including a
+# dotfiles symlink, without changing its selected font family.
+mkdir -p "$tmp/wezterm-home/.config/wezterm"
+cp "$ROOT/config/wezterm/wezterm.lua" "$tmp/dots/wezterm.lua"
+ln -s "$tmp/dots/wezterm.lua" "$tmp/wezterm-home/.config/wezterm/wezterm.lua"
+HOME="$tmp/wezterm-home" XDG_RUNTIME_DIR="$tmp" PATH="$tmp/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-display-text-size" 16 >/dev/null
+grep -qx 'config.font_size = 12' "$tmp/dots/wezterm.lua" ||
+  fail "text size updates WezTerm's font size" "$(<"$tmp/dots/wezterm.lua")"
+[[ -L "$tmp/wezterm-home/.config/wezterm/wezterm.lua" ]] ||
+  fail "text size preserves WezTerm config symlinks"
+output=$(HOME="$tmp/wezterm-home" XDG_RUNTIME_DIR="$tmp" PATH="$tmp/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-display-text-size")
+[[ $output == *"terminal font: 12 pt"* ]] ||
+  fail "text size reports WezTerm when it is the only configured terminal" "$output"
+HOME="$tmp/wezterm-home" XDG_RUNTIME_DIR="$tmp" PATH="$tmp/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-display-text-size" 18 >/dev/null
+grep -qx 'config.font_size = 14' "$tmp/dots/wezterm.lua" ||
+  fail "text size rounds WezTerm's point size" "$(<"$tmp/dots/wezterm.lua")"
+HOME="$tmp/wezterm-home" XDG_RUNTIME_DIR="$tmp" PATH="$tmp/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-display-text-size" reset >/dev/null
+grep -qx 'config.font_size = 9' "$tmp/dots/wezterm.lua" ||
+  fail "text size reset restores WezTerm's default" "$(<"$tmp/dots/wezterm.lua")"
+grep -Fq 'wezterm.font("monospace"' "$tmp/dots/wezterm.lua" ||
+  fail "text size preserves WezTerm's font family" "$(<"$tmp/dots/wezterm.lua")"
+pass "text size updates, reports and resets WezTerm through a config symlink"
+
 # Clipboard helpers fail cleanly on missing --history-index value instead of looping.
 for helper in omarchy-clipboard-open omarchy-clipboard-paste-text; do
   if timeout 2s "$ROOT/bin/$helper" --history-index >/dev/null 2>&1; then

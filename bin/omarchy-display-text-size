@@ -159,6 +159,10 @@ set_terminal_size() {
     pkill -SIGUSR2 ghostty 2>/dev/null || true
   fi
 
+  if [[ -f ~/.config/wezterm/wezterm.lua ]]; then
+    sed --follow-symlinks -i -E "s/^config\.font_size[[:space:]]*=.*/config.font_size = $pt/" ~/.config/wezterm/wezterm.lua
+  fi
+
   if [[ -f ~/.config/foot/foot.ini ]]; then
     sed --follow-symlinks -i -E "s/(:size=)[0-9.]+/\1$pt/" ~/.config/foot/foot.ini
     # Foot has no config-reload signal, so a running instance keeps its startup
@@ -192,6 +196,8 @@ term_current_pt() {
     echo "${pt:-$TERM_DEFAULT_PT}"
   elif [[ -f ~/.config/foot/foot.ini ]]; then
     grep -oP ':size=\K[0-9.]+' ~/.config/foot/foot.ini | head -1
+  elif [[ -f ~/.config/wezterm/wezterm.lua ]]; then
+    grep -oP '^config\.font_size[[:space:]]*=[[:space:]]*\K[0-9.]+' ~/.config/wezterm/wezterm.lua | head -1
   elif omarchy-cmd-present kitty; then
     echo "$TERM_DEFAULT_PT"
   fi

@@ -326,6 +326,47 @@ pass "font set preserves alacritty size"
 grep -qx 'font-size = 12' "$FONT_TMPDIR/.config/ghostty/config" || fail "font set preserves ghostty size"
 pass "font set preserves ghostty size"
 
+# WezTerm font changes keep dotfiles links intact and preserve Lua string values.
+if command -v lua5.1 >/dev/null; then
+  mkdir -p "$FONT_TMPDIR/.config/wezterm"
+  cp "$ROOT/config/wezterm/wezterm.lua" "$FONT_TMPDIR/wezterm-dotfile.lua"
+  sed -i '/^return config/i config.font_rules = { { italic = true, font = wezterm.font("Custom Italic", { weight = "Regular" }) } }' "$FONT_TMPDIR/wezterm-dotfile.lua"
+  ln -s "$FONT_TMPDIR/wezterm-dotfile.lua" "$FONT_TMPDIR/.config/wezterm/wezterm.lua"
+  printf '#!/bin/bash\nprintf "%%s\\n" "$WEZTERM_TEST_FONT"\n' >"$FONT_TMPDIR/fake-bin/fc-list"
+  # Other terminal formats have their own escaping rules; isolate the Lua case.
+  rm "$FONT_TMPDIR/.config/foot/foot.ini" "$FONT_TMPDIR/.config/kitty/kitty.conf"
+  rm "$FONT_TMPDIR/.config/alacritty/alacritty.toml" "$FONT_TMPDIR/.config/ghostty/config"
+  for font_name in 'Test Font' 'Ampersand & Font' 'Slash/Font' 'Quoted "Font"' 'Back\slash & / "Font"' 'Final Font'; do
+    env HOME="$FONT_TMPDIR" OMARCHY_PATH="$ROOT" PATH="$FONT_TMPDIR/fake-bin:$PATH" WEZTERM_TEST_FONT="$font_name" \
+      "$ROOT/bin/omarchy-font-set" "$font_name"
+    env HOME="$FONT_TMPDIR" WEZTERM_TEST_FONT="$font_name" lua5.1 - <<'LUA'
+package.preload.wezterm = function()
+  return {
+    config_builder = function() return {} end,
+    font = function(name, options)
+      assert(options.weight == "Regular", "font options were changed")
+      return name
+    end,
+    action = {
+      CopyTo = function() end,
+      PasteFrom = function() end,
+      SendString = function() end,
+    },
+  }
+end
+local config = dofile(os.getenv("HOME") .. "/.config/wezterm/wezterm.lua")
+assert(config.font == os.getenv("WEZTERM_TEST_FONT"), "font name changed during escaping")
+assert(config.font_rules[1].font == "Custom Italic", "custom italic font was replaced")
+assert(config.font_size == 9, "unrelated settings were changed")
+LUA
+  done
+  pass "font updates preserve literal names and can replace previously escaped names"
+  [[ -L $FONT_TMPDIR/.config/wezterm/wezterm.lua ]] || fail "WezTerm font changes preserve the config symlink"
+  pass "WezTerm font changes preserve the config symlink"
+else
+  pass "WezTerm Lua font assertions skipped (lua51 not installed)"
+fi
+
 make_tmpdir PI_TMPDIR
 NEXT_THEME="$PI_TMPDIR/.local/state/omarchy/current/next-theme"
 CURRENT_THEME="$PI_TMPDIR/.local/state/omarchy/current/theme"

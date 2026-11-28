@@ -12,12 +12,27 @@ COLORS_FILE="$NEXT_THEME_DIR/colors.toml"
 # templates in set dir, from that theme's colors, into out dir.
 # omarchy-theme-set-icons does this after the theme is on screen, so drawing
 # icons never holds up a switch.
+# With --file <name> <theme dir>, fill one missing generated file in an
+# existing theme without retinting other apps or changing desktop state.
+TEMPLATE_NAME=""
 ICONS_ONLY=false
 if [[ ${1:-} == "--icons" ]]; then
   ICONS_ONLY=true
   COLORS_FILE="$2/colors.toml"
   NEXT_THEME_DIR="$3"
   ICON_SET_DIR="$4"
+elif [[ ${1:-} == "--file" ]]; then
+  if (( $# != 3 )) || [[ -z $2 || $2 == */* || $2 == "." || $2 == ".." ]]; then
+    echo "Usage: omarchy-theme-set-templates --file <name> <theme-dir>" >&2
+    exit 1
+  fi
+  TEMPLATE_NAME=$2
+  NEXT_THEME_DIR=$3
+  COLORS_FILE="$NEXT_THEME_DIR/colors.toml"
+  # The current theme directory can be replaced while this command runs.
+  # Serialize its palette read and output write with the theme switch itself.
+  exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+  flock 9
 fi
 
 # Theme switching waits on this script before the transition starts, so it
@@ -446,6 +461,13 @@ if [[ -f $COLORS_FILE ]]; then
   shopt -s nullglob
   if [[ $ICONS_ONLY == "true" ]]; then
     template_files=()
+  elif [[ -n $TEMPLATE_NAME ]]; then
+    template_files=()
+    for tpl in "$USER_TEMPLATES_DIR/$TEMPLATE_NAME.tpl" "$TEMPLATES_DIR/$TEMPLATE_NAME.tpl"; do
+      if [[ -f $tpl ]]; then
+        template_files+=("$tpl")
+      fi
+    done
   else
     template_files=("$USER_TEMPLATES_DIR"/*.tpl "$TEMPLATES_DIR"/*.tpl)
   fi
@@ -484,7 +506,7 @@ if [[ -f $COLORS_FILE ]]; then
   rm "$value_table" "$mix_table"
 fi
 
-if [[ $ICONS_ONLY != "true" ]]; then
+if [[ $ICONS_ONLY != "true" && -z $TEMPLATE_NAME ]]; then
   apply_shell_section_overrides
   omarchy-theme-set-glass "$NEXT_THEME_DIR"
 fi

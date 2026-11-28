@@ -334,3 +334,53 @@ else
   (( status != 124 )) || fail "omarchy-theme-color hangs when --file has no value"
 fi
 pass "omarchy-theme-color fails cleanly when --file lacks a value"
+
+# Installing a terminal can fill one newly introduced file in the current
+# theme without regenerating unrelated app configs or staging a theme swap.
+current="$test_tmp/current-theme"
+mkdir -p "$current"
+cp "$ROOT/themes/tokyo-night/colors.toml" "$current/colors.toml"
+printf 'custom foot settings\n' >"$current/foot.ini"
+HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" --file wezterm.lua "$current"
+grep -Fq 'background = "#1a1b26"' "$current/wezterm.lua" || fail "single-file rendering uses the selected theme palette"
+[[ ! -e $current/alacritty.toml && ! -e $current/shell.toml ]] || fail "single-file rendering leaves unrelated templates alone"
+[[ $(<"$current/foot.ini") == "custom foot settings" ]] || fail "single-file rendering keeps existing app settings"
+printf 'custom colors\n' >"$current/wezterm.lua"
+HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" --file wezterm.lua "$current"
+[[ $(<"$current/wezterm.lua") == "custom colors" ]] || fail "single-file rendering preserves an existing generated file"
+pass "single-file rendering fills a missing current-theme config without a theme refresh"
+
+# A theme switch holds this lock while replacing current/theme. The single-file
+# writer must read the palette only after that replacement has finished.
+race_theme="$test_tmp/switchable-theme"
+mkdir -p "$race_theme" "$test_tmp/lock-bin"
+cp "$ROOT/themes/tokyo-night/colors.toml" "$race_theme/colors.toml"
+mkfifo "$test_tmp/lock-ready"
+exec {ready_fd}<>"$test_tmp/lock-ready"
+exec {theme_lock}>"$test_tmp/omarchy-theme-set.lock"
+flock "$theme_lock"
+cat >"$test_tmp/lock-bin/flock" <<'SH'
+#!/bin/bash
+printf 'ready\n' >"$TEMPLATE_TEST_READY"
+exec /usr/bin/flock "$@"
+SH
+chmod +x "$test_tmp/lock-bin/flock"
+HOME="$home" OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR="$test_tmp" \
+  TEMPLATE_TEST_READY="$test_tmp/lock-ready" PATH="$test_tmp/lock-bin:$ROOT/bin:$PATH" \
+  timeout 10 "$ROOT/bin/omarchy-theme-set-templates" --file wezterm.lua "$race_theme" >"$test_tmp/locked-render.log" 2>&1 &
+renderer=$!
+if ! read -r -t 5 -u "$ready_fd"; then
+  flock -u "$theme_lock"
+  wait "$renderer" || true
+  fail "single-file rendering serializes with theme switching"
+fi
+[[ ! -e $race_theme/wezterm.lua ]] || fail "single-file rendering waits for the theme switch before writing"
+mv "$race_theme" "$test_tmp/previous-theme"
+mkdir -p "$race_theme"
+cp "$ROOT/themes/catppuccin-latte/colors.toml" "$race_theme/colors.toml"
+flock -u "$theme_lock"
+wait "$renderer" || fail "single-file rendering finishes after the theme switch" "$(cat "$test_tmp/locked-render.log")"
+grep -Fq 'background = "#eff1f5"' "$race_theme/wezterm.lua" || fail "single-file rendering uses the replacement theme's palette"
+pass "single-file rendering cannot write the old palette into a replacement theme"

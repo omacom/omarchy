@@ -66,6 +66,10 @@ if [[ $installer == "omarchy-install-browser" && ${OMARCHY_TEST_REAL_BROWSER_INS
   exec "$ROOT/bin/omarchy-install-browser" "$@"
 fi
 
+if [[ $installer == "omarchy-install-terminal" && ${OMARCHY_TEST_REAL_TERMINAL_INSTALL:-false} == "true" ]]; then
+  exec "$ROOT/bin/omarchy-install-terminal" "$@"
+fi
+
 case $installer in
 omarchy-pkg-add|omarchy-pkg-aur-add)
   package=$1
@@ -79,6 +83,8 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   vim) command=vim ;;
   neovim) command=nvim ;;
   plain) command=plain ;;
+  wezterm) command=wezterm ;;
+  foot) command=foot ;;
   esac
   ;;
 omarchy-install-browser)
@@ -192,6 +198,7 @@ terminal_cases=(
   'foot foot.desktop'
   'ghostty com.mitchellh.ghostty.desktop'
   'kitty kitty.desktop'
+  'wezterm org.wezfurlong.wezterm.desktop'
 )
 
 editor_cases=(
@@ -310,6 +317,19 @@ grep -Fq 'Installing Chromium' "$test_tmp/browser-install-failure" ||
   fail "failed Chromium setup keeps progress visible in the terminal"
 pass "failed Chromium setup preserves the current default"
 
+# A package installed outside Omarchy has no per-user launch entry yet.
+touch "$installed_dir/wezterm"
+: >"$install_log"
+wezterm_entry="$XDG_DATA_HOME/applications/org.wezfurlong.wezterm.desktop"
+omarchy-default-terminal wezterm
+cmp -s "$ROOT/applications/org.wezfurlong.wezterm.desktop" "$wezterm_entry" ||
+  fail "selecting an already-installed WezTerm supplies its launch entry"
+[[ ! -s $install_log ]] || fail "selecting an already-installed WezTerm skips package installation"
+printf 'custom desktop\n' >"$wezterm_entry"
+omarchy-default-terminal wezterm
+[[ $(<"$wezterm_entry") == "custom desktop" ]] || fail "selecting WezTerm preserves a custom desktop entry"
+pass "selecting an already-installed WezTerm fills the missing launch entry and preserves overrides"
+
 for entry in "${terminal_cases[@]}"; do
   read -r selection desktop_id <<<"$entry"
   rm -f "$installed_dir/$selection"
@@ -320,6 +340,54 @@ for entry in "${terminal_cases[@]}"; do
     fail "$selection becomes the default terminal after installation"
 done
 pass "terminal defaults install every missing terminal before selection"
+
+# Exercise the real installer, including partially configured existing installs.
+unset WEZTERM_CONFIG_FILE
+mkdir -p "$test_home/.config/wezterm" "$test_home/.local/share/applications"
+current_theme="$test_home/.local/state/omarchy/current/theme"
+mkdir -p "$current_theme"
+cp "$ROOT/themes/tokyo-night/colors.toml" "$current_theme/colors.toml"
+printf 'custom module\n' >"$test_home/.config/wezterm/extra.lua"
+printf 'custom desktop\n' >"$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop"
+rm -f "$installed_dir/wezterm"
+OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-default-terminal --install wezterm >/dev/null
+cmp -s "$ROOT/config/wezterm/wezterm.lua" "$test_home/.config/wezterm/wezterm.lua" ||
+  fail "WezTerm installation supplies missing config in an existing directory"
+[[ $(<"$test_home/.config/wezterm/extra.lua") == "custom module" ]] || fail "WezTerm installation preserves other modules"
+[[ $(<"$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop") == "custom desktop" ]] || fail "WezTerm installation preserves a custom desktop entry"
+printf 'custom config\n' >"$test_home/.config/wezterm/wezterm.lua"
+OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal wezterm >/dev/null
+[[ $(<"$test_home/.config/wezterm/wezterm.lua") == "custom config" ]] || fail "WezTerm reinstallation preserves existing config"
+rm "$test_home/.config/wezterm/wezterm.lua"
+printf 'return {}\n' >"$test_home/.wezterm.lua"
+OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal wezterm >/dev/null
+[[ ! -e $test_home/.config/wezterm/wezterm.lua ]] || fail "WezTerm installation preserves ~/.wezterm.lua"
+rm "$test_home/.wezterm.lua"
+WEZTERM_CONFIG_FILE="$test_home/custom.lua" OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal wezterm >/dev/null
+[[ ! -e $test_home/.config/wezterm/wezterm.lua ]] || fail "WezTerm installation respects WEZTERM_CONFIG_FILE"
+rm "$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop"
+OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal wezterm >/dev/null
+cmp -s "$ROOT/applications/org.wezfurlong.wezterm.desktop" "$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop" ||
+  fail "WezTerm installation supplies its command-capable desktop entry"
+grep -Fq 'background = "#1a1b26"' "$current_theme/wezterm.lua" || fail "first WezTerm launch uses the current theme"
+rm "$test_home/.config/wezterm/wezterm.lua" "$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop"
+ln -s "$test_tmp/missing-config.lua" "$test_home/.config/wezterm/wezterm.lua"
+ln -s "$test_tmp/missing-entry.desktop" "$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop"
+OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal wezterm >/dev/null
+[[ -L $test_home/.config/wezterm/wezterm.lua && ! -e $test_home/.config/wezterm/wezterm.lua ]] || fail "WezTerm installation preserves a dangling config link"
+[[ -L $test_home/.local/share/applications/org.wezfurlong.wezterm.desktop && ! -e $test_home/.local/share/applications/org.wezfurlong.wezterm.desktop ]] || fail "WezTerm installation preserves a dangling desktop link"
+printf 'stale Foot entry\n' >"$test_home/.local/share/applications/foot.desktop"
+OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal foot >/dev/null
+cmp -s "$ROOT/applications/foot.desktop" "$test_home/.local/share/applications/foot.desktop" || fail "Foot reinstallation still refreshes its desktop entry"
+pass "WezTerm installation fills missing settings and preserves user configuration"
+
+omarchy-default-terminal kitty
+rm -f "$installed_dir/wezterm"
+if OMARCHY_TEST_REAL_TERMINAL_INSTALL=true OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-terminal --install wezterm >"$test_tmp/terminal-failure" 2>&1; then
+  fail "failed WezTerm installation returns an error"
+fi
+[[ $(tail -n 1 "$test_home/.config/xdg-terminals.list") == "kitty.desktop" ]] || fail "failed WezTerm installation preserves the default"
+pass "failed WezTerm installation preserves the current terminal"
 
 for entry in "${editor_cases[@]}"; do
   read -r selection command installer <<<"$entry"
