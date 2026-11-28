@@ -9,6 +9,11 @@ if [[ ! -x /usr/bin/omarchy-powerprofiles-intel ]]; then
   exit 75
 fi
 
+if [[ ! -r $OMARCHY_PATH/default/systemd/system/omarchy-powerprofiles-intel.service ]]; then
+  echo "Waiting for omarchy-settings to ship omarchy-powerprofiles-intel.service"
+  exit 75
+fi
+
 if [[ ! -e /etc/systemd/system/omarchy-powerprofiles-intel.service ]]; then
   sudo env PATH="$PATH" OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail -c '
     source "$OMARCHY_PATH/install/hardware/intel/pstate.sh"
