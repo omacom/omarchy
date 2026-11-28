@@ -275,14 +275,11 @@ o.floating_apps_changed = sync_open_rules
 -- rule's tags are listed with a trailing "*", and a strict tag query passes
 -- them over, so the window's own list is read.
 local function claim_opened(window)
-  for _, tag in ipairs(window.tags or {}) do
-    if tag == OPENED_TAG or tag == OPENED_TAG .. "*" then
-      set_claimed(window, true)
-      -- The next window the rule opens steps on from this one.
-      cascade = (cascade + 1) % 5
-      sync_open_rules()
-      return
-    end
+  if o.has_tag(window, OPENED_TAG) then
+    set_claimed(window, true)
+    -- The next window the rule opens steps on from this one.
+    cascade = (cascade + 1) % 5
+    sync_open_rules()
   end
 end
 
