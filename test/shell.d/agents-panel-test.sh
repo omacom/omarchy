@@ -69,15 +69,15 @@ assertDeepEqual(
     { label: 'Opus 5 (1M context) Weekly', title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetsAt: '' }
   ] }),
   [
-    { title: 'Session', percent: 0.78, resetAt: '' },
-    { title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetAt: '' }
+    { title: 'Session', percent: 0.78, resetAt: '', spanMs: 5 * 3600000 },
+    { title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetAt: '', spanMs: 7 * 24 * 3600000 }
   ],
   'agents panel titles a limit off the collector when it states one'
 )
 
 assertDeepEqual(
   limitWindows({ limits: [{ label: 'Weekly (7-day)', percent: 0.12, resetsAt: '' }] }),
-  [{ title: 'Weekly', percent: 0.12, resetAt: '' }],
+  [{ title: 'Weekly', percent: 0.12, resetAt: '', spanMs: 7 * 24 * 3600000 }],
   'agents panel still reads a window out of a label that carries no title'
 )
 
@@ -85,7 +85,7 @@ const resetAt = new Date(panelRoot.nowMs + 1000).toISOString()
 const measured = { limits: [{ label: 'Session (5-hour)', percent: 0.78, resetsAt: resetAt }] }
 assertEqual(limitWindows(measured)[0].percent, 0.78, 'usage remains until the reset time')
 panelRoot.nowMs += 1000
-assertDeepEqual(limitWindows(measured), [{ title: 'Session', percent: 0, resetAt: '' }], 'usage resets at the deadline while the panel stays open')
+assertDeepEqual(limitWindows(measured), [{ title: 'Session', percent: 0, resetAt: '', spanMs: 5 * 3600000 }], 'usage resets at the deadline while the panel stays open')
 assertEqual(measured.limits[0].percent, 0.78, 'display reset leaves the measured record intact')
 
 // A model's weekly allowance rides under the Weekly row; one whose window has
@@ -98,12 +98,36 @@ assertDeepEqual(
     { label: 'Opus Monthly', title: 'Opus Monthly', percent: 0.5, resetsAt: '' }
   ] }),
   [
-    { title: 'Session', percent: 0.94, resetAt: '', scoped: [] },
-    { title: 'Weekly', percent: 0.25, resetAt: 'w', scoped: [{ title: 'Fable', percent: 0.09, resetAt: 'w' }] },
-    { title: 'Opus Monthly', percent: 0.5, resetAt: '', scoped: [] }
+    { title: 'Session', percent: 0.94, resetAt: '', spanMs: 5 * 3600000, scoped: [] },
+    { title: 'Weekly', percent: 0.25, resetAt: 'w', spanMs: 7 * 24 * 3600000, scoped: [{ title: 'Fable', percent: 0.09, resetAt: 'w' }] },
+    { title: 'Opus Monthly', percent: 0.5, resetAt: '', spanMs: 30 * 24 * 3600000, scoped: [] }
   ],
   'agents panel shows a model-scoped window under the window it runs on'
 )
+
+// A prediction is the rate so far carried to the reset, and an hour of heavy
+// use right after a reset is not yet a rate.
+eval(source.match(/function prediction\([^]*?\n  \}/)[0].replaceAll('root.', 'panelRoot.'))
+const hour = 3600000
+const weekly = (percent, hoursLeft) => limitWindow('Weekly (7-day)', percent, new Date(panelRoot.nowMs + hoursLeft * hour).toISOString())
+const ahead = prediction(weekly(0.3, 120))
+assertEqual(Math.round(ahead.percent * 100), 105, 'a limit ahead of the clock is predicted past its allowance')
+assertEqual(Math.round((ahead.runsOutAt - panelRoot.nowMs) / hour), 112, 'and runs out before its reset')
+assertEqual(prediction(weekly(0.2, 72)).runsOutAt, 0, 'a limit behind the clock lasts until its reset')
+assertEqual(prediction(weekly(0.05, 167)), null, 'a window that has barely started predicts nothing')
+assertEqual(prediction(limitWindow('Opus 5 (1M context)', 0.3, new Date(panelRoot.nowMs + 5 * hour).toISOString(), 'Opus 5 (1M context)')), null, 'a window of unknown length predicts nothing')
+assertEqual(Math.round(prediction(weekly(0.3, 96), panelRoot.nowMs - 24 * hour).percent * 100), 105,
+  'a reading kept through a failed refresh keeps the rate it was measured at')
+// Billing dates are UTC: west of it, a reset at midnight on 1 March falls on
+// 28 February locally, and must still count back to 1 February.
+process.env.TZ = 'America/New_York'
+assertEqual(Math.round(limitWindow('Monthly allowance', 0.2, '2027-03-01T00:00:00Z').spanMs / (24 * hour)), 28,
+  'a monthly allowance spans the calendar month before its reset')
+assertEqual(Math.round(limitWindow('Monthly allowance', 0.2, '2027-03-31T00:00:00Z').spanMs / (24 * hour)), 31,
+  'a reset on the 31st starts its month at the end of the shorter one before')
+// Cursor's label names no length; its title says the window.
+assertEqual(Math.round(limitWindow('Included total', 0.2, '2027-03-01T00:00:00Z', 'Monthly').spanMs / (24 * hour)), 28,
+  'a window whose label names no length takes it from its title')
 JS
 
 # The saved order keeps agents where they were put, including ones hidden now.

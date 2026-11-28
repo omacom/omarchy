@@ -33,6 +33,11 @@ per local coding model added.
   in the first limit row's empty time-left slot when it has no time to show,
   else beside the name. Each meter's tooltip says how old it is. The name,
   account, and plan stop short of the line's controls and shorten to fit.
+- **Predictions** — off until a limit is clicked or `p` is pressed. Then
+  every limit shows where it is heading at the rate so far: a dimmer stretch
+  on its meter, and a line saying the share it will have used by the reset
+  and, past 100%, when it runs out. It is the average since the window
+  opened, shown once a tenth of the window has passed.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) gets a line for each, read as the agent's name and
   then the account's beside its plan, Claude Work · Max 20x (the email on
@@ -385,7 +390,8 @@ It is the exact complement of the provider collectors: a provider id another col
   line it will land on. The order is kept by line in
   `~/.local/state/omarchy/agents/order.json`. Hovering moves the same cursor.
   Enter acts on it, or refreshes when nothing is lit; `1`–`9` jump to that
-  line, `r` refreshes, Tab moves to the neighboring bar panel, Esc closes.
+  line, `r` refreshes, `p` shows or hides the predictions, Tab moves to the
+  neighboring bar panel, Esc closes.
 - Accounts: while an agent with several accounts has its active one within
   15 points of its alert threshold (80% at the default), the limits refresh
   every three minutes.
