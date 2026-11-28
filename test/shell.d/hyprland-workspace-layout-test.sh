@@ -21,6 +21,8 @@ if [[ $1 == "activeworkspace" && -n $HYPRCTL_BROKEN ]]; then
   printf '{}\n'
 elif [[ $1 == "activeworkspace" ]]; then
   printf '{"id":%s,"tiledLayout":"%s"}\n' "${HYPRCTL_WS_ID:-3}" "${HYPRCTL_TILED_LAYOUT:-dwindle}"
+elif [[ $1 == "clients" ]]; then
+  printf '%s\n' "${HYPRCTL_CLIENTS:-[]}"
 else
   printf '%s\n' "$*" >>"$HYPRCTL_LOG"
 
@@ -500,3 +502,63 @@ toggle
 grep -q "set to tiling" "$notification_log" && ! grep -q "dwindle" "$notification_log" ||
   fail "the notification calls dwindle tiling" "$(cat "$notification_log")"
 pass "the notification calls dwindle tiling"
+
+# Leaving floating takes the dock away, and with it the only way back for the
+# windows minimized from this workspace. Only the ones tagged with this
+# workspace come back: another workspace's, an untagged one, a tag that merely
+# starts the same, and a window that is not minimized stay where they are.
+clients='[
+  {"address":"0xaaa","workspace":{"name":"special:minimized"},"tags":["omarchy-minimized-from-3"]},
+  {"address":"0xbbb","workspace":{"name":"special:minimized"},"tags":["omarchy-minimized-from-4"]},
+  {"address":"0xccc","workspace":{"name":"special:minimized"},"tags":[]},
+  {"address":"0xddd","workspace":{"name":"3"},"tags":["omarchy-minimized-from-3"]},
+  {"address":"0xeee","workspace":{"name":"special:minimized"},"tags":["other","omarchy-minimized-from-3"]},
+  {"address":"0xfff","workspace":{"name":"special:minimized"}},
+  {"address":"0x111","workspace":{"name":"special:minimized"},"tags":["omarchy-minimized-from-30"]}
+]'
+export HYPRCTL_CLIENTS="$clients"
+
+restored() {
+  sed -n 's/^dispatch hl\.dsp\.window\.move({ workspace = "3", follow = false, window = "address:\(.*\)" })$/\1/p' "$log_file" | sort | paste -sd' ' -
+}
+
+moves() {
+  grep -c '^dispatch hl\.dsp\.window\.move' "$log_file" || true
+}
+
+for direction in next back; do
+  printf 'o.workspace_mode({ workspace = "3", mode = "floating" })\n' >"$layout_file"
+  : >"$log_file"
+  if [[ $direction == "next" ]]; then toggle; else toggle_back back; fi
+  [[ $(restored) == "0xaaa 0xeee" ]] ||
+    fail "leaving floating ($direction) restores only this workspace's minimized windows" "restored: $(restored)"$'\n'"$(cat "$log_file")"
+  [[ $(moves) == 2 ]] ||
+    fail "leaving floating ($direction) moves nothing else" "$(cat "$log_file")"
+done
+pass "leaving floating in either direction restores only the workspace's own minimized windows"
+
+# Without the layout applying, the workspace is still floating and its dock is
+# still there to bring the windows back.
+for direction in next back; do
+  printf 'o.workspace_mode({ workspace = "3", mode = "floating" })\n' >"$layout_file"
+  : >"$log_file"
+  if [[ $direction == "next" ]]; then
+    toggle HYPRCTL_EVAL_FAILS=1
+  else
+    HYPRCTL_EVAL_FAILS=1 toggle_back back
+  fi
+  [[ $(moves) == 0 ]] ||
+    fail "a layout change that failed ($direction) restores no windows" "$(cat "$log_file")"
+done
+pass "a failed layout change restores no minimized windows"
+
+# Only leaving floating gives windows back: a workspace that was not floating
+# has its dock hidden already and nothing to return.
+for mode in dwindle scrolling; do
+  printf 'o.workspace_mode({ workspace = "3", mode = "%s" })\n' "$mode" >"$layout_file"
+  : >"$log_file"
+  toggle
+  [[ $(moves) == 0 ]] ||
+    fail "cycling from $mode restores no windows" "$(cat "$log_file")"
+done
+pass "cycling from a layout that is not floating restores no minimized windows"
