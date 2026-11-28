@@ -369,6 +369,42 @@ local function watch()
     end, { type = "oneshot", timeout = 1 })
   end)
 
+  -- Clear sibling fullscreen flags when focusing fullscreen, and raise visible overlays on focus.
+  -- Hyprland otherwise draws them above fullscreen but can send their clicks underneath.
+  hl.on("window.active", function(window)
+    if not window or not window.workspace then
+      return
+    end
+
+    local id = window.workspace.id
+    if not floating_workspace(id) then
+      return
+    end
+
+    local windows = hl.get_workspace_windows(tostring(id))
+    if (window.fullscreen or 0) > 0 then
+      for i = #windows, 1, -1 do
+        local other = windows[i]
+        if other.address ~= window.address then
+          hl.dispatch(hl.dsp.window.alter_zorder({ mode = "bottom", window = other }))
+        end
+      end
+    elseif window.floating and not window.pinned then
+      for _, other in ipairs(windows) do
+        if (other.fullscreen or 0) > 0 then
+          hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top", window = window }))
+          break
+        end
+      end
+    end
+
+    -- Restacking replays the pointer, which can focus a sibling underneath it.
+    local active = hl.get_active_window()
+    if not active or active.address ~= window.address then
+      hl.dispatch(hl.dsp.focus({ window = "address:" .. window.address }))
+    end
+  end)
+
   hl.on("workspace.active", update_input)
   hl.on("monitor.focused", update_input)
 end
