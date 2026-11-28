@@ -536,6 +536,19 @@ pass "clipboard file paste helper copy-only copies file content"
 [[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard file paste helper copy-only skips paste keystroke"
 pass "clipboard file paste helper copy-only skips paste keystroke"
 
+cat >"$TMPDIR/bin/hyprctl" <<'SH'
+#!/bin/bash
+printf '{"class":"foot","tags":["terminal*"]}\n'
+SH
+chmod +x "$TMPDIR/bin/hyprctl"
+
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-file" image/png "$TMPDIR/image.png"
+rm -f "$TMPDIR/bin/hyprctl"
+
+[[ $(<"$TMPDIR/copied") == "$TMPDIR/image.png" && $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "clipboard file paste helper pastes an image's path into terminals"
+pass "clipboard file paste helper pastes an image's path into terminals"
+
 jq -n --arg url 'https://example.com/docs' --arg text "$(printf 'plain text\nsecond line')" --arg image "$TMPDIR/image.png" \
   '[{type:"text", text:$url}, {type:"text", text:$text}, {type:"image", mime:"image/png", path:$image}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 
