@@ -926,6 +926,15 @@ Panel {
     refresh()
   }
 
+  function handleConnectionFailure(ssid, reason, needsCredentials) {
+    var ours = actionKind === "connect" && actionSsid === ssid
+    var reprompt = ours && shouldRepromptPassphrase(reason, needsCredentials)
+    // refresh() can replace the list and destroy the delegate that emitted
+    // this signal. Finish in the panel context with captured primitive values.
+    failNetworkAction(networkForSsid(ssid), reason)
+    if (reprompt) openPasswordPrompt(ssid)
+  }
+
   function networkFailureReason(reason, needsCredentials) {
     return Model.networkFailureReason(reason, needsCredentials, connectionFailReasons, Commons.I18n.t)
   }
@@ -1882,7 +1891,7 @@ Panel {
               text: sectionTitle
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
-              height: visible ? implicitHeight : 0
+              // Column excludes invisible children from its layout.
             }
 
             NetworkRow {
@@ -2001,12 +2010,7 @@ Panel {
     Connections {
       target: row.net ? root.networkForSsid(row.net.ssid) : null
       function onConnectionFailed(reason) {
-        // Background auto-connect retries fire this too; only reprompt for
-        // the connect started from this panel. Checked before
-        // failNetworkAction, which clears the action state.
-        var ours = root.actionKind === "connect" && root.actionSsid === (row.net.ssid || "")
-        root.failNetworkAction(root.networkForSsid(row.net.ssid), reason)
-        if (ours && root.shouldRepromptPassphrase(reason, row.requiresCredentials)) root.openPasswordPrompt(row.net.ssid)
+        if (row.net) root.handleConnectionFailure(row.net.ssid || "", reason, row.requiresCredentials)
       }
     }
 
@@ -2174,7 +2178,7 @@ Panel {
           // so rows without status keep a tight one-line look.
           text: row.statusText
           visible: row.statusText !== ""
-          height: visible ? implicitHeight : 0
+          // Column excludes invisible children; keep Text height intrinsic.
           color: row.statusColor
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption
