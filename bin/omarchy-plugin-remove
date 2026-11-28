@@ -118,7 +118,8 @@ else
   echo "Removed $id. Backup at: $backup"
 fi
 
-omarchy-shell shell rescanPlugins >/dev/null
+# A refused restart (locked session, ssh) only prints its reason: the plugin is already gone.
+omarchy-restart-shell || true
 
 if [[ -n $cloned_from && $was_enabled == "true" ]]; then
   echo "Restored $cloned_from."
