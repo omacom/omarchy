@@ -12,7 +12,12 @@ WINDOW_PATTERN="$1"
 WINDOW_ADDRESS=$(hyprctl clients -j | jq -r --arg p "$WINDOW_PATTERN" '.[]|select((.class|test("\\b" + $p + "\\b";"i")) or (.title|test("\\b" + $p + "\\b";"i")))|.address' | head -n1)
 
 if [[ -n $WINDOW_ADDRESS ]]; then
-  hyprctl dispatch "hl.dsp.focus({ window = \"address:$WINDOW_ADDRESS\" })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$WINDOW_ADDRESS"
+  # Focusing doesn't raise; bring the window to the top so it isn't left behind on a floating workspace.
+  if hyprctl dispatch "hl.dsp.focus({ window = \"address:$WINDOW_ADDRESS\" })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$WINDOW_ADDRESS"; then
+    hyprctl dispatch "hl.dsp.window.alter_zorder({ mode = \"top\", window = \"address:$WINDOW_ADDRESS\" })" >/dev/null 2>&1 || hyprctl dispatch alterzorder "top,address:$WINDOW_ADDRESS"
+  else
+    exit 1
+  fi
 elif [[ ${2:-} == "--" ]]; then
   shift 2
   if (($# == 0)); then
