@@ -44,20 +44,22 @@ chmod +x \
   "$mock_omarchy/bin/omarchy-system-sleep-lock"
 ln -s "$sleep_monitor" "$mock_omarchy/bin/omarchy-system-sleep-monitor"
 
-start_us=${EPOCHREALTIME//[!0-9]/}
+read_monotonic_ms
+start_ms=$REPLY
 OMARCHY_PATH="$mock_omarchy" \
   PATH="$mock_bin:$PATH" \
   PRODUCER_PID_FILE="$producer_pid_file" \
   LOCK_LOG="$lock_log" \
   "$sleep_monitor"
-elapsed_us=$((10#${EPOCHREALTIME//[!0-9]/} - 10#$start_us))
+read_monotonic_ms
+elapsed_ms=$((REPLY - start_ms))
 
 [[ $(<"$lock_log") == "locked" ]] ||
   fail "sleep monitor invokes the lock helper for a sleep event"
 pass "sleep monitor invokes the lock helper for a sleep event"
 
-(( elapsed_us < 2000000 )) ||
-  fail "sleep monitor releases the inhibitor after locking" "elapsed: ${elapsed_us}us"
+(( elapsed_ms < 2000 )) ||
+  fail "sleep monitor releases the inhibitor after locking" "elapsed: ${elapsed_ms}ms"
 pass "sleep monitor releases the inhibitor after locking"
 
 producer_pid=$(<"$producer_pid_file")

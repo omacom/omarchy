@@ -40,14 +40,25 @@ if [[ ! $budget_ms =~ ^[0-9]+$ ]] || (( budget_ms < 1 || budget_ms > budget_cap_
   budget_ms=$(derive_budget_ms)
 fi
 
-# EPOCHREALTIME renders with the locale's decimal separator, so drop every
-# non-digit rather than assuming a period. A comma would otherwise read as
-# bash's comma operator and silently void the deadline.
-deadline_ms=$((10#${EPOCHREALTIME//[!0-9]/} / 1000 + budget_ms))
-
-remaining_ms() {
-  echo $((deadline_ms - 10#${EPOCHREALTIME//[!0-9]/} / 1000))
-}
+# /proc/uptime ticks on CLOCK_BOOTTIME with an ASCII dot in every locale, so
+# NTP wall-clock steps cannot cut the wait short or overrun logind's window.
+# Pick the clock once so deadline and polls never mix epochs.
+if read -r _up _ 2>/dev/null </proc/uptime && [[ $_up =~ ^[0-9]+\.[0-9]{2}$ ]]; then
+  deadline_ms=$((10#${_up/./} * 10 + budget_ms))
+  remaining_ms() {
+    local up
+    if read -r up _ 2>/dev/null </proc/uptime && [[ $up =~ ^[0-9]+\.[0-9]{2}$ ]]; then
+      echo $((deadline_ms - 10#${up/./} * 10))
+    else
+      echo 0
+    fi
+  }
+else
+  deadline_ms=$((10#${EPOCHREALTIME//[!0-9]/} / 1000 + budget_ms))
+  remaining_ms() {
+    echo $((deadline_ms - 10#${EPOCHREALTIME//[!0-9]/} / 1000))
+  }
+fi
 
 # Clamping to what is left as well as to the call's own limit is what lets the
 # loop below stay a plain "while there is time" without predicting step costs.
