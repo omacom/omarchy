@@ -327,6 +327,7 @@ Item {
   }
 
   property bool probeQueued: false
+  property double lastProbeMs: 0
 
   // Queued rather than dropped while running, or late zones never get an offset.
   // Includes the jump matches, whose offsets tell two results apart.
@@ -349,6 +350,7 @@ Item {
         var map = {}
         for (var id in probe) map[id] = probe[id].offsetMinutes
         root.offsets = map
+        root.lastProbeMs = Date.now()
         canvas.requestPaint()
         Qt.callLater(function() {
           if (!root.probeQueued) return
@@ -359,9 +361,37 @@ Item {
     }
   }
 
-  Timer { interval: 20000; running: true; repeat: true
+  onVisibleChanged: {
+    if (visible) {
+      nowMs = Date.now()
+      if (lastProbeMs > 0) {
+        var age = nowMs - lastProbeMs
+        if (age >= 300000) {
+          zoneTimer.interval = 300000
+          probeZones()
+        } else {
+          zoneTimer.interval = Math.max(1, 300000 - age)
+        }
+        zoneTimer.restart()
+      }
+      canvas.requestPaint()
+    } else {
+      velocity = 0
+    }
+  }
+
+  Timer { interval: 20000; running: root.visible; repeat: true
           onTriggered: { root.nowMs = Date.now(); canvas.requestPaint() } }
-  Timer { interval: 300000; running: true; repeat: true; onTriggered: root.probeZones() }
+  Timer {
+    id: zoneTimer
+    interval: 300000
+    running: root.visible
+    repeat: true
+    onTriggered: {
+      interval = 300000
+      root.probeZones()
+    }
+  }
 
   ParallelAnimation {
     id: flight
@@ -374,7 +404,7 @@ Item {
   // The throw: spin keeps going after the drag and eases to a stop.
   Timer {
     interval: 16
-    running: !root.dragging && Math.abs(root.velocity) > 0.01
+    running: root.visible && !root.dragging && Math.abs(root.velocity) > 0.01
     repeat: true
     onTriggered: {
       root.spin += root.velocity

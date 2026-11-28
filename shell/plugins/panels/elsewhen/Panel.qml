@@ -1236,8 +1236,8 @@ Panel {
             // its data never lands mid-animation.
             Loader {
               id: globeLoader
-              active: root.globeEnabled && (root.globeMode || root.zoom > 0 || hero.iconHovered)
-              visible: root.zoom > 0
+              active: root.globeEnabled && (root.globeMode || root.zoom > 0 || (root.opened && hero.iconHovered))
+              visible: root.zoom > 0 && panel.visible
               opacity: root.bigGlobeOpacity
               width: parent.width
               height: root.globeStageHeight
