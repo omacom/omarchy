@@ -173,13 +173,13 @@ output=$("$CLI" share) || status=$?
 (( status == 1 )) || fail "bare required-arg alias exits 1"
 pass "bare required-arg alias exits 1"
 assert_output_contains "bare required-arg alias renders CLI help" "$output" "Usage:"
-assert_output_contains "bare share help uses canonical route" "$output" "omarchy share <clipboard|file|folder> [path...]"
+assert_output_contains "bare share help uses canonical route" "$output" "omarchy share <clipboard|file|folder|qr> [path|text...]"
 
 status=0
 output=$("$CLI" menu share) || status=$?
 (( status == 1 )) || fail "bare required-arg filename route exits 1"
 pass "bare required-arg filename route exits 1"
-assert_output_contains "bare required-arg filename route renders CLI help" "$output" "omarchy share <clipboard|file|folder> [path...]"
+assert_output_contains "bare required-arg filename route renders CLI help" "$output" "omarchy share <clipboard|file|folder|qr> [path|text...]"
 
 CLI="$CLI" COMMANDS_JSON_FILE="$commands_json_file" python3 <<'PY'
 from concurrent.futures import ThreadPoolExecutor

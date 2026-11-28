@@ -1,18 +1,22 @@
 #!/bin/bash
 
-# omarchy:summary=Share clipboard, files, or folders with LocalSend
+# omarchy:summary=Share clipboard, files, folders, or a QR of text with LocalSend
 # omarchy:group=share
 # omarchy:name=
-# omarchy:args=<clipboard|file|folder> [path...]
-# omarchy:examples=omarchy share clipboard | omarchy share file ~/Downloads/example.txt
+# omarchy:args=<clipboard|file|folder|qr> [path|text...]
+# omarchy:examples=omarchy share clipboard | omarchy share file ~/Downloads/example.txt | omarchy share qr
 
 if (($# == 0)); then
-  echo "Usage: omarchy-menu-share [clipboard|file|folder]"
+  echo "Usage: omarchy-menu-share [clipboard|file|folder|qr]"
   exit 1
 fi
 
 MODE="$1"
 shift
+
+if [[ $MODE == "qr" ]]; then
+  exec omarchy-cmd-qr "$@"
+fi
 
 if [[ $MODE == "clipboard" ]]; then
   TEMP_FILE=$(mktemp --suffix=.txt)
