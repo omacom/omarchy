@@ -8,6 +8,7 @@ run_logged "$OMARCHY_INSTALL/hardware/gb10/memory-watermark.sh"
 run_logged "$OMARCHY_INSTALL/hardware/low-memory.sh"
 run_logged "$OMARCHY_INSTALL/hardware/gb10/nvidia-memory-pools.sh"
 run_logged "$OMARCHY_INSTALL/hardware/nvidia/dgx-spark-boot.sh"
+run_logged "$OMARCHY_INSTALL/hardware/gpd-pocket-4.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/network.sh"
 run_logged "$OMARCHY_INSTALL/hardware/set-wireless-regdom.sh"
