@@ -20,8 +20,15 @@ cache_unavailable() {
   printf 'unavailable %s\n' "$(date +%s)" >"$cache_file" 2>/dev/null || true
 }
 
+# Only a block headed "Display N" is a usable DDC display. ddcutil also lists
+# monitors it could not talk to ("Invalid display", "Phantom display") with
+# their I2C bus; a VCP read on such a bus fails only after seconds of retries,
+# so those blocks must not yield a bus.
 detect_bus() {
   ddcutil --skip-ddc-checks detect --brief 2>/dev/null | awk -v monitor="$monitor" '
+    /^Display [0-9]+/ { usable = 1; bus = ""; next }
+    /^[^[:space:]]/ { usable = 0; bus = ""; next }
+
     /I2C bus:/ {
       bus = $NF
       sub(/^.*\/i2c-/, "", bus)
@@ -30,7 +37,7 @@ detect_bus() {
     /DRM connector:/ {
       connector = $NF
       sub(/^card[0-9]+-/, "", connector)
-      if (connector == monitor && bus != "") {
+      if (usable && connector == monitor && bus != "") {
         print bus
         exit
       }
