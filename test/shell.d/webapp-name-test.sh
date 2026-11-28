@@ -180,6 +180,54 @@ HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \
   fail "tui remove deletes both launcher and fallback icon for punctuation-only names"
 pass "tui install and remove guard against path traversal, key injection, and icon clobbering"
 
+# Refuse an interactive TUI name before asking the remaining questions.
+: >"$tmp_dir/gum-count"
+if HOME="$tmp_dir/home" PATH="$tmp_dir/ibin:$PATH" GUM_STUB_COUNT="$tmp_dir/gum-count" \
+  "$ROOT/bin/omarchy-tui-install" >/dev/null 2>&1; then
+  fail "interactive tui install rejects a name containing a slash"
+fi
+(( $(cat "$tmp_dir/gum-count") == 1 )) || fail "tui install refuses the name before the next question"
+pass "tui install refuses a slashed name before any launcher work"
+
+HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" \
+  "$ROOT/bin/omarchy-tui-install" "Example TUI" "btop" tile icon >/dev/null
+[[ -f "$apps_dir/Example TUI.desktop" ]] || fail "tui install writes an ordinary launcher"
+grep -Fqx 'Exec=xdg-terminal-exec --app-id=TUI.tile -e btop' "$apps_dir/Example TUI.desktop" || fail "tui install preserves the command"
+HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \
+  "$ROOT/bin/omarchy-tui-remove" "Example TUI" >/dev/null
+[[ ! -e "$apps_dir/Example TUI.desktop" ]] || fail "tui remove deletes an ordinary launcher"
+pass "tui install and remove round-trip an ordinary name"
+
+# Force both traversal orders so a nested namesake cannot mask the top-level entry.
+mkdir -p "$tmp_dir/removebin" "$apps_dir/legacy"
+cat >"$tmp_dir/removebin/find" <<'STUB'
+#!/bin/bash
+if [[ $TUI_FIND_ORDER == "nested-first" ]]; then
+  /usr/bin/find "$@" | sort -zr
+else
+  /usr/bin/find "$@" | sort -z
+fi
+STUB
+chmod +x "$tmp_dir/removebin/find"
+for order in nested-first top-first; do
+  for launcher in "$apps_dir/Docker.desktop" "$apps_dir/legacy/Docker.desktop"; do
+    printf '[Desktop Entry]\nName=Docker\nExec=xdg-terminal-exec --app-id=TUI.tile -e btop\nType=Application\n' >"$launcher"
+  done
+  HOME="$tmp_dir/home" PATH="$tmp_dir/removebin:$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false TUI_FIND_ORDER="$order" \
+    "$ROOT/bin/omarchy-tui-remove" Docker >/dev/null
+  [[ ! -e "$apps_dir/Docker.desktop" && -f "$apps_dir/legacy/Docker.desktop" ]] || \
+    fail "tui remove prefers the top-level namesake ($order)"
+  HOME="$tmp_dir/home" PATH="$tmp_dir/removebin:$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false TUI_FIND_ORDER="$order" \
+    "$ROOT/bin/omarchy-tui-remove" Docker >/dev/null
+  [[ ! -e "$apps_dir/legacy/Docker.desktop" ]] || fail "tui remove still reaches a nested legacy launcher ($order)"
+done
+pass "tui remove prefers the top-level launcher in either traversal order, then reaches the nested one"
+
+noise=$(HOME="$tmp_dir/empty" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \
+  "$ROOT/bin/omarchy-tui-remove" "Example TUI" 2>&1 >/dev/null)
+[[ -z $noise ]] || fail "tui remove stays quiet with no applications directory" "$noise"
+pass "tui remove stays quiet when there is no applications directory"
+
 # RetroArch launcher escapes special characters in ROM paths and resolves relative paths.
 rom_dir="$tmp_dir/roms"
 mkdir -p "$rom_dir"
