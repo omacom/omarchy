@@ -69,6 +69,7 @@ Example `shell.json` (bar subtree only shown):
 | `omarchy.audio` | Volume icon + popup with master slider, output-device picker, per-app mixer | left = popup · right = mute · middle = popup · scroll = volume |
 | `omarchy.mv7plus` | Shure MV7+ onboard DSP panel (auto-shown when connected): gain, tone, HPF, denoiser, popper stopper, limiter, compressor, reverb, monitor mix | left = popup · right/middle = hardware mute |
 | `omarchy.network` | Wi-Fi/Ethernet icon + popup with Wi-Fi scan, signal, connect, DNS provider selection | left = popup |
+| `omarchy.cellular` | WWAN signal bars + popup with operator, technology, roaming, SIM state, APN, address, interface traffic, and a mobile data switch; hidden without ModemManager | left = popup · middle = refresh |
 | `omarchy.tailscale` | Tailscale status, connection switcher, machine browser, and copy actions | left = popup · right = toggle · middle = refresh |
 | `omarchy.agents` | AI coding agent limits with pace, today, last week, and all-time model breakdown | left = panel · right = launch agent · middle = next subscription |
 | `omarchy.power` | Battery/AC icon + popup with battery stats, power profiles, and system info | left = popup · right = toggle percentage |
