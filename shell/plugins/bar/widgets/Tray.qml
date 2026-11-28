@@ -53,6 +53,13 @@ BarWidget {
   readonly property bool drawerOpen: expanded || holdOpen
   property real revealProgress: 0
   readonly property real revealExtent: drawerExtent * revealProgress
+  // The open drawer grows the tray toward the neighbouring section and can
+  // slide over its widgets on a narrow screen. Backing the tray with the bar's
+  // color, at full alpha, keeps both readable while it is open.
+  readonly property color drawerBackdrop: {
+    var c = bar && bar.background !== undefined ? bar.background : Commons.Color.bar.background
+    return Qt.rgba(c.r, c.g, c.b, 1)
+  }
   // The pinned icons sit against the tray's fixed edge with the chevron past
   // them. Opening, the drawer grows the tray between the two and pushes the
   // chevron out of the way, while the pointer that opened it stays over the
@@ -300,6 +307,14 @@ BarWidget {
     Item {
       id: horizontalTrayRoot
 
+      Rectangle {
+        anchors.fill: parent
+        z: -1
+        visible: root.revealProgress > 0
+        opacity: root.revealProgress
+        color: root.drawerBackdrop
+      }
+
       readonly property int chevronWidth: root.hasDrawer ? expandIcon.implicitWidth : 0
       readonly property var sectionShown: root.shownSection(drawerArea.x + trayClip.x, trayClip.width, drawerArea.x + trayClip.x + drawerContent.x + section.x, section.width)
 
@@ -389,6 +404,14 @@ BarWidget {
 
     Item {
       id: verticalTrayRoot
+
+      Rectangle {
+        anchors.fill: parent
+        z: -1
+        visible: root.revealProgress > 0
+        opacity: root.revealProgress
+        color: root.drawerBackdrop
+      }
 
       readonly property int chevronHeight: root.hasDrawer ? expandIcon.implicitHeight : 0
       readonly property var sectionShown: root.shownSection(drawerArea.y + trayClip.y, trayClip.height, drawerArea.y + trayClip.y + drawerContent.y + section.y, section.height)
