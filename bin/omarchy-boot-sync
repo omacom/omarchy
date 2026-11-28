@@ -345,6 +345,25 @@ bootable_snapshots() {
   done | sort -rn | head -n "$MAX_SNAPSHOTS"
 }
 
+# Deleting a snapshot, snapper removes the files it wrote and then the
+# directory, which the pin keeps it from doing: the pin stays behind, and the
+# image it names with it. Drops the pins of snapshots that are gone, and their
+# directories, except the highest-numbered one, which snapper keeps itself so
+# a number is never used twice.
+drop_deleted_pins() {
+  local dir num highest=0
+  for dir in "$(snapshots_dir)"/*/; do
+    num=$(basename "$dir")
+    if [[ $num =~ ^[0-9]+$ ]] && ((num > highest)); then highest=$num; fi
+  done
+  for dir in "$(snapshots_dir)"/*/; do
+    num=$(basename "$dir")
+    [[ $num =~ ^[0-9]+$ && -f $dir/omarchy-boot-image && ! -d $dir/snapshot ]] || continue
+    rm -f "$dir/omarchy-boot-image"
+    if ((num != highest)); then rmdir "$dir" 2>/dev/null || true; fi
+  done
+}
+
 snapshot_details() {
   local info=$1 desc date
   desc=$(info_field "$info" description)
@@ -452,6 +471,7 @@ cmd_sync() {
   rm -rf "$STORE"/tmp/build.*
   # Boot images no longer carry a splash; a store from before keeps none.
   rm -f "$STORE/splash.bmp"
+  drop_deleted_pins
 
   local ns preferred pkgbase kver image num dir file id
   local -A profiles=() wanted=()

@@ -88,6 +88,25 @@ sync_boot
 [[ -L $test_tmp/store/current/linux-omarchy ]] || fail "a root without kernels drops no current image"
 pass "a root that shows no kernels keeps every current image"
 
+# snapper deletes a snapshot's subvolume and info.xml but not the pin, so the
+# snapshot's directory stays with the pin in it. The pin goes with the next
+# sync, and the image only it named; the highest-numbered directory stays, as
+# snapper keeps it to never reuse a number.
+new_machine
+add_image old linux-omarchy 7.1
+add_snapshot "$test_tmp/top/@" 1 old
+add_snapshot "$test_tmp/top/@" 2 live
+rm -rf "$test_tmp/top/@/.snapshots/1/snapshot" "$test_tmp/top/@/.snapshots/1/info.xml"
+sync_boot
+[[ ! -e $test_tmp/top/@/.snapshots/1 && ! -d $test_tmp/store/images/old ]] ||
+  fail "a deleted snapshot's pin and the image only it named go" "$(find "$test_tmp/top/@/.snapshots" "$test_tmp/store/images" -maxdepth 2)"
+grep -q "^snapshot-2"$'\t' "$test_tmp/store/entries" || fail "a snapshot that is still there keeps its entry" "$(cat "$test_tmp/store/entries")"
+rm -rf "$test_tmp/top/@/.snapshots/2/snapshot" "$test_tmp/top/@/.snapshots/2/info.xml"
+sync_boot
+[[ -d $test_tmp/top/@/.snapshots/2 && ! -e $test_tmp/top/@/.snapshots/2/omarchy-boot-image ]] ||
+  fail "the highest-numbered snapshot's directory stays without its pin" "$(find "$test_tmp/top/@/.snapshots")"
+pass "a snapshot snapper deleted stops keeping its boot image"
+
 # A pending restore of a snapshot on another image: the restored root's entry
 # is that image's second profile while the snapshot is listed on it, and its
 # first once the snapshot is gone. The journal follows.
