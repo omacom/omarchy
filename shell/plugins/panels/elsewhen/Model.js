@@ -1009,6 +1009,35 @@ function resolveUnits(setting, auto) {
   return String(auto).toUpperCase() === "F" ? "F" : "C"
 }
 
+// The locale the session measures in, when the user set one apart from the
+// language (Setup > Region > Formats writes LC_MEASUREMENT): LC_ALL over
+// LC_MEASUREMENT, as glibc reads them, with the codeset and modifier dropped so
+// Qt.locale() can read it. "" when neither is set, or set to C or POSIX.
+function measurementLocale(lcAll, lcMeasurement) {
+  var names = [lcAll, lcMeasurement]
+  for (var i = 0; i < names.length; i++) {
+    var name = String(names[i] === undefined || names[i] === null ? "" : names[i])
+      .trim().replace(/[.@].*$/, "")
+    if (name !== "") return name === "C" || name === "POSIX" ? "" : name
+  }
+  return ""
+}
+
+// The units nobody has picked. A measurement locale the user chose answers
+// first; then, the way the weather panel decides, the country the machine's
+// timezone is in, when there is one; then the language's locale. Only the
+// United States, Liberia and Myanmar read Fahrenheit, so an English (US)
+// desktop in Lisbon still shows Celsius. measurementImperial is true or false
+// for a chosen measurement locale, and null or undefined when there is none.
+function autoUnits(country, localeImperial, measurementImperial) {
+  if (measurementImperial === true || measurementImperial === false)
+    return measurementImperial ? "F" : "C"
+  var code = String(country === undefined || country === null ? "" : country)
+    .trim().toUpperCase()
+  if (code !== "") return code === "US" || code === "LR" || code === "MM" ? "F" : "C"
+  return localeImperial === true ? "F" : "C"
+}
+
 // Only a 12-hour pattern has an AM/PM designator once quoted literals are stripped.
 function usesTwentyFourHour(timeFormat) {
   var pattern = String(timeFormat === undefined || timeFormat === null ? "" : timeFormat)
@@ -1371,6 +1400,8 @@ if (typeof module !== "undefined") {
     weatherStale: weatherStale,
     mergeFacts: mergeFacts,
     resolveUnits: resolveUnits,
+    measurementLocale: measurementLocale,
+    autoUnits: autoUnits,
     usesTwentyFourHour: usesTwentyFourHour,
     resolveHour24: resolveHour24,
     formatTemp: formatTemp,
