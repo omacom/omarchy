@@ -8,6 +8,17 @@ function normalizePosition(value) {
   return POSITIONS.indexOf(position) >= 0 ? position : "bottom"
 }
 
+// When the dock is out: always, until the workspace has a window, or only
+// while the pointer is at its edge. A config from before this setting said
+// autohide instead, which hid it always.
+var VISIBILITIES = ["always", "first-app", "hidden"]
+
+function normalizeVisibility(value, autohide) {
+  var visibility = String(value || "").trim().toLowerCase()
+  if (VISIBILITIES.indexOf(visibility) >= 0) return visibility
+  return autohide === true ? "hidden" : "first-app"
+}
+
 // The screen edge a point is closest to, for the dock dragged by its apps
 // button. The bar's edge is left out: the dock would sit on top of the bar.
 function nearestEdge(x, y, width, height, excluded) {
@@ -224,6 +235,7 @@ function pickClickWindow(mode, windows, workspaceId) {
 if (typeof module !== "undefined") {
   module.exports = {
     normalizePosition: normalizePosition,
+    normalizeVisibility: normalizeVisibility,
     isVertical: isVertical,
     nearestEdge: nearestEdge,
     normalizeId: normalizeId,

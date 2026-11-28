@@ -22,6 +22,7 @@ Item {
   readonly property string position: DockModel.normalizePosition(dockConfig.position)
   readonly property bool vertical: DockModel.isVertical(position)
   readonly property bool tiling: dockConfig.tiling !== false
+  readonly property string visibility: DockModel.normalizeVisibility(dockConfig.visibility, dockConfig.autohide)
 
   // A dock being dragged by its apps button: the screen it is on, the edge it
   // would land on, and its size, for the outline that previews the move.
