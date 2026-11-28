@@ -69,6 +69,8 @@ omarchy_oem_load
 # Unlike a fresh install target, this machine already has accounts; a pinned
 # resume (below) bypasses the prompt entirely.
 omarchy_username_taken() { getent passwd "$1" >/dev/null; }
+# Same footgun as the ISO form: useradd refuses names that collide with a group.
+omarchy_username_conflicts_group() { getent group "$1" >/dev/null 2>&1; }
 
 # Every screen is laid out in a column the width of the Omarchy logo, which
 # heads the steps of the form.
