@@ -55,14 +55,18 @@ update_manifest() {
   local source_id="$2"
   local new_id="$3"
   local display_name="$4"
+  local source_version="$5"
   local manifest="$target_dir/manifest.json"
 
   # Keep built-in ids inside the plugin code as stable IPC targets. The shell
   # uses clonedFrom to route those calls to this local manifest id.
+  # clonedFromVersion names the release the copy came from, so after Omarchy
+  # updates, upstream changes can be told apart from the clone's own edits.
   jq \
     --arg id "$new_id" \
     --arg name "$display_name" \
-    --arg sourceId "$source_id" '
+    --arg sourceId "$source_id" \
+    --arg sourceVersion "$source_version" '
       .id = $id |
       .name = $name |
       if (.barWidget | type) == "object" then
@@ -72,7 +76,8 @@ update_manifest() {
       end |
       .omarchy = (
         (if (.omarchy | type) == "object" then .omarchy else {} end) +
-        { clonedFrom: $sourceId }
+        { clonedFrom: $sourceId } +
+        (if $sourceVersion != "" then { clonedFromVersion: $sourceVersion } else {} end)
       ) |
       del(.omarchy.clonePaths)
     ' "$manifest" >"$manifest.tmp"
@@ -142,7 +147,8 @@ cleanup() {
 }
 trap cleanup EXIT
 copy_plugin "$source_dir" "$source_manifest" "$stage"
-update_manifest "$stage" "$source_id" "$new_id" "$display_name"
+source_version=$(omarchy-version 2>/dev/null) || source_version=""
+update_manifest "$stage" "$source_id" "$new_id" "$display_name" "$source_version"
 mv "$stage" "$target_dir"
 stage=""
 
