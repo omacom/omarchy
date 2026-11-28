@@ -294,6 +294,20 @@ check(
   [(entry["percent"], entry["resetsAt"]) for entry in kept.limits] == [(0.0, ""), (0.3, future), (0.5, "")],
   json.dumps(kept.limits),
 )
+# Money a window carried was spent in the period that ended with it.
+money = {"used": 458.2, "limit": 500.0, "currency": "EUR"}
+collectors.LimitsCache("demo", "credits").save([
+  {"label": "Usage credits", "percent": 0.92, "resetsAt": past,
+   "spend": money},
+  {"label": "Usage credits", "percent": 0.92, "resetsAt": future,
+   "spend": money},
+])
+credits = collectors.LimitsCache("demo", "credits").limits
+check(
+  "a kept window whose reset passed drops its money; an open one keeps it",
+  [entry.get("spend") for entry in credits] == [None, money],
+  json.dumps(credits),
+)
 check("a fresh answer stands in for a probe, but not past --force", kept.fresh(False) and not kept.fresh(True))
 interval = collectors.LimitsCache("demo", "interval")
 interval.save([{"label": "Weekly", "percent": 0.1, "resetsAt": future}])
