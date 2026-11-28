@@ -44,21 +44,25 @@ scratch_cpu_ticks() {
 # The lock service answers while the shell is still drawing its first frames
 # of the wallpaper, bar and dock. A GPU draws them in milliseconds; Mesa's
 # software renderer takes a second or two, and a lock timed meanwhile waits
-# for those frames. Wait until the shell uses at most one tick of CPU in
-# 200ms, for at most 10s, so only the lock is timed.
+# for those frames. A low CPU sample can also mean the shell is stalled.
+# Require both a quiet interval and a prompt IPC reply before timing the lock.
 wait_scratch_quiet() {
-  local last="" now
-  for _ in {0..50}; do
+  local last="" now deadline=$(( SECONDS + 10 ))
+  while (( SECONDS < deadline )); do
     if ! now=$(scratch_cpu_ticks); then
       sed -n '1,120p' "$SCRATCH_LOG" >&2
       fail "scratch shell keeps running while it settles"
-    elif [[ -n $last ]] && (( now - last <= 1 )); then
+    elif [[ -n $last ]] && (( now - last <= 1 )) &&
+      [[ $(OMARCHY_SHELL_IPC_TIMEOUT=0.2s scratch_ipc shell ping 2>/dev/null || true) == "ok" ]]; then
       return 0
     else
       last=$now
       sleep 0.2
     fi
   done
+
+  sed -n '1,120p' "$SCRATCH_LOG" >&2
+  fail "scratch shell settles before measuring lock preview"
 }
 
 # The view build and the first appearance happen once per shell start, so
