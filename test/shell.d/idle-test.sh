@@ -103,9 +103,33 @@ assert apps() == [], "disconnect releases remaining inhibits"
 # Closing stdin exits helper promptly.
 helper.stdin.close()
 assert helper.wait(5) == 0, "helper exits cleanly when stdin closes"
+
+# Broken stdout pipe fails Inhibit and exits instead of holding the name stale.
+broken = subprocess.Popen(["python3", sys.argv[1]], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+assert select.select([broken.stdout], [], [], 5)[0]
+assert json.loads(broken.stdout.readline()) == {"inhibitors": []}
+watcher = client()
+for _ in range(50):
+  if has_owner(watcher, "org.freedesktop.ScreenSaver"):
+    break
+  time.sleep(0.1)
+broken.stdout.close()
+try:
+  call(watcher, "/org/freedesktop/ScreenSaver", "Inhibit", GLib.Variant("(ss)", ("chromium", "Video Wake Lock")))
+  sys.exit("Inhibit should fail when helper stdout is closed")
+except GLib.Error:
+  pass
+assert broken.wait(5) == 0, "helper exits cleanly on broken stdout pipe"
+broken.stdin.close()
+watcher.close_sync(None)
 PY
   ); then
     fail "screensaver helper honors inhibits on a private bus" "$output"
   fi
   pass "screensaver helper honors inhibits on a private bus"
 fi
+
+no_bus_status=0
+env -u DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS="" python3 "$ROOT/shell/plugins/services/idle/screensaver.py" </dev/null >/dev/null 2>&1 || no_bus_status=$?
+(( no_bus_status == 78 )) || fail "screensaver helper exits 78 without a session bus" "got $no_bus_status"
+pass "screensaver helper exits 78 without a session bus"

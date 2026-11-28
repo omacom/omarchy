@@ -64,6 +64,9 @@ def publish():
   try:
     print(json.dumps(payload), flush=True)
   except BrokenPipeError:
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, sys.stdout.fileno())
+    os.close(devnull)
     if main_loop is not None:
       main_loop.quit()
     return False

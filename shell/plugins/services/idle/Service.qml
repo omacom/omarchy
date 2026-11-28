@@ -55,11 +55,6 @@ Item {
   // stay-awake without writing the user's stay-awake toggle.
   property var appInhibitors: []
   readonly property bool appInhibited: appInhibitors.length > 0
-  readonly property string screensaverHelperPath: {
-    var resolved = String(Qt.resolvedUrl("screensaver.py"))
-    if (resolved.indexOf("file://") === 0) return decodeURIComponent(resolved.replace(/^file:\/\//, ""))
-    return (Quickshell.env("OMARCHY_PATH") || "/usr/share/omarchy") + "/shell/plugins/services/idle/screensaver.py"
-  }
 
   function secondsFromConfig(value, fallback) {
     return IdleModel.secondsFromConfig(value, fallback)
@@ -338,7 +333,7 @@ Item {
 
   Process {
     id: screensaverInhibitService
-    command: ["python3", root.screensaverHelperPath]
+    command: ["python3", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/services/idle/screensaver.py"]
     // The helper exits when this pipe closes, so it cannot outlive the shell.
     stdinEnabled: true
     running: true
