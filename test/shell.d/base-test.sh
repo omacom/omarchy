@@ -467,23 +467,30 @@ find_omarchy_pkgs() {
 }
 
 # Fake the hardware identity omarchy-hw-platform reads: a device tree under
-# $1/proc and a uname in $1/bin reporting the platform's CPU. Run the code under
-# test with OMARCHY_PROC_ROOT="$1/proc" and PATH="$1/bin:$ROOT/bin:...", so the
-# real detector and its wrappers answer from the fixture.
+# $1/proc, the N1x's ACPI I2C controllers under $1/sys, and a uname in $1/bin
+# reporting the platform's CPU. Run the code under test with
+# OMARCHY_PROC_ROOT="$1/proc", OMARCHY_SYS_ROOT="$1/sys" and
+# PATH="$1/bin:$ROOT/bin:...", so the real detector and its wrappers answer
+# from the fixture.
 fake_platform() {
   local dir="$1" platform="$2" machine=aarch64
-  local -a compatible=()
+  local -a compatible=() acpi=()
 
   case $platform in
     aarch64-apple) compatible=(apple,j416c apple,t6021 apple,arm-platform) ;;
     aarch64-qualcomm) compatible=(lenovo,yoga-slim7x qcom,x1e80100) ;;
     aarch64) compatible=(raspberrypi,5-model-b brcm,bcm2712) ;;
+    aarch64-n1x) acpi=(NVDA0200:00) ;;
     x86) machine=x86_64 ;;
     *) fail "fake_platform knows the platform $platform" ;;
   esac
 
-  rm -rf "$dir/proc"
-  mkdir -p "$dir/proc" "$dir/bin"
+  rm -rf "$dir/proc" "$dir/sys"
+  mkdir -p "$dir/proc" "$dir/sys" "$dir/bin"
+  local device
+  for device in "${acpi[@]}"; do
+    mkdir -p "$dir/sys/bus/acpi/devices/$device"
+  done
   if (( ${#compatible[@]} > 0 )); then
     mkdir -p "$dir/proc/device-tree"
     printf '%s\0' "${compatible[@]}" >"$dir/proc/device-tree/compatible"

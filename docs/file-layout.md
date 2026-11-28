@@ -106,7 +106,7 @@ default/applications/*.desktop
 applications/icons/*           ──►  omarchy-settings    /usr/share/icons/hicolor/{48,256,scalable}/apps/
 
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
-  ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_compression,omarchy_hooks,omarchy_mount_events,thunderbolt_module}.conf
+  ├─ mkinitcpio.conf.d/{00-omarchy-hooks,nvidia_module,omarchy_compression,omarchy_hooks,omarchy_mount_events,thunderbolt_module}.conf
   ├─ initcpio/{install,hooks}/omarchy-splash             (the boot splash; mkinitcpio reads /etc/initcpio)
   ├─ limine-entry-tool.d/{omarchy-defaults,omarchy-uki}.conf
   ├─ mise/conf.d/{omarchy,omarchy-tools}.toml
