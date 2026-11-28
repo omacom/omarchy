@@ -503,16 +503,42 @@ removal_trees_disjoint() {
   return "$rc"
 }
 
+# An anchor is an empty folder on the root disk whenever nothing is mounted on
+# it, as after every reboot. Started outside the launcher (docker start, a
+# Docker TUI) the container would take it for a new machine and install
+# Windows into it, there. Root ignores modes, so an unmounted anchor is kept
+# immutable: dockur then stops with "Storage folder (/storage) is not
+# writeable" and nothing is written. A bind mount over it still works. Best
+# effort: a filesystem without the attribute keeps today's behaviour.
+lock_unmounted_anchor() {
+  ((EUID == 0)) || return 0
+  chattr +i -- "$1" 2>/dev/null || true
+}
+
+unlock_unmounted_anchor() {
+  ((EUID == 0)) || return 0
+  [[ -d $1 && ! -L $1 ]] || return 0
+  mountpoint -q -- "$1" 2>/dev/null && return 0
+  chattr -i -- "$1" 2>/dev/null || true
+}
+
 prepare_mount_anchor() {
   local path="$1" owner
   owner=$(boundary_owner)
   [[ ! -L $path ]] || return 1
   if mountpoint -q -- "$path" 2>/dev/null; then return 0; fi
-  prepare_boundary_component "$path" "$CALLER_DATA_ROOT" "$owner" 0700 || return 1
-  [[ -z $(find "$path" -mindepth 1 -print -quit) ]] || {
-    echo "omarchy-windows-vm: refusing to hide data below mount anchor: $path" >&2
+  unlock_unmounted_anchor "$path"
+  prepare_boundary_component "$path" "$CALLER_DATA_ROOT" "$owner" 0700 || {
+    echo "omarchy-windows-vm: mount anchor is not an empty private folder owned by root: $path" >&2
+    lock_unmounted_anchor "$path"
     return 1
   }
+  [[ -z $(find "$path" -mindepth 1 -print -quit) ]] || {
+    echo "omarchy-windows-vm: refusing to hide data below mount anchor: $path" >&2
+    lock_unmounted_anchor "$path"
+    return 1
+  }
+  lock_unmounted_anchor "$path"
 }
 
 mounted_leaf_matches() {
@@ -985,6 +1011,8 @@ __priv_remove() {
   umount -- "$EXPECTED_STORAGE" || return 1
   docker rmi "$IMAGE" 2>/dev/null || true
   rm -f "$COMPOSE_FILE"
+  unlock_unmounted_anchor "$EXPECTED_STORAGE"
+  unlock_unmounted_anchor "$EXPECTED_SHARED"
   rmdir -- "$EXPECTED_STORAGE" "$EXPECTED_SHARED" "$CALLER_DATA_ROOT" 2>/dev/null || true
 }
 
