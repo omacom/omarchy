@@ -3,6 +3,7 @@ import QtTest
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Ui
 
 // Drags widgets along the real bar through its own pointer handlers, and
 // checks where they land and that each arrives as the very instance that was
@@ -30,6 +31,7 @@ ShellRoot {
   property var settles: []
   property var steps: []
   property int step: 0
+  property int taps: 0
 
   function check(condition, message) {
     if (!condition) failures = failures.concat([String(message)])
@@ -103,6 +105,23 @@ ShellRoot {
     }
   }
 
+  Component {
+    id: testButton
+
+    WidgetButton {
+      property string moduleName: ""
+      property var settings: ({})
+      property string fixedEdge: "center"
+
+      text: "A"
+      fixedWidth: 30
+      fixedHeight: 20
+      onPressed: root.taps++
+      onModuleNameChanged: if (moduleName) root.bump("made", moduleName)
+      Component.onDestruction: root.bump("gone", moduleName)
+    }
+  }
+
   // A tray as far as the bar sees one: it hosts the tray section, and says
   // which edge the section's widgets grow from.
   Component {
@@ -133,7 +152,7 @@ ShellRoot {
 
     property int revision: 0
     property var widgets: ({
-      "test.a": { component: testWidget },
+      "test.a": { component: testButton },
       "test.b": { component: testWidget },
       "test.c": { component: testWidget },
       "test.clock": { component: testWidget },
@@ -197,6 +216,15 @@ ShellRoot {
         var a = root.bar.moduleSlots.filter(function(slot) { return slot && slot.moduleName === "test.a" })[0]
         root.surface = a ? root.bar.slotWindow(a) : null
         root.check(root.surface && root.surface.implicitHeight === root.surface.thickness, "the bar's surface is only as tall as its strip: " + (root.surface ? root.surface.implicitHeight + " against " + root.surface.thickness : "no surface"))
+        var touch = tc.touchEvent(a)
+        touch.press(0, a, 15, 10).commit()
+        tc.wait(35)
+        touch.move(0, a, 17, 14).commit()
+        tc.wait(40)
+        root.check(!root.bar.barDragSource, "six pixels of touch drift do not lift a widget")
+        touch.release(0, a, 17, 14).commit()
+        tc.wait(50)
+        root.check(root.taps === 1, "a drifting touch tap activates its widget once: " + root.taps)
         var twins = root.slotsOf("test.twin")
         root.check(twins.length === 2, "the bar shows both twins")
         if (twins.length !== 2) return
