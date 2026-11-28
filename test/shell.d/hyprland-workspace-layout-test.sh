@@ -263,6 +263,7 @@ local function window(address, options)
     group = options.group,
     tags = {},
     workspace = { id = options.workspace or 3 },
+    monitor = { width = 1920, height = 1080, scale = 1 },
   }
 
   table.insert(all, created)
@@ -319,6 +320,8 @@ hl = {
 
     if action.kind == "place" then
       table.insert(placed, target)
+    elseif action.kind == "pin" then
+      target.pinned = action.action == "on"
     elseif action.tag then
       local name = action.tag:sub(2)
 
@@ -346,6 +349,7 @@ hl = {
   dsp = {
     window = {
       float = function(spec) return spec end,
+      pin = function(spec) spec.kind = "pin" return spec end,
       tag = function(spec) return spec end,
       resize = function(spec) spec.kind = "place" return spec end,
       center = function(spec) spec.kind = "place" return spec end,
@@ -375,7 +379,6 @@ dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
 require("default.hypr.helpers")
 require("default.hypr.workspace-layouts")
 
-local CLAIMED = "omarchy-mode-floated"
 
 -- Floating is not a layout, so the saved file must not have asked Hyprland for
 -- one by that name: Hyprland takes an unknown layout in silence and falls back
@@ -386,14 +389,11 @@ assert(#workspace_rules == 0, "floating asked Hyprland for a layout")
 assert(#queried == 1 and queried[1] == "3", "the wrong workspace was queried: " .. table.concat(queried, ","))
 
 assert(tiled.floating == true, "the tiled window was not floated")
-assert(has_tag(tiled, CLAIMED), "the window the mode floated was not claimed")
 assert(already.floating == true, "the already floating window changed")
-assert(not has_tag(already, CLAIMED), "a window floating on its own account was claimed")
 
--- Every member of a group is claimed. Floating one floats them all, so claiming
--- as it goes would find the rest already floating and leave them unclaimed.
+-- Give every member of a group its floating placement.
 assert(grouped.floating == true and partner.floating == true, "the group was not floated")
-assert(has_tag(grouped, CLAIMED) and has_tag(partner, CLAIMED), "a group member went unclaimed")
+assert(#placed == 12, "each of the four newly floating windows should be resized, centered and offset")
 
 -- One handler each: subscribing on every call would float a window as many
 -- times as the mode has ever been set.
@@ -404,15 +404,14 @@ local opened = subscriptions["window.open"][1]
 local moved = subscriptions["window.move_to_workspace"][1]
 
 -- A window opening on a floating workspace floats; one that arrives floating
--- already is left alone, so the mode never claims it.
+-- already keeps its size and position.
 local fresh = window("0xE")
 opened(fresh)
 assert(fresh.floating == true, "a window opened on a floating workspace stayed tiled")
-assert(has_tag(fresh, CLAIMED), "a window opened into the mode was not claimed")
 
 local own_rule = window("0xF", { floating = true })
 opened(own_rule)
-assert(not has_tag(own_rule, CLAIMED), "a window with its own float rule was claimed")
+assert(own_rule.floating, "a floating workspace tiled an app with its own float rule")
 
 -- A window carried onto a floating workspace never had that workspace's mode
 -- applied to it.
@@ -424,38 +423,31 @@ assert(carried.floating == true, "a window carried onto a floating workspace sta
 carried.workspace.id = 5
 moved(carried, { id = 5 })
 assert(carried.floating == false, "a window the mode floated stayed floating on a tiled workspace")
-assert(not has_tag(carried, CLAIMED), "a window the mode gave back is still claimed")
 
--- A window floating on its own account keeps floating wherever it goes.
+-- A window that was already floating must also tile on arrival.
 moved(own_rule, { id = 5 })
-assert(own_rule.floating == true, "a window floating on its own account was tiled by a move")
+assert(not own_rule.floating, "an app floated by its own rule stayed floating after a move")
 
--- Carried between two floating workspaces it stays claimed, so the workspace it
--- ends on can still give it back.
+-- A move between floating workspaces leaves the window floating.
 o.workspace_mode({ workspace = "6", mode = "floating" })
 tiled.workspace.id = 6
 moved(tiled, { id = 6 })
 assert(tiled.floating == true, "a window moved between floating workspaces was tiled")
-assert(has_tag(tiled, CLAIMED), "a window moved between floating workspaces lost its claim")
 
 o.workspace_mode({ workspace = "6", mode = "dwindle" })
-assert(tiled.floating == false, "the workspace a claimed window moved to could not give it back")
+assert(tiled.floating == false, "switching the destination mode to tiling left a window floating")
 
--- A pinned window was put above everything on purpose, and tiling it would unpin
--- it too, so the mode leaves it where the user put it.
-assert(has_tag(pinned, CLAIMED), "the window to be pinned was never claimed")
 pinned.pinned = true
 
--- Ending the mode tiles what the mode claimed, and only that.
+-- Ending Floating tiles every window in the workspace.
 o.workspace_mode({ workspace = "3", mode = "dwindle" })
 assert(#workspace_rules == 2, "leaving floating did not set a layout")
 assert(workspace_rules[2].layout == "dwindle")
 assert(workspace_rules[2].workspace == "3", "the layout was applied to the wrong workspace")
 assert(grouped.floating == false, "the window the mode floated was left floating")
-assert(already.floating == true, "a window floating on its own account was tiled by the mode ending")
+assert(not already.floating, "an independently floating window was left floating")
 assert(partner.floating == false, "a group member the mode floated was left floating")
-assert(pinned.floating == true, "a pinned window was tiled by the mode ending")
-assert(has_tag(pinned, CLAIMED), "a pinned window lost the claim that returns it once unpinned")
+assert(not pinned.floating and not pinned.pinned, "a pinned window was left floating or pinned")
 
 -- Still one handler each after a second mode: the count above was taken before
 -- this call, so only a check on this side catches subscribing every time.

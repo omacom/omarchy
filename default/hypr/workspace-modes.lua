@@ -5,20 +5,13 @@
 -- layout name in silence, falling back to dwindle. So floating is applied to the
 -- windows themselves.
 --
--- Ending the mode has to tile the windows the mode floated and only those, so
--- each one is tagged. The tag lives on the window: it dies with it, follows it
--- between workspaces, and survives the config reload that a monitor being
--- plugged in performs, none of which a table on this side would do.
---
--- Every window on a floating workspace also carries a second tag, whether the
--- mode floated it or it was floating already. Titlebars, shadows, and full
--- opacity follow that tag, so a dialog on a floating workspace can be dragged by
--- its titlebar too, and a window carried out to a tiled one loses it.
+-- Every window on a floating workspace carries the workspace tag for its
+-- titlebar, shadow, and opacity. Dwindle and scrolling tile every managed
+-- window on regular numbered workspaces, including dialogs and pinned windows.
 
 require("default.hypr.helpers")
 local paths = require("default.hypr.paths")
 
-local FLOATED_TAG = "omarchy-mode-floated"
 local WORKSPACE_TAG = "omarchy-floating-workspace"
 local OPENED_TAG = "omarchy-mode-opened"
 local OPEN_RULE = "omarchy-floating-open-"
@@ -40,22 +33,8 @@ local function set_floating(window, floating)
   hl.dispatch(hl.dsp.window.float({ action = floating and "on" or "off", window = window }))
 end
 
-local function set_claimed(window, claimed)
-  hl.dispatch(hl.dsp.window.tag({ tag = (claimed and "+" or "-") .. FLOATED_TAG, window = window }))
-end
-
 local function set_on_floating_workspace(window, on)
   hl.dispatch(hl.dsp.window.tag({ tag = (on and "+" or "-") .. WORKSPACE_TAG, window = window }))
-end
-
-local function claimed()
-  local addresses = {}
-
-  for _, window in ipairs(hl.get_windows({ tag = FLOATED_TAG })) do
-    addresses[window.address] = true
-  end
-
-  return addresses
 end
 
 -- Special workspaces, such as the scratchpad, and named ones, which report a
@@ -121,41 +100,36 @@ local function place(window)
   hl.dispatch(hl.dsp.window.move({ x = cascade * 24 - 48, y = cascade * 24 - 48, relative = true, window = window }))
 end
 
--- A window already floating on its own account -- an app with a float rule of
--- its own, a dialog, one popped out with SUPER + T -- is left unclaimed, so it
--- is still floating when the mode ends. A fullscreen window is left as it is.
---
--- Every tiled window is claimed before any of them is floated: floating one
--- member of a group floats the rest, and a single pass would then find those
--- already floating and leave them to be stranded when the mode ends.
+-- Leave already-floating windows in place. A fullscreen tiled window is
+-- arranged when it exits fullscreen.
 local function float_for_mode(windows)
-  local claiming = {}
+  local to_float = {}
 
   for _, window in ipairs(windows) do
     set_on_floating_workspace(window, true)
 
     if not window.floating and (window.fullscreen or 0) == 0 then
-      set_claimed(window, true)
-      table.insert(claiming, window)
+      table.insert(to_float, window)
     end
   end
 
-  for _, window in ipairs(claiming) do
+  for _, window in ipairs(to_float) do
     set_floating(window, true)
     place(window)
   end
 end
 
--- A pinned window is one the user asked to keep above everything, and tiling it
--- would unpin it as well, so the mode leaves it be.
-local function tile_for_mode(window, mine)
+local function tile_for_mode(window)
   set_on_floating_workspace(window, false)
 
-  if not mine[window.address] or window.pinned then
+  if not window.floating then
     return
   end
 
-  set_claimed(window, false)
+  if window.pinned then
+    hl.dispatch(hl.dsp.window.pin({ action = "off", window = window }))
+    hl.dispatch(hl.dsp.window.tag({ tag = "-pop", window = window }))
+  end
   set_floating(window, false)
 end
 
@@ -266,14 +240,11 @@ end
 -- exclusions current before their first window opens, including tag rules.
 o.floating_apps_changed = sync_open_rules
 
--- A rule's tag leaves with the rule, so a window the open rule floated is
--- claimed for good as it opens, and the mode tiles it again when it ends. A
--- rule's tags are listed with a trailing "*", and a strict tag query passes
--- them over, so the window's own list is read.
-local function claim_opened(window)
+-- Rules add a trailing "*" to dynamic tags. Read the tag from the window
+-- to advance the placement of the next window.
+local function advance_open_position(window)
   for _, tag in ipairs(window.tags or {}) do
     if tag == OPENED_TAG or tag == OPENED_TAG .. "*" then
-      set_claimed(window, true)
       -- The next window the rule opens steps on from this one.
       cascade = (cascade + 1) % 5
       sync_open_rules()
@@ -300,7 +271,6 @@ end
 -- The workspace is passed in when a window is still on its way to it.
 local function arrange(windows, workspace)
   local floating = {}
-  local mine = claimed()
 
   for _, window in ipairs(windows) do
     local id = tonumber(workspace and workspace.id or (window.workspace and window.workspace.id))
@@ -309,7 +279,7 @@ local function arrange(windows, workspace)
       if floating_workspace(id) then
         table.insert(floating, window)
       else
-        tile_for_mode(window, mine)
+        tile_for_mode(window)
       end
     end
   end
@@ -320,7 +290,7 @@ end
 -- Overlapping windows are placed with the pointer, so a floating workspace
 -- focuses on click rather than on hover. Every other workspace keeps the user's
 -- own setting.
-local input = {}
+local input = { floating = false }
 
 local function update_input()
   local workspace = hl.get_active_workspace()
@@ -335,9 +305,27 @@ local function update_input()
   hl.config({ input = { follow_mouse = active and 0 or input.follow_mouse } })
 end
 
--- Windows arrive by opening and by being carried in, and a window rule only ever
--- fires for the first. One carried back out gives up the floating the mode gave
--- it rather than staying floating somewhere that tiles.
+local function is_tiled_workspace(window)
+  local id = window and window.workspace and window.workspace.id
+  return id ~= nil and id >= 1 and not floating_workspace(id)
+end
+
+-- The shell relays changefloatingmode from Hyprland versions without a Lua
+-- float event, including changes from personal keybindings and hyprctl.
+function o.enforce_tiled_window(address)
+  local window = hl.get_window(address)
+  if is_tiled_workspace(window) and window.floating then
+    tile_for_mode(window)
+  end
+end
+
+function o.toggle_window_float()
+  local window = hl.get_active_window()
+  if window and not is_tiled_workspace(window) then
+    hl.dispatch(hl.dsp.window.float({ action = "toggle", window = window }))
+  end
+end
+
 local function watch()
   if watching then
     return
@@ -348,7 +336,7 @@ local function watch()
   input.follow_mouse = hl.get_config("input.follow_mouse")
 
   hl.on("window.open", function(window)
-    claim_opened(window)
+    advance_open_position(window)
     unmaximize_others(window)
     arrange({ window })
   end)
@@ -530,18 +518,9 @@ end
 -- now stand: moving the default away from floating has to give back what it
 -- floated, even though nothing names those workspaces any more.
 function M.apply()
-  -- A default that no longer floats can leave no saved mode at all to start the
-  -- watchers, while the windows it floated still carry its tags.
-  local leftovers = #hl.get_windows({ tag = FLOATED_TAG }) > 0 or #hl.get_windows({ tag = WORKSPACE_TAG }) > 0
-
-  if anything_floats() or leftovers then
-    watch()
-  end
-
-  if watching then
-    arrange(hl.get_windows())
-    update_input()
-  end
+  watch()
+  arrange(hl.get_windows())
+  update_input()
 
   if anything_floats() then
     set_up_floating()

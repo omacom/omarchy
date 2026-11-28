@@ -44,9 +44,9 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + Alt + K` | Show tmux hotkeys |
 | `Super + Ctrl + K` | Show herdr hotkeys |
 | `Super + M` | Minimize window to the dock |
-| `Super + T`               | Toggle window between tiling/floating             |
+| `Super + T`               | Toggle window between tiling/floating in Floating mode             |
 | `Super + J` | Toggle window position (horizontal/vertical) |
-| `Super + O`               | Toggle popping window into sticky'n'floating |
+| `Super + O`               | Pin or unpin a window in Floating mode |
 | `Super + L`               | Cycle through the dwindle, scrolling, and floating layouts |
 | `Super + Alt + L`         | Cycle through the layouts in reverse |
 | `Super + P`               | Toggle pseudo window style (natural v stretch) |

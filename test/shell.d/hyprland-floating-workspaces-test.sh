@@ -237,7 +237,7 @@ function window(address, workspace, options)
     address = address,
     floating = options.floating or false,
     fullscreen = options.fullscreen or 0,
-    pinned = false,
+    pinned = options.pinned or false,
     tags = options.tags or {},
     workspace = { id = workspace },
     monitor = monitor,
@@ -275,6 +275,11 @@ hl = {
     end
     return found
   end,
+  get_window = function(selector)
+    for _, candidate in ipairs(all) do
+      if "address:" .. candidate.address == selector then return candidate end
+    end
+  end,
   get_windows = function(filter)
     local found = {}
     for _, candidate in ipairs(all) do
@@ -288,6 +293,8 @@ hl = {
     local target = action.window
     if action.kind == "place" then
       placed[target.address] = true
+    elseif action.kind == "pin" then
+      target.pinned = action.action == "on"
     elseif action.kind == "fullscreen" then
       if action.mode == "maximized" then
         target.fullscreen = action.action == "unset" and 0 or 1
@@ -313,6 +320,7 @@ hl = {
   dsp = {
     window = {
       float = function(spec) return spec end,
+      pin = function(spec) spec.kind = "pin" return spec end,
       tag = function(spec) return spec end,
       resize = function(spec) spec.kind = "place" return spec end,
       center = function(spec) spec.kind = "place" return spec end,
@@ -421,11 +429,10 @@ local fullscreen = window("0x5", 3, { fullscreen = 1 })
 require("default.hypr.workspace-layouts")
 local s = state()
 
-assert(first.floating and has_tag(first, "omarchy-mode-floated"), "a window on an unsaved workspace was not floated")
+assert(first.floating, "a window on an unsaved workspace was not floated")
 assert(s.placed["0x1"], "a window the mode floated was not given a place")
 assert(has_tag(first, "omarchy-floating-workspace"), "a floated window got no titlebar tag")
 assert(has_tag(dialog, "omarchy-floating-workspace"), "a window floating already got no titlebar tag")
-assert(not has_tag(dialog, "omarchy-mode-floated"), "a window floating already was claimed")
 assert(not s.placed["0x2"], "a window floating already was moved")
 assert(not own_layout.floating, "a workspace with its own layout was floated")
 assert(not has_tag(own_layout, "omarchy-floating-workspace"), "a tiled window got a titlebar tag")
@@ -464,19 +471,24 @@ pass "a scrolling default is Hyprland's default layout"
 rm -f "$modes_dir"/*.lua
 if ! run_lua '
 local floated = window("0x1", 1, { floating = true, tags = { "omarchy-mode-floated", "omarchy-floating-workspace" } })
-local dialog = window("0x2", 1, { floating = true, tags = { "omarchy-floating-workspace" } })
+local dialog = window("0x2", 1, { floating = true, pinned = true, tags = { "omarchy-floating-workspace" } })
 local scratch = window("0x3", -98, { floating = true, tags = { "omarchy-mode-floated" } })
 require("default.hypr.workspace-layouts")
 assert(not floated.floating, "a window the mode floated stayed floating once floating was off")
-assert(not has_tag(floated, "omarchy-mode-floated"), "a window given back is still claimed")
 assert(not has_tag(floated, "omarchy-floating-workspace"), "a tiled window kept its titlebar tag")
-assert(dialog.floating, "a dialog was tiled when floating was turned off")
+assert(not dialog.floating and not dialog.pinned, "a pinned dialog stayed floating when floating was turned off")
+local opened = window("0x4", 2, { floating = true })
+state().subscriptions["window.open"][1](opened)
+assert(not opened.floating, "an app with a float rule opened floating in a tiled workspace")
+opened.floating = true
+o.enforce_tiled_window("address:0x4")
+assert(not opened.floating, "a later float request left a tiled window floating")
 assert(not has_tag(dialog, "omarchy-floating-workspace"), "a dialog on a tiled workspace kept its titlebar tag")
 assert(scratch.floating and has_tag(scratch, "omarchy-mode-floated"), "a window on the scratchpad was tiled")
 '; then
-  fail "turning floating off gives back what it floated, but not what is on the scratchpad"
+  fail "tiled workspaces tile dialogs, pinned windows and newly floating windows"
 fi
-pass "turning floating off gives back what it floated, but not what is on the scratchpad"
+pass "tiled workspaces tile dialogs, pinned windows and newly floating windows"
 
 # A tiled window that was fullscreen when its workspace started floating is
 # left as it is, and floats once it comes out of fullscreen.
@@ -487,7 +499,7 @@ require("default.hypr.workspace-layouts")
 assert(not video.floating, "a fullscreen window was floated")
 video.fullscreen = 0
 state().subscriptions["window.fullscreen"][1](video)
-assert(video.floating and has_tag(video, "omarchy-mode-floated"), "a window leaving fullscreen on a floating workspace stayed tiled")
+assert(video.floating, "a window leaving fullscreen on a floating workspace stayed tiled")
 '; then
   fail "a window leaving fullscreen on a floating workspace floats"
 fi
@@ -512,7 +524,6 @@ assert(rule and rule.float and rule.enabled and rule.match.workspace == "r[1-1]"
 local first_position = rule.move
 local opened = window("0x1", 1, { floating = true, tags = { "omarchy-mode-opened*" } })
 state().subscriptions["window.open"][1](opened)
-assert(has_tag(opened, "omarchy-mode-floated"), "a window the open rule floated was not claimed by the mode")
 assert(open_rule().move ~= first_position, "the next window opens exactly on top of the last")
 o.workspace_mode({ workspace = "1", mode = "dwindle" })
 assert(not opened.floating, "a window the open rule floated kept floating once the workspace tiled")
@@ -664,7 +675,7 @@ local moved = state().subscriptions["window.move_to_workspace"][1]
 assert(moving.floating, "the window was not floated to begin with")
 
 moved(moving, { id = -98 })
-assert(moving.floating and has_tag(moving, "omarchy-mode-floated"), "a window was tiled on its way to the scratchpad")
+assert(moving.floating, "a window was tiled on its way to the scratchpad")
 
 moved(moving, { id = 2 })
 assert(not moving.floating, "a window carried to a tiled workspace kept floating")

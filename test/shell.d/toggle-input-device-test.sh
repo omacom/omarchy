@@ -135,6 +135,8 @@ hl = {
   -- windows; these reloads have none. It also loads the saved monitor
   -- settings, which listen for monitors arriving.
   get_windows = function() return {} end,
+  get_config = function() return 1 end,
+  get_active_workspace = function() return nil end,
   on = function() end,
 }
 
@@ -168,6 +170,8 @@ hl = {
     table.insert(seen, opts)
   end,
   get_windows = function() return {} end,
+  get_config = function() return 1 end,
+  get_active_workspace = function() return nil end,
   on = function() end,
 }
 os.execute = function()
@@ -249,6 +253,8 @@ local disabled = {}
 hl = {
   device = function(opts) table.insert(disabled, opts) end,
   get_windows = function() return {} end,
+  get_config = function() return 1 end,
+  get_active_workspace = function() return nil end,
   on = function() end,
 }
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
