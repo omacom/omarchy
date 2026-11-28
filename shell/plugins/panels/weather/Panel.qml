@@ -664,7 +664,7 @@ Panel {
             id: locationField
             visible: root.editingLocation
             width: parent.width
-            rightPadding: locationEditActions.width + Style.space(8)
+            trailingPadding: locationEditActions.width + Style.space(8)
             enabled: !root.savingLocation
             placeholderText: Commons.I18n.t("weather.searchCity")
             foreground: root.bar.foreground

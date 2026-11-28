@@ -26,6 +26,7 @@ TextField {
   // Shows a password field's text in the clear (a "show password" toggle).
   property bool revealed: false
   property real horizontalPadding: Style.spacing.controlPaddingX
+  property real trailingPadding: 0
   property real verticalPadding: Style.spacing.inputPaddingY
 
   // Panel-cursor flag. When true (and the field isn't already focused),
@@ -54,8 +55,9 @@ TextField {
   selectedTextColor: foreground
   placeholderTextColor: Qt.darker(foreground, 1.6)
 
-  leftPadding: horizontalPadding + Border.left(_borderSpec)
-  rightPadding: horizontalPadding + Border.right(_borderSpec)
+  readonly property real _trailingPadding: Math.max(horizontalPadding, trailingPadding)
+  leftPadding: (LayoutMirroring.enabled ? _trailingPadding : horizontalPadding) + Border.left(_borderSpec)
+  rightPadding: (LayoutMirroring.enabled ? horizontalPadding : _trailingPadding) + Border.right(_borderSpec)
   topPadding: verticalPadding + Border.top(_borderSpec)
   bottomPadding: verticalPadding + Border.bottom(_borderSpec)
 

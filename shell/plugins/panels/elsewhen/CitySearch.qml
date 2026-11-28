@@ -103,7 +103,7 @@ Column {
     id: field
     visible: search.active
     width: parent.width
-    rightPadding: closeButton.width + Style.space(8)
+    trailingPadding: closeButton.width + Style.space(8)
     placeholderText: search.placeholderText
     foreground: search.foreground
     Keys.onEscapePressed: search.stop()
