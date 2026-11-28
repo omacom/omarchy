@@ -10,6 +10,7 @@
     "theme": {
       "color_scheme": 2,
       "user_color": 2
-    }
+    },
+    "custom_chrome_frame": false
   }
 }

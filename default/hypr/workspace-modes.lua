@@ -486,6 +486,7 @@ local function titlebars()
         bar_text_size = 12,
         bar_text_weight = "normal",
         bar_text_align = "left",
+        bar_app_icon = true,
         bar_buttons_alignment = "right",
         bar_part_of_window = true,
         bar_precedence_over_border = true,
@@ -502,8 +503,12 @@ local function titlebars()
   hl.window_rule({ match = { class = ".*" }, tag = "+" .. TITLEBAR_TAG })
 
   -- A titlebar over an app's own frame would be a second header, and overlays
-  -- meant to sit on top of everything else stay bare.
+  -- meant to sit on top of everything else stay bare. A Chromium browser drops
+  -- its frame when set to use the system title bar, and asks the compositor
+  -- for one instead, so its titlebar follows what it asks for: the tab strip
+  -- alone gives only its empty end to drag the window by.
   hl.window_rule({ match = { class = o.self_framed_apps }, ["hyprbars:no_bar"] = true })
+  hl.window_rule({ match = { class = o.chromium_browsers }, ["hyprbars:no_bar"] = "csd" })
   hl.window_rule({ match = { tag = "pip" }, ["hyprbars:no_bar"] = true })
   hl.window_rule({ match = { class = "^WebcamOverlay-(small|medium|large)$" }, ["hyprbars:no_bar"] = true })
   hl.window_rule({ match = { class = "^Hermes$", title = "^Hermes HUD$" }, ["hyprbars:no_bar"] = true })

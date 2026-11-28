@@ -15,8 +15,9 @@ o.shell_quote = shell_quote
 o.chromium_browsers = "((google-)?[cC]hrom(e|ium)|[bB]rave-(browser|origin)|[mM]icrosoft-edge|Vivaldi-stable|helium)"
 
 -- Apps that draw their own header with a close button: those browsers and GNOME
--- apps with a header bar. Floating workspaces give them no titlebar. Web apps
--- keep theirs, having no tab strip to drag the window by.
+-- apps with a header bar. Floating workspaces give them no titlebar, except a
+-- browser set to use the system title bar, which then has no frame of its own.
+-- Web apps keep theirs, having no tab strip to drag the window by.
 --
 -- Their maximize button stays off (GNOME's default button layout) and their
 -- maximize requests stay suppressed: Hyprland reports every app as maximized and
