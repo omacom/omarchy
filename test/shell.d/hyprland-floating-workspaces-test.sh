@@ -223,9 +223,11 @@ local subscriptions = {}
 local plugin_loads = 0
 local titlebar_config = nil
 local buttons = {}
-local config = { ["input.follow_mouse"] = 1, ["decoration.shadow.enabled"] = false }
+local config = { ["input.follow_mouse"] = 1, ["decoration.shadow.enabled"] = false, ["general.layout"] = "dwindle" }
 local rules = {}
+local workspace_rules = {}
 local placed = {}
+local commands = {}
 local active = { id = 1 }
 local titlebars_installed = os.getenv("TITLEBARS_INSTALLED") == "1"
 
@@ -264,7 +266,7 @@ io.open = function(path, mode)
 end
 
 hl = {
-  workspace_rule = function() end,
+  workspace_rule = function(rule) table.insert(workspace_rules, rule) end,
   window_rule = function(rule) table.insert(rules, rule) end,
   get_workspace_windows = function(selector)
     local found = {}
@@ -325,6 +327,7 @@ hl = {
     table.insert(subscriptions[event], callback)
   end,
   timer = function(callback) callback() end,
+  exec_cmd = function(command) table.insert(commands, command) end,
   get_loaded_plugins = function()
     return os.getenv("HYPRBARS_RESIDENT") == "1" and { { name = "hyprbars" } } or {}
   end,
@@ -364,7 +367,9 @@ function state()
     buttons = buttons,
     config = config,
     rules = rules,
+    workspace_rules = workspace_rules,
     placed = placed,
+    commands = commands,
     subscriptions = subscriptions,
     active = active,
   }
@@ -764,6 +769,159 @@ assert(bar and bar.bar_color == "rgb(223344)", "titlebars missed the theme with 
   fail "titlebars follow the theme when XDG_STATE_HOME points elsewhere"
 fi
 pass "titlebars follow the theme when XDG_STATE_HOME points elsewhere"
+
+# --- A workspace that changes number ------------------------------------------
+
+# Per-monitor workspaces renumber a workspace as it joins another monitor's
+# block, and the layout it was given goes with it, saved file and all. The old
+# number is returned to the default, so a workspace opened under it later
+# starts fresh.
+rm -rf "$modes_dir"
+mkdir -p "$modes_dir"
+printf 'o.workspace_mode({ workspace = "12", mode = "scrolling" })\n' >"$modes_dir/12.lua"
+
+if ! run_lua '
+local moved = window("0x1", 12)
+require("default.hypr.workspace-layouts")
+local modes = require("default.hypr.workspace-modes")
+moved.workspace.id = 2
+modes.renumber(12, 2)
+local last = {}
+for _, rule in ipairs(state().workspace_rules) do last[rule.workspace] = rule.layout end
+assert(last["2"] == "scrolling", "the new number did not get the layout: " .. tostring(last["2"]))
+assert(last["12"] == "dwindle", "the old number was not returned to the default layout: " .. tostring(last["12"]))
+local asked = table.concat(state().commands, "\n")
+assert(asked:find("omarchy-shell -q omarchy.workspaces refresh", 1, true), "the bar was not asked to read the layouts again: " .. asked)
+assert(asked:find("omarchy-shell -q omarchy.dock refresh", 1, true), "the dock was not asked to read the layouts again: " .. asked)
+' TITLEBARS_INSTALLED=1; then
+  fail "a renumbered workspace keeps its tiled layout"
+fi
+grep -qxF 'o.workspace_mode({ workspace = "2", mode = "scrolling" })' "$modes_dir/2.lua" ||
+  fail "the layout is saved under the new number" "$(ls "$modes_dir"; cat "$modes_dir"/*.lua 2>&1)"
+[[ ! -e $modes_dir/12.lua ]] || fail "the layout is no longer saved under the old number"
+pass "a renumbered workspace keeps its tiled layout"
+
+rm -f "$modes_dir"/*.lua
+printf 'o.workspace_mode({ workspace = "12", mode = "floating" })\n' >"$modes_dir/12.lua"
+if ! run_lua '
+local carried = window("0x1", 12)
+require("default.hypr.workspace-layouts")
+local modes = require("default.hypr.workspace-modes")
+assert(carried.floating, "the window floats on its floating workspace")
+carried.workspace.id = 2
+modes.renumber(12, 2)
+local s = state()
+assert(latest_open_rule(1).match.workspace == "r[2-2]", "windows opening on the new number float: " .. latest_open_rule(1).match.workspace)
+assert(latest_open_rule(2) == nil, "a second open rule appeared: " .. tostring(latest_open_rule(2) and latest_open_rule(2).match.workspace))
+local joined = window("0x2", 2)
+for _, handler in ipairs(s.subscriptions["window.move_to_workspace"]) do handler(joined, { id = 2 }) end
+assert(joined.floating, "a window carried onto the renumbered workspace did not float")
+local opened = window("0x3", 12)
+for _, handler in ipairs(s.subscriptions["window.open"]) do handler(opened) end
+assert(not opened.floating, "a window opening under the old number floated")
+' TITLEBARS_INSTALLED=1; then
+  fail "a renumbered workspace keeps floating"
+fi
+grep -qxF 'o.workspace_mode({ workspace = "2", mode = "floating" })' "$modes_dir/2.lua" ||
+  fail "the floating layout is saved under the new number" "$(ls "$modes_dir"; cat "$modes_dir"/*.lua 2>&1)"
+pass "a renumbered workspace keeps floating"
+
+rm -f "$modes_dir"/*.lua
+if ! run_lua '
+window("0x1", 3)
+require("default.hypr.workspace-layouts")
+local modes = require("default.hypr.workspace-modes")
+modes.renumber(3, 4)
+assert(#state().workspace_rules == 0, "a workspace with no layout of its own set a rule when renumbered")
+assert(#state().commands == 0, "the bar and dock were asked to read layouts that did not change")
+' TITLEBARS_INSTALLED=1; then
+  fail "a renumbered workspace with no layout of its own is left alone"
+fi
+[[ ! -e $modes_dir/4.lua && ! -e $modes_dir/3.lua ]] || fail "nothing is saved for a workspace with no layout of its own"
+pass "a renumbered workspace with no layout of its own is left alone"
+
+# A number can have a saved layout while no workspace holds it, the user's
+# choice for the next workspace opened under it. Per-monitor workspaces give
+# such a number to no other workspace, and a renumber onto it all the same
+# leaves the layout saved.
+printf 'o.workspace_mode({ workspace = "4", mode = "floating" })\n' >"$modes_dir/4.lua"
+if ! run_lua '
+local moved = window("0x1", 3)
+require("default.hypr.workspace-layouts")
+local modes = require("default.hypr.workspace-modes")
+moved.workspace.id = 4
+modes.renumber(3, 4)
+' TITLEBARS_INSTALLED=1; then
+  fail "a renumbered workspace leaves a layout saved under its new number alone"
+fi
+grep -qxF 'o.workspace_mode({ workspace = "4", mode = "floating" })' "$modes_dir/4.lua" ||
+  fail "a renumbered workspace leaves a layout saved under its new number alone" "$(ls "$modes_dir"; cat "$modes_dir"/*.lua 2>&1)"
+pass "a renumbered workspace leaves a layout saved under its new number alone"
+
+# A workspace going home takes back its own number, and a layout saved under it
+# while the workspace was away gives way, so the one coming home keeps its own.
+rm -f "$modes_dir"/*.lua
+printf 'o.workspace_mode({ workspace = "12", mode = "floating" })\n' >"$modes_dir/12.lua"
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+local modes = require("default.hypr.workspace-modes")
+assert(latest_open_rule(1).match.workspace == "r[12-12]", "windows opening on the floating number float: " .. latest_open_rule(1).match.workspace)
+modes.forget(12)
+local last = {}
+for _, rule in ipairs(state().workspace_rules) do last[rule.workspace] = rule.layout end
+assert(last["12"] == "dwindle", "the number was not returned to the default layout: " .. tostring(last["12"]))
+assert(latest_open_rule(1) == nil or not latest_open_rule(1).enabled, "windows opening on the number still float")
+local asked = table.concat(state().commands, "\n")
+assert(asked:find("omarchy-shell -q omarchy.workspaces refresh", 1, true), "the bar was not asked to read the layouts again: " .. asked)
+' TITLEBARS_INSTALLED=1; then
+  fail "a forgotten layout leaves its number to the default"
+fi
+[[ ! -e $modes_dir/12.lua ]] || fail "a forgotten layout leaves its number to the default" "$(ls "$modes_dir")"
+pass "a forgotten layout leaves its number to the default"
+
+# A layout that cannot be saved under the new number stays saved under the old
+# one, as it would have before, rather than being lost on the next reload.
+rm -f "$modes_dir"/*.lua
+printf 'o.workspace_mode({ workspace = "12", mode = "scrolling" })\n' >"$modes_dir/12.lua"
+mkdir "$modes_dir/2.lua"
+if ! run_lua '
+local moved = window("0x1", 12)
+require("default.hypr.workspace-layouts")
+local modes = require("default.hypr.workspace-modes")
+moved.workspace.id = 2
+modes.renumber(12, 2)
+local last = {}
+for _, rule in ipairs(state().workspace_rules) do last[rule.workspace] = rule.layout end
+assert(last["2"] == "scrolling", "the new number did not get the layout for the session: " .. tostring(last["2"]))
+' TITLEBARS_INSTALLED=1; then
+  fail "a layout that cannot be saved under its new number still applies"
+fi
+grep -qxF 'o.workspace_mode({ workspace = "12", mode = "scrolling" })' "$modes_dir/12.lua" ||
+  fail "a layout that cannot be saved under its new number stays saved under the old one" "$(ls "$modes_dir")"
+rmdir "$modes_dir/2.lua"
+pass "a layout that cannot be saved under its new number stays saved under the old one"
+
+# A reconcile renumbers several workspaces in one go. The bar and dock are asked
+# to look again once it is through, not once per workspace.
+rm -f "$modes_dir"/*.lua
+printf 'o.workspace_mode({ workspace = "12", mode = "scrolling" })\n' >"$modes_dir/12.lua"
+printf 'o.workspace_mode({ workspace = "13", mode = "floating" })\n' >"$modes_dir/13.lua"
+if ! run_lua '
+window("0x1", 12)
+window("0x2", 13)
+require("default.hypr.workspace-layouts")
+local modes = require("default.hypr.workspace-modes")
+local queued = {}
+hl.timer = function(callback) queued[#queued + 1] = callback end
+modes.renumber(12, 2)
+modes.renumber(13, 3)
+assert(#state().commands == 0, "the bar and dock were asked before the renumbering was through")
+for _, callback in ipairs(queued) do callback() end
+assert(#state().commands == 2, "the bar and dock were asked once each, not " .. #state().commands .. " times")
+' TITLEBARS_INSTALLED=1; then
+  fail "several renumbered workspaces ask the bar and dock to look once"
+fi
+pass "several renumbered workspaces ask the bar and dock to look once"
 
 run_node_test <<'JS'
 const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')
