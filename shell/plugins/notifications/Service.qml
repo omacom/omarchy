@@ -1596,6 +1596,15 @@ Item {
             hoverEnabled: true
             acceptedButtons: Qt.NoButton
             propagateComposedEvents: true
+            // On top of the cards, so it shows the cursor for whatever part
+            // of the hovered card is under the pointer.
+            cursorShape: {
+              for (var i = 0; i < cards.count; i++) {
+                var card = cards.itemAt(i)
+                if (card && card.hovered) return card.pointerCursor
+              }
+              return Qt.ArrowCursor
+            }
 
             // The cards cannot see hover under this region, so they are told.
             function hoverAt(x, y) {
@@ -1659,6 +1668,7 @@ Item {
           }
 
           Repeater {
+            id: cards
             model: toasts
 
             Toast {
