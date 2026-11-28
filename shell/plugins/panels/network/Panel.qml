@@ -2311,8 +2311,9 @@ Panel {
         onClicked: row.submitCredentials()
       }
 
-      // 22×22 right-anchored to line up with lockIndicator above. Not a
-      // focus target, so typing carries on in pwField after a click.
+      // 22×22 right-anchored to line up with lockIndicator above. It is a Tab
+      // target, but returns focus to the passphrase after activation so typing
+      // continues without an extra click.
       PanelActionButton {
         id: revealPwBtn
         visible: connectPwBtn.visible
@@ -2322,7 +2323,12 @@ Panel {
         tooltipText: passwordPanel.revealed ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
-        onClicked: passwordPanel.revealed = !passwordPanel.revealed
+        focusable: true
+        Keys.onEscapePressed: root.cancelPasswordPrompt()
+        onClicked: {
+          passwordPanel.revealed = !passwordPanel.revealed
+          Qt.callLater(function() { if (pwField.visible) pwField.forceActiveFocus() })
+        }
       }
     }
   }

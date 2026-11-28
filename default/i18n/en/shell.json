@@ -642,6 +642,7 @@
   "tailscale.commandFailed": "Tailscale command failed",
   "tailscale.connect": "Connect",
   "tailscale.connections": "CONNECTIONS",
+  "tailscale.copyMachineDetails": "Copy machine details",
   "tailscale.disconnect": "Disconnect",
   "tailscale.disconnectedMeta": "Tailscale is disconnected",
   "tailscale.exitNodeFailed": "Exit node selection failed",

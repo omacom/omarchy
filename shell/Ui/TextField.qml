@@ -48,7 +48,11 @@ TextField {
   passwordCharacter: "\u25CF"
   font.family: Style.font.family
   font.pixelSize: Style.font.body
-  font.letterSpacing: _masked && text.length > 0 ? Math.round(font.pixelSize * 0.25) : 0
+  // Reading another member of the grouped `font` property from this binding
+  // makes Qt treat the group as self-dependent. Password fields then report a
+  // binding loop as soon as they contain text. Current masked callers use the
+  // body size, so derive the spacing from that independent style token.
+  font.letterSpacing: _masked && text.length > 0 ? Math.round(Style.font.body * 0.25) : 0
   color: foreground
   selectionColor: selectionTint
   selectedTextColor: foreground

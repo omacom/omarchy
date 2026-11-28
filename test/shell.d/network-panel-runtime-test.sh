@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_compositor "network panel runtime test"
 require_command quickshell
+require_command wtype
 
 scratch=$(mktemp -d)
 trap 'rm -rf -- "$scratch"' EXIT
@@ -35,14 +36,18 @@ source = source.replace(/\bNetworking\./g, 'NetworkMock.')
 // the content root and mirrored on the panel once the test builds it.
 source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
       property alias testButton: portalAction
+      property alias testNetworkList: networkList
       property alias testTitle: heroSsid
 `)
+source = source.replace('        id: pwField\n', '        id: pwField\n        objectName: "testPasswordField"\n')
+source = source.replace('        id: revealPwBtn\n', '        id: revealPwBtn\n        objectName: "testRevealButton"\n')
 source = source.replace('  id: root', `  id: root
   function testEnsureContent() { return panel.ensureContent() }
   readonly property Item testContent: panel.loadedContent
   readonly property Item testButton: panel.loadedContent ? panel.loadedContent.testButton : null
   readonly property Item testKeys: panel.loadedContent
   readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
+  readonly property Item testNetworkList: panel.loadedContent ? panel.loadedContent.testNetworkList : null
   readonly property Item testTitle: panel.loadedContent ? panel.loadedContent.testTitle : null
   property alias testPoll: connectivityPoll
   property alias testLimitedSettle: limitedSettle
@@ -65,6 +70,14 @@ JS
   chmod +x "$stage/bin/omarchy-network-captive-portal"
 }
 
+check_panel_output() {
+  local description=$1 output=$2
+  [[ $output == *"RESULT pass"* ]] || fail "$description runtime assertions pass" "$output"
+  if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
+    fail "$description fixture has no QML errors" "$output"
+  fi
+}
+
 # run_panel <description>: run the staged fixture to completion.
 run_panel() {
   local output
@@ -72,10 +85,31 @@ run_panel() {
     NETWORK_TEST_BROWSER_LOG="$stage/browser.log" NETWORK_TEST_NMCLI_LOG="$stage/nmcli.log" \
     NETWORK_TEST_WIFI_LOG="$stage/wifi.log" \
     timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "$1 fixture exits cleanly" "$output"
-  [[ $output == *"RESULT pass"* ]] || fail "$1 runtime assertions pass" "$output"
-  if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
-    fail "$1 fixture has no QML errors" "$output"
+  check_panel_output "$1" "$output"
+}
+
+# Run a fixture until its focused control asks for Escape, then send a real
+# compositor key event. This covers the path QML signal calls cannot emulate.
+run_panel_with_escape() {
+  local description=$1 output_file="$stage/output" output pid ready=false
+  HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
+    NETWORK_TEST_BROWSER_LOG="$stage/browser.log" NETWORK_TEST_NMCLI_LOG="$stage/nmcli.log" \
+    timeout 30 quickshell -p "$stage" --no-color >"$output_file" 2>&1 &
+  pid=$!
+  for _ in {1..100}; do
+    if rg -q 'INPUT escape' "$output_file"; then ready=true; break; fi
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.05
+  done
+  if [[ $ready != true ]]; then
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    fail "$description fixture reaches the Escape check" "$(<"$output_file")"
   fi
+  wtype -k Escape
+  wait "$pid" || fail "$description fixture exits cleanly" "$(<"$output_file")"
+  output=$(<"$output_file")
+  check_panel_output "$description" "$output"
 }
 
 stage_panel captive-portal
@@ -115,3 +149,7 @@ grep -qx "connect --interface test-wifi -- Cafe" "$stage/wifi.log" ||
 grep -q "Home" "$stage/wifi.log" &&
   fail "network panel does not spawn omarchy-network-wifi for an already-connected SSID" "$(cat "$stage/wifi.log")"
 pass "network rows follow connects, drops, saves and forgets made outside the panel, with the cursor on its network"
+
+stage_panel password-visibility
+run_panel_with_escape "network password visibility"
+pass "network passphrases reveal accessibly, return focus, and cancel from the reveal action"

@@ -507,6 +507,7 @@ Panel {
 
       PanelActionButton {
         iconText: "󰌋"
+        tooltipText: Commons.I18n.t("dropbox.login")
         foreground: root.foreground
         fontFamily: root.fontFamily
         enabled: dropbox.installed && !dropbox.busy
