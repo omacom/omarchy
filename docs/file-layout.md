@@ -148,6 +148,10 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   ├─ xdg-terminal-exec/*.list                           /usr/share/xdg-terminal-exec/
   ├─ applications/mimeapps.list                         /usr/share/applications/mimeapps.list
   ├─ systemd/user/*.service                             /usr/lib/systemd/user/
+  │                                                       (omarchy-memory-watch.service is opt-in: its toggle
+  │                                                       installs it in ~/.config/systemd/user/, and
+  │                                                       ConditionPathExists on the toggle's flag keeps any
+  │                                                       packaged copy inert)
   ├─ systemd/user/app.slice.d/10-oomd.conf              /usr/lib/systemd/user/app.slice.d/
   ├─ systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf  /usr/lib/systemd/user/wireplumber.service.d/
   ├─ systemd/user/wireplumber.service.d/20-omarchy-soundwire.conf      /usr/lib/systemd/user/wireplumber.service.d/
