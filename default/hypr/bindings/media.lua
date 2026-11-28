@@ -28,7 +28,7 @@ o.bind("ALT + XF86MonBrightnessDown", "Brightness down precise", "omarchy-bright
 -- Media controls.
 o.bind("XF86AudioNext", "Next track", { ipc = "media.next" }, { locked = true })
 o.bind("ALT + XF86AudioPlay", "Next track", { ipc = "media.next" }, { locked = true })
-o.bind("XF86AudioPause", "Pause", { ipc = "media.playPause" }, { locked = true })
+o.bind("XF86AudioPause", "Pause", { ipc = "media.pause" }, { locked = true })
 o.bind("XF86AudioPlay", "Play", { ipc = "media.playPause" }, { locked = true })
 o.bind("XF86AudioPrev", "Previous track", { ipc = "media.previous" }, { locked = true })
 o.bind("ALT + SHIFT + XF86AudioPlay", "Previous track", { ipc = "media.previous" }, { locked = true })
