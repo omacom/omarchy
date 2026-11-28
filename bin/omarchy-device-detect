@@ -33,7 +33,7 @@ readonly scanner_vendors=" 04b8 04a9 04f9 04c5 07b3 0638 04a7 05da "
 readonly serial_vendors=" 0403 1a86 10c4 067b "
 # Fingerprint reader vendors, as omarchy-hw-fingerprint lists them. libfprint
 # drives these from userspace, so a reader has no kernel driver bound.
-readonly fingerprint_vendors=" 27c6 138a 06cb 08ff 1c7a 147e "
+readonly fingerprint_vendors=" 27c6 138a 06cb 08ff 1c7a 147e 2808 "
 
 read_attr() {
   local value=""
@@ -231,12 +231,15 @@ guide_ready() {
     fi
   done < <(jq -r --arg key "$guide" '.[$key].options // [] | .[] | ((.packages // []) + (.aur // [])) | join(" ")' "$catalog")
 
-  ((installable && !installed)) && return 1
 
   while IFS= read -r check; do
     [[ -n $check ]] || continue
     check_passes "$check" "$serial" || return 1
+    # A queue for this exact printer also covers vendor-installed drivers.
+    if [[ $check == "cups-queue" && -n $serial ]]; then installed=1; fi
   done < <(jq -r --arg key "$guide" '.[$key].check // [] | .[]' "$catalog")
+
+  ((installable && !installed)) && return 1
 
   # Nothing to install and nothing to check means there is nothing Omarchy can
   # tell is done: such a device is never ready.
