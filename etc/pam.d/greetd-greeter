@@ -1,0 +1,8 @@
+#%PAM-1.0
+# greetd's login screen, which greetd runs under this service when it exists:
+# greetd's own stack, and the boot splash's progress for the startup cover
+# (default/splash/stop) goes, as a login from here has no splash to continue.
+auth      include   greetd
+account   include   greetd
+session   include   greetd
+session   optional  pam_exec.so quiet /usr/bin/rm -f /run/omarchy-splash-progress

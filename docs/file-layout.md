@@ -15,7 +15,7 @@ separate `omarchy-pkgs` repository, under `pkgbuilds/`):
   the omarchy package installs (specifically before `useradd -m` and the
   limine bootloader install): all `/etc/skel/**`, `/etc/` drop-ins,
   package-owned system files under `/usr/share` and `/usr/lib`, fonts,
-  plymouth theme, sddm theme, branding, plus the limine/snapper configs
+  plymouth theme, boot splash hook, branding, plus the limine/snapper configs
   (mkinitcpio hooks, limine-entry-tool drop-ins, snapper template, the
   `default/limine/` and `default/snapper/` trees, and the boot/snapshot
   story end-to-end). Also ships the three debug binaries
@@ -107,6 +107,7 @@ applications/icons/*           ──►  omarchy-settings    /usr/share/icons/h
 
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
   ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_compression,omarchy_hooks,omarchy_mount_events,thunderbolt_module}.conf
+  ├─ initcpio/{install,hooks}/omarchy-splash             (the boot splash; mkinitcpio reads /etc/initcpio)
   ├─ limine-entry-tool.d/{omarchy-defaults,omarchy-uki}.conf
   ├─ mise/conf.d/{omarchy,omarchy-tools}.toml
   ├─ NetworkManager/, sudoers.d/, sysctl.d/, tmpfiles.d/,
@@ -156,8 +157,9 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   ├─ systemd/zram-generator.conf.d/90-omarchy.conf      /usr/lib/systemd/zram-generator.conf.d/
   ├─ systemd/timesyncd.conf.d/10-omarchy.conf          /usr/lib/systemd/timesyncd.conf.d/
   ├─ fonts/omarchy/omarchy.ttf                          /usr/share/fonts/omarchy/
-  ├─ sddm/omarchy/                                      /usr/share/sddm/themes/omarchy/
-  ├─ sddm/hyprland.lua                                  /usr/share/sddm/hyprland.lua
+  ├─ splash/                                            /usr/share/omarchy/default/splash/
+  │                                                       (boot splash, built into the initramfs by
+  │                                                        etc/initcpio/; and the greetd login screen)
   ├─ wayland-sessions/omarchy.desktop                   /usr/local/share/wayland-sessions/
   └─ plymouth/                                          /usr/share/plymouth/themes/omarchy/
 
@@ -385,7 +387,7 @@ finalization. It sources:
 - `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and
   device-specific kernel modules, udev rules, microcode, wireless regdom,
   ASUS / Framework / Intel / Apple / Lenovo quirks.
-- `install/login/all.sh` — SDDM theme/session config.
+- `install/login/all.sh` — greetd, the login screen.
 - `install/post-install/all.sh` — final pacman and udev passes; the `plocate-updatedb` timer builds the locate database after first boot.
 
 Logging goes to `/var/log/omarchy-install.log` via
@@ -422,7 +424,7 @@ brand-new user, so this one copy resyncs `.bashrc`, `.config/**`,
 `.local/share/applications/`, the nautilus-python extensions, hypr toggles,
 branding files, and the shipped migration markers in a single pass.
 
-Then it runs `omarchy-refresh-limine`, `omarchy-refresh-plymouth`, and the
+Then it runs `omarchy-refresh-limine` and the
 nvim refresh. Destructive: existing user files copied from `/etc/skel` are
 clobbered without backup. Fastfetch is package-owned at
 `/etc/fastfetch/config.jsonc`; delete `~/.config/fastfetch/config.jsonc` to

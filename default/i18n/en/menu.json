@@ -289,9 +289,6 @@
   "appearance.animations-off": {
     "label": "Animations Off"
   },
-  "appearance.unlock": {
-    "label": "Unlock"
-  },
   "trigger.toggle": {
     "label": "Toggle"
   },
@@ -1423,9 +1420,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"

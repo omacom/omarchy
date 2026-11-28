@@ -1,0 +1,34 @@
+#!/usr/bin/ash
+# One unlock attempt from the splash, run the way Plymouth's client ran
+# --command: the password is on stdin, and the arguments after the request id
+# are the command, already split on spaces. The exit status goes back to the
+# `plymouth ask-for-password` that is waiting for it.
+#
+# The attempt runs in the background, apart from this script, which Quickshell
+# kills when it exits (Escape, or sway going away): an unlock under way is
+# never cut short, and its answer still arrives.
+
+run=/run/omarchy-splash
+id=$1
+shift
+
+# A non-interactive shell gives a background job /dev/null for its stdin,
+# unless that comes from another descriptor.
+exec 3<&0
+(
+  exec 3<&-
+  "$@"
+  status=$?
+  printf '%s %s\n' "$id" "$status" >"$run/result"
+  exit "$status"
+) <&3 &
+attempt=$!
+exec 3<&-
+
+# Which request is being answered, and by what: `plymouth ask-for-password`
+# waits for it before it moves the prompt to the console, and a splash started
+# again on another GPU (see session) shows its progress instead of asking for
+# the password again.
+echo "$id $attempt" >"$run/answering"
+
+wait "$attempt"

@@ -1,0 +1,7 @@
+#!/bin/bash
+# The desktop session the login screen and autologin start: Omarchy's
+# Hyprland under uwsm, as default/wayland-sessions/omarchy.desktop runs it.
+#
+# greetd runs it on the login screen's console, so its output goes to the
+# journal instead of onto the screen while Hyprland starts.
+exec systemd-cat --identifier=omarchy-session uwsm start -g -1 -e -D Hyprland hyprland.desktop

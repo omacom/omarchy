@@ -74,6 +74,19 @@ stop() {
 }
 trap stop HUP INT TERM
 
+# The startup cover, up until the shell has loaded and reveals the desktop: a
+# small instance of its own, with the shell's settings, which fades out when the
+# shell says, after 10 seconds at the latest (shell/startup-cover.qml). Only for
+# a session's first shell: the shell's intro marks the session as started
+# (omarchy-theme-bg-boot-intro), and a restart has no startup to cover. Started
+# once: a shell relaunched before that mark reports to it in the same way, and
+# one relaunched after it leaves the cover to its 10 seconds.
+session_marker=$HOME/.local/state/omarchy/background-intro.session-id
+if [[ ! -f $session_marker || $(<"$session_marker") != "${OMARCHY_SESSION_ID:-$HYPRLAND_INSTANCE_SIGNATURE}" ]]; then
+  QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 QS_DISABLE_CRASH_HANDLER=1 \
+    systemd-cat -t omarchy-startup-cover -- quickshell -n -p "$OMARCHY_PATH/shell/startup-cover.qml" &
+fi
+
 attempts=0
 window_started=$SECONDS
 

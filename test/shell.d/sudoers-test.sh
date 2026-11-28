@@ -22,6 +22,7 @@ declare -A expected=(
   [omarchy-sudo-no-lecture]='Defaults lecture=never'
   [omarchy-sudo-timeout]='Defaults timestamp_timeout=10'
   [omarchy-theme-browser]='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-theme-set-browser-policy [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'
+  [omarchy-theme-login]='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-theme-set-login-colors [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f] [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f] [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f] [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'
   [omarchy-tzupdate]='%wheel ALL=(root) NOPASSWD: /usr/bin/timedatectl ^set-timezone [A-Za-z0-9_+][A-Za-z0-9_+.-]*(/[A-Za-z0-9_+][A-Za-z0-9_+.-]*)*$'
 )
 
