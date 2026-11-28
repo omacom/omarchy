@@ -194,6 +194,46 @@ class TypingSetupTest(unittest.TestCase):
       self.assertEqual(setter.call_args.args, after)
       self.assertEqual((Path(temporary) / "omarchy/keyboard-layouts").read_text(), "XKBLAYOUT=fr,us\nXKBVARIANT=,intl\n")
 
+  def test_changed_layouts_restart_fcitx_to_replace_its_stale_keymap(self):
+    with tempfile.TemporaryDirectory() as temporary:
+      before = ("Default", "us", [["keyboard-us", ""]])
+      after = ("Default", "no", [["keyboard-no", ""]])
+      with patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}), patch.object(typing.setup, "live_group", side_effect=[before, after]), patch.object(typing.setup, "run", return_value="") as run, patch.object(typing, "keyboard_selection", side_effect=[["us"], ["no"]]), patch.object(typing.setup, "live_set"), patch.object(typing.setup, "wait_ready") as ready:
+        typing.save_keyboard(["no"])
+      self.assertEqual(run.call_args.args, (["omarchy-restart-xcompose"],))
+      ready.assert_called_once_with("keyboard-no")
+      # Saving the layouts Hyprland already has leaves Fcitx running.
+      with patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}), patch.object(typing.setup, "live_group", side_effect=[after, after]), patch.object(typing.setup, "run", return_value="") as run, patch.object(typing, "keyboard_selection", return_value=["no"]), patch.object(typing.setup, "live_set"), patch.object(typing.setup, "wait_ready") as ready:
+        typing.save_keyboard(["no"])
+      self.assertNotIn((["omarchy-restart-xcompose"],), [call.args for call in run.call_args_list])
+      ready.assert_not_called()
+
+
+  def test_failed_keyboard_restart_restores_the_group_and_refreshes_the_keymap(self):
+    before = ("Default", "us", [["keyboard-us", ""]])
+    after = ("Default", "no", [["keyboard-no", ""]])
+    for failure in ("restart", "readiness", "recovery"):
+      with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+        calls = []
+        def run(command):
+          if command == ["omarchy-restart-xcompose"]:
+            calls.append("restart")
+            if failure == "restart" and calls.count("restart") == 1:
+              raise RuntimeError("restart failed after stopping Fcitx")
+            if failure == "recovery" and calls.count("restart") == 2:
+              raise RuntimeError("recovery failed")
+          return ""
+        def restore(*args):
+          calls.append(args)
+        ready = [RuntimeError("not ready"), None] if failure != "restart" else [None]
+        with patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}), patch.object(typing.setup, "live_group", side_effect=[before, after]), patch.object(typing.setup, "run", side_effect=run), patch.object(typing, "keyboard_selection", side_effect=[["us"], ["no"]]), patch.object(typing.setup, "live_set", side_effect=restore), patch.object(typing.setup, "wait_ready", side_effect=ready) as wait:
+          with self.assertRaises(RuntimeError) as raised:
+            typing.save_keyboard(["no"])
+        self.assertNotEqual(str(raised.exception), "recovery failed")
+        self.assertEqual(calls, [after, "restart", before, "restart"])
+        self.assertEqual(wait.call_args.args, ("keyboard-no" if failure == "recovery" else "keyboard-us",))
+        self.assertFalse((Path(temporary) / "omarchy/keyboard-layouts").exists())
+
 
 if __name__ == "__main__":
   unittest.main()

@@ -28,4 +28,5 @@ if pgrep -u "$UID" -x fcitx5 >/dev/null; then
   echo "Fcitx did not stop; input service was not restarted." >&2
   exit 1
 fi
+systemctl --user reset-failed omarchy-fcitx5.service
 systemctl --user start omarchy-fcitx5.service
