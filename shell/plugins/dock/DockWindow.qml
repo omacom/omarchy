@@ -314,15 +314,18 @@ PanelWindow {
   }
 
   // The dock slides out over windows, where bare icons land on their content
-  // and borders. A mist of the theme's background rises from the screen edge
-  // behind them: thick at the edge, thinning unevenly inward and toward both
-  // ends, with no outline, so the icons have ground to stand on without the
-  // dock becoming a box. It stays put and clears as the dock tucks away.
+  // and borders. A mist of the theme's background stands behind them: close to
+  // solid from the screen edge through the icons, so nothing beneath tangles
+  // with them, then easing out to nothing just past them and toward both
+  // ends, with no outline. It stays put and clears as the dock tucks away.
   Canvas {
     id: mist
 
-    readonly property real reach: window.slotSize * 1.25
-    readonly property real depth: window.gap + window.slotSize * 1.45
+    // How far past the dock's ends it runs, dissolving, and how far inward.
+    readonly property real reach: window.slotSize * 2.5
+    readonly property real depth: window.gap + window.slotSize * 1.9
+    // The share of the depth, from the screen edge, the icons stand in.
+    readonly property real ground: (window.gap + window.slotSize * 0.8) / depth
     property color tint: Commons.Color.background
 
     visible: window.shown && opacity > 0
@@ -342,51 +345,45 @@ PanelWindow {
       function onPositionChanged() { mist.requestPaint() }
     }
 
-    // Thin strips along the edge, each fading inward from the screen edge to
-    // just past the icons. The depth follows smooth noise, so the mist's inner
-    // edge wavers slightly, and it thins to nothing toward both ends. The noise is the same every
-    // time, so the mist does not shift between paints.
-    function drift(at) {
-      function hash(n) {
-        var v = Math.sin(n * 12.9898) * 43758.5453
-        return v - Math.floor(v)
-      }
-      function wave(t) {
-        var i = Math.floor(t)
-        var f = t - i
-        f = f * f * (3 - 2 * f)
-        return hash(i) * (1 - f) + hash(i + 1) * f
-      }
-      return wave(at) * 0.65 + wave(at * 2.7 + 31) * 0.35
-    }
-
+    // One gradient across the depth, then both ends dissolved out of it, each
+    // along an eased curve in many stops: a few straight segments would show
+    // as bands, and strips painted side by side as stripes.
     onPaint: {
       var ctx = getContext("2d")
       ctx.reset()
-      var length = window.vertical ? height : width
       var rgb = "rgba(" + Math.round(mist.tint.r * 255) + "," + Math.round(mist.tint.g * 255) + "," + Math.round(mist.tint.b * 255) + ","
-      var strip = 2
-      for (var along = 0; along < length; along += strip) {
-        var taper = Math.max(0, Math.min(1, Math.min(along, length - along) / mist.reach))
-        taper = taper * taper * (3 - 2 * taper)
-        if (taper < 0.004) continue
-        var deep = mist.depth * (0.88 + 0.12 * mist.drift(along / (window.slotSize * 2.5)))
-        var strength = (0.7 * taper).toFixed(3)
-        var gradient
-        if (window.vertical) {
-          var edgeX = window.position === "left" ? 0 : width
-          gradient = ctx.createLinearGradient(edgeX, 0, window.position === "left" ? deep : width - deep, 0)
-        } else {
-          var edgeY = window.position === "top" ? 0 : height
-          gradient = ctx.createLinearGradient(0, edgeY, 0, window.position === "top" ? deep : height - deep)
+      function ease(t) {
+        t = Math.max(0, Math.min(1, t))
+        return t * t * t * (t * (t * 6 - 15) + 10)
+      }
+      var stops = 24
+      var near = window.position === "left" || window.position === "top"
+
+      var across = window.vertical
+        ? ctx.createLinearGradient(near ? 0 : width, 0, near ? width : 0, 0)
+        : ctx.createLinearGradient(0, near ? 0 : height, 0, near ? height : 0)
+      for (var i = 0; i <= stops; i++) {
+        var t = i / stops
+        var cover = 0.9 * (1 - ease((t - mist.ground) / (1 - mist.ground)))
+        across.addColorStop(t, rgb + cover.toFixed(4) + ")")
+      }
+      ctx.fillStyle = across
+      ctx.fillRect(0, 0, width, height)
+
+      ctx.globalCompositeOperation = "destination-out"
+      var length = window.vertical ? height : width
+      for (var side = 0; side < 2; side++) {
+        var from = side === 0 ? 0 : length
+        var to = side === 0 ? mist.reach : length - mist.reach
+        var fade = window.vertical ? ctx.createLinearGradient(0, from, 0, to) : ctx.createLinearGradient(from, 0, to, 0)
+        for (var j = 0; j <= stops; j++) {
+          var u = j / stops
+          fade.addColorStop(u, "rgba(0,0,0," + (1 - ease(u)).toFixed(4) + ")")
         }
-        gradient.addColorStop(0, rgb + strength + ")")
-        gradient.addColorStop(0.4, rgb + (strength * 0.6).toFixed(3) + ")")
-        gradient.addColorStop(0.75, rgb + (strength * 0.18).toFixed(3) + ")")
-        gradient.addColorStop(1, rgb + "0)")
-        ctx.fillStyle = gradient
-        if (window.vertical) ctx.fillRect(0, along, width, strip)
-        else ctx.fillRect(along, 0, strip, height)
+        ctx.fillStyle = fade
+        var low = Math.min(from, to)
+        if (window.vertical) ctx.fillRect(0, low, width, mist.reach)
+        else ctx.fillRect(low, 0, mist.reach, height)
       }
     }
   }
