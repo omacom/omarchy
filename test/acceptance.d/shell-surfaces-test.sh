@@ -96,24 +96,37 @@ omarchy-shell notifications dismissAll >/dev/null
 notifications_cleared() { [[ $(omarchy-shell notifications count) == "0" ]]; }
 wait_until "notification popup closes" 15 notifications_cleared
 
-# The menu's Apps submenu does the full launcher loop: open, search by
-# typing, launch the top hit.
+# Summoning the Apps route opens the dock app grid, which does the full
+# launcher loop: open, search by typing, launch the top hit.
+if layer_present "omarchy-dock-apps" >/dev/null 2>&1; then
+  fail "app launch test starts with app grid closed" "omarchy-dock-apps is already open"
+fi
+
 if window_present "(?i)omawrite" >/dev/null 2>&1; then
   fail "app launch test starts with no Omawrite window" "an Omawrite window is already open"
 fi
 
+cleanup_app_grid() {
+  if layer_on_overlay "omarchy-dock-apps" >/dev/null 2>&1; then
+    wtype -k Escape -k Escape >/dev/null 2>&1 || true
+  fi
+  close_windows "(?i)omawrite"
+}
+trap cleanup_app_grid EXIT
+
 omarchy-menu summon apps >/dev/null
-wait_until "apps menu opens" 15 layer_on_overlay "omarchy-menu"
+wait_until "app grid opens" 15 layer_on_overlay "omarchy-dock-apps"
 sleep 1
-screenshot "success-apps-menu-open"
+screenshot "success-app-grid-open"
 
 wtype "omawrite"
 sleep 1
-screenshot "success-apps-menu-search"
+screenshot "success-app-grid-search"
 wtype -k Return
 
-wait_until "apps menu launches the top search hit" 60 window_present "(?i)omawrite"
-wait_until "apps menu closes after launching" 15 layer_absent "omarchy-menu"
+wait_until "app grid launches the top search hit" 60 window_present "(?i)omawrite"
+wait_until "app grid closes after launching" 15 layer_absent "omarchy-dock-apps"
 
 close_windows "(?i)omawrite"
 wait_until "Omawrite window closes" 30 window_absent "(?i)omawrite"
+trap - EXIT
