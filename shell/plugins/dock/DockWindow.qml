@@ -280,9 +280,8 @@ PanelWindow {
 
   Timer {
     id: hideTimer
-    // Long enough to cross a gap between the edge and the icons, or to drift
-    // off the dock for a moment, without it already being gone.
-    interval: 195
+    // Long enough to cross a gap between the edge and the icons, no longer.
+    interval: 150
     onTriggered: {
       if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging && !window.movingDock) window.revealed = false
     }
@@ -329,13 +328,14 @@ PanelWindow {
     // where it belongs at once.
     property real tuck: window.tucked ? window.slotSize + window.gap : 0
 
-    // Tucking away is quicker than coming back. A gentler curve than
+    // Tucking away is quicker than coming back, though not so quick that the
+    // dock seems to vanish rather than slide off. A gentler curve than
     // Style.easeOut, which crosses the short slide in a frame or two.
     Behavior on tuck {
       id: tuckMotion
       enabled: window.shown
       NumberAnimation {
-        duration: Style.duration(tuckMotion.targetValue > 0 ? 120 : 180)
+        duration: Style.duration(tuckMotion.targetValue > 0 ? 156 : 180)
         easing.type: Easing.OutCubic
       }
     }
