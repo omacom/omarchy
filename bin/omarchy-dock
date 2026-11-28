@@ -1,9 +1,10 @@
 #!/bin/bash
 
-# omarchy:summary=Configure the dock shown on floating workspaces
+# omarchy:summary=Configure the app dock
 # omarchy:group=dock
 # omarchy:subcommand=position [top|bottom|left|right] — Set the dock position, or print it when given none
-# omarchy:subcommand=autohide [on|off|toggle] — Hide the dock until the pointer reaches its edge, or print the setting
+# omarchy:subcommand=autohide [on|off|toggle] — Hide the dock on floating workspaces until the pointer reaches its edge, or print the setting
+# omarchy:subcommand=tiling [on|off|toggle] — Show the dock, auto-hidden, on tiled workspaces too, or print the setting
 # omarchy:subcommand=pinned [<desktop-id>...] — Set the pinned apps in dock order, or print them
 # omarchy:subcommand=pin <desktop-id> — Keep an app in the dock
 # omarchy:subcommand=unpin <desktop-id> — Remove an app from the dock
@@ -19,9 +20,12 @@ Usage: omarchy dock <command> [args...]
 
   position [top|bottom|left|right]     Dock position; prints the current one
                                        when given none
-  autohide [on|off|toggle]             Hide the dock until the pointer reaches
-                                       its edge; prints on or off when given
-                                       none
+  autohide [on|off|toggle]             Hide the dock on floating workspaces
+                                       until the pointer reaches its edge;
+                                       prints on or off when given none
+  tiling [on|off|toggle]               Show the dock, always auto-hidden, on
+                                       tiled workspaces too; prints on or off
+                                       when given none
   pinned [<desktop-id>...]             Pinned desktop ids in dock order; prints
                                        them one per line when given none
   pin <desktop-id>                     Keep an app in the dock
@@ -70,6 +74,31 @@ cmd_autohide() {
   echo "Dock auto-hide turned $value"
 }
 
+# On unless turned off, so a shell.json without the key has the tiled dock.
+current_tiling() {
+  jq -r 'if .dock.tiling == false then "off" else "on" end' "$(source_file)"
+}
+
+cmd_tiling() {
+  if (( $# == 0 )); then
+    current_tiling
+    return
+  fi
+
+  local value="$1"
+  (( $# == 1 )) || fail "tiling takes a single value"
+  if [[ $value == "toggle" ]]; then
+    if [[ $(current_tiling) == "on" ]]; then
+      value=off
+    else
+      value=on
+    fi
+  fi
+  [[ $value =~ ^(on|off)$ ]] || fail "tiling must be on, off, or toggle"
+  commit "$NORMALIZE | .dock.tiling = (\$value == \"on\")" --arg value "$value"
+  echo "Dock on tiled workspaces turned $value"
+}
+
 cmd_pinned() {
   if (( $# == 0 )); then
     jq -r --slurpfile defaults "$DEFAULTS_FILE" "$PINNED | .[]" "$(source_file)"
@@ -114,6 +143,7 @@ command="${1:-}"
 case "$command" in
   position) cmd_position "$@" ;;
   autohide) cmd_autohide "$@" ;;
+  tiling) cmd_tiling "$@" ;;
   pinned) cmd_pinned "$@" ;;
   pin) cmd_pin "$@" ;;
   unpin) cmd_unpin "$@" ;;

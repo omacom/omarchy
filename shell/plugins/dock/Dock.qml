@@ -5,9 +5,11 @@ import Quickshell.Io
 import qs.Commons
 import "DockModel.js" as DockModel
 
-// An app dock that shows on floating workspaces. A floating workspace has no
-// tiles to hand the apps out, so the dock gives back a place to find them:
-// pinned apps, running apps, and a grid of every app.
+// An app dock: pinned apps, running apps, and a grid of every app. A floating
+// workspace has no tiles to hand the apps out, so the dock is a place to find
+// them there. Tiled workspaces get it too, unless turned off, always
+// auto-hidden so it never sits over the tiles, and it is where windows
+// minimized from them wait.
 Item {
   id: root
 
@@ -20,6 +22,7 @@ Item {
   readonly property string position: DockModel.normalizePosition(dockConfig.position)
   readonly property bool vertical: DockModel.isVertical(position)
   readonly property bool autohide: dockConfig.autohide === true
+  readonly property bool tiling: dockConfig.tiling !== false
 
   // The dock's order for the session, as desktop ids, set when the user moves
   // an app: a drag moves it, and keeping it in the dock puts it at the end. An

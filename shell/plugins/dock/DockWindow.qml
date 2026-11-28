@@ -7,8 +7,9 @@ import qs.Commons as Commons
 import qs.Ui
 import "DockModel.js" as DockModel
 
-// One screen's dock. Mapped only while this screen is on a floating workspace
-// so tiled workspaces do not hold a live layer surface and dmabuf swapchain.
+// One screen's dock. Mapped only while this screen is on a workspace that has
+// one, so a session with the tiled dock turned off holds no live layer surface
+// and dmabuf swapchain on its tiled workspaces.
 PanelWindow {
   id: window
   visible: window.shown
@@ -37,11 +38,13 @@ PanelWindow {
     }
     return mode
   }
-  readonly property bool shown: !!dock && dock.isFloating(workspaceId) && fullscreenMode < 2
+  readonly property bool floating: !!dock && dock.isFloating(workspaceId)
+  readonly property bool shown: !!dock && (floating || (dock.tiling && !!workspace)) && fullscreenMode < 2
   // With auto-hide on, the dock waits off screen until the pointer reaches its
   // edge, and stays while the pointer, a menu, or a drag still needs it. A
-  // maximized window hides the dock the same way, so it can still be called up.
-  readonly property bool autohide: !!dock && (dock.autohide || fullscreenMode === 1)
+  // maximized window hides the dock the same way, so it can still be called up,
+  // and so does a tiled workspace, whose windows reach the screen edge.
+  readonly property bool autohide: !!dock && (dock.autohide || fullscreenMode === 1 || !floating)
   property bool revealed: false
   readonly property bool menuOpen: menuItem !== null || settingsMenu
   readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || insertIndex >= 0)
@@ -610,12 +613,13 @@ PanelWindow {
         }
       }
 
+      // A tiled workspace always hides the dock, so the setting is a floating one.
       PopupMenuRow {
-        visible: window.settingsMenu
+        visible: window.settingsMenu && window.floating
         text: Commons.I18n.t("dock.autoHide")
-        checked: window.autohide
+        checked: !!window.dock && window.dock.autohide
         onTriggered: {
-          Util.execDetached("omarchy-dock autohide " + (window.autohide ? "off" : "on"))
+          Util.execDetached("omarchy-dock autohide " + (window.dock.autohide ? "off" : "on"))
           window.closeMenu()
         }
       }

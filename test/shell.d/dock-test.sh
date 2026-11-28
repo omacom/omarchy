@@ -214,7 +214,7 @@ STUB
 chmod +x "$mock_bin/hyprctl"
 printf '#!/bin/bash\n[[ $1 == 9 ]] && echo dwindle || echo floating\n' >"$mock_bin/omarchy-hyprland-workspace-layout-current"
 chmod +x "$mock_bin/omarchy-hyprland-workspace-layout-current"
-minimize() { PATH="$mock_bin:$ROOT/bin:$PATH" omarchy-hyprland-window-minimize "$@"; }
+minimize() { HOME="$home" PATH="$mock_bin:$ROOT/bin:$PATH" omarchy-hyprland-window-minimize "$@"; }
 
 minimize 0xabc
 grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-3", window = "address:0xabc" })' "$TMPDIR/hyprctl.log" ||
@@ -245,8 +245,8 @@ grep -qxF 'hl.dsp.window.tag({ tag = "+omarchy-minimized-from-7", window = "addr
   fail "minimize remembers the workspace it leaves this time" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize remembers only the workspace the window is leaving"
 
-# A tiled workspace has no dock to bring a window back from, so nothing there
-# is minimized.
+# A tiled workspace has an auto-hidden dock unless it is turned off, and with
+# it off there is nowhere to bring a window back from, so nothing is minimized.
 cat >"$mock_bin/hyprctl" <<STUB
 #!/bin/bash
 case "\$1" in
@@ -256,5 +256,11 @@ esac
 STUB
 : >"$TMPDIR/hyprctl.log"
 minimize
-[[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
-pass "minimize leaves windows on a tiled workspace alone"
+grep -qxF 'hl.dsp.window.move({ workspace = "special:minimized", follow = false, window = "address:0x999" })' "$TMPDIR/hyprctl.log" ||
+  fail "minimize sends a window on a tiled workspace to its dock" "$(cat "$TMPDIR/hyprctl.log")"
+omarchy_dock tiling off >/dev/null
+: >"$TMPDIR/hyprctl.log"
+minimize
+[[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows alone on a tiled workspace without a dock" "$(cat "$TMPDIR/hyprctl.log")"
+omarchy_dock tiling on >/dev/null
+pass "minimize works on a tiled workspace only while it has a dock"

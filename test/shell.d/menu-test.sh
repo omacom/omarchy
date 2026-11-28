@@ -265,26 +265,6 @@ assert(
   fs.rmSync(home, { recursive: true, force: true })
 }
 
-// The dock only appears on floating workspaces, so its settings only show
-// there. Ask bash, against a stubbed layout for the active workspace.
-{
-  const os = require('os')
-  const { execFileSync } = require('child_process')
-  const stub = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-dock-layout-'))
-  const shown = layout => {
-    fs.writeFileSync(path.join(stub, 'omarchy-hyprland-workspace-layout-current'), `#!/bin/bash\necho ${layout}\n`, { mode: 0o755 })
-    try {
-      execFileSync('bash', ['-c', defaultById['appearance.dock'].when], { env: { ...process.env, PATH: `${stub}:${process.env.PATH}` } })
-      return true
-    } catch (e) {
-      return false
-    }
-  }
-  assert(shown('floating'), 'menu shows Appearance > Dock on a floating workspace')
-  assert(!shown('dwindle') && !shown('scrolling'), 'menu hides Appearance > Dock on a tiled workspace')
-  fs.rmSync(stub, { recursive: true, force: true })
-}
-
 // Auto-hide Dock shows while the dock stays up, and Always-on Dock while it
 // hides. Ask bash, against a shell.json in each state, which rows it shows.
 {
