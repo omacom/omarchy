@@ -338,7 +338,10 @@ batch_binds_file="$tmpdir/batch-binds"
 cat >"$batch_stub/hyprctl" <<'SH'
 #!/bin/bash
 if [[ $1 == "--batch" ]]; then
-  printf '{\n  "str": "us"\n}\n\n\n{\n  "str": ""\n}\n\n\nactive keymap: English (US)\n\n\n'
+  printf '{\n  "str": "us"\n}\n\n\n{\n  "str": ""\n}\n\n\n'
+  if [[ $2 == *"devices"* ]]; then
+    printf 'active keymap: %s\n\n\n' "${OMARCHY_TEST_BATCH_KEYMAP:-English (US)}"
+  fi
   cat "$OMARCHY_TEST_BATCH_BINDS"
 elif [[ $1 == "binds" ]]; then
   cat "$OMARCHY_TEST_BATCH_BINDS"
@@ -365,6 +368,15 @@ batch_second=$(env -i PATH="$batch_stub:$ROOT/bin:$PATH" HOME="$home" \
 grep -qP '→ Second action\texec\tsecond-cmd$' <<<"$batch_second" ||
   fail "batched hyprctl cache invalidates when reported binds change" "$batch_second"
 pass "batched hyprctl IPC path tracks binding changes"
+
+batch_cached=$(stat -c '%i %n' "$tmpdir"/batch-cache/omarchy/keybindings-*.records) ||
+  fail "the batched keybindings menu writes a records cache"
+batch_switched=$(env -i PATH="$batch_stub:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/batch-cache" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_BATCH_BINDS="$batch_binds_file" OMARCHY_TEST_BATCH_KEYMAP="German" bash "$menu" --records)
+[[ $(stat -c '%i %n' "$tmpdir"/batch-cache/omarchy/keybindings-*.records) == "$batch_cached" && $batch_switched == "$batch_second" ]] ||
+  fail "a layout switch keeps the batched keybindings cache and its records" "$batch_switched"
+pass "a layout switch keeps the batched keybindings cache and its records"
 
 # Hyprland 0.57 names a Lua bind by what it was bound to, HL.Dispatcher(<name>)
 # or function: 0x..., with a display-only number as its arg, so picking a row
@@ -418,6 +430,33 @@ timeout --kill-after=1s 60s env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home"
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "a plugin iterating windows at load time does not wedge the keybindings scan (it stopped before the Terminal bind)"
 pass "a plugin iterating windows at load time does not wedge the keybindings scan"
+
+# While an Omarchy menu holds exclusive keyboard focus, Hyprland reports no
+# active keymap at all. A cache name that moves with that state hands every
+# alternating press a cold rebuild that deletes the cache it just replaced,
+# so the same binds have to land on one records file either way.
+stub_hyprctl <<BINDS
+$(exec_bind 64 "SUPER + K" "Keybindings" "omarchy-menu-keybindings")
+BINDS
+
+records_files() { find "$tmpdir/cache/omarchy" -maxdepth 1 -name 'keybindings-*.records'; }
+
+with_keymap=$(keybindings)
+(( $(records_files | wc -l) == 1 )) ||
+  fail "one press leaves exactly one records cache"
+name_with_keymap=$(records_files)
+
+sed -i 's/echo "active keymap: English (US)"/:/' "$stub_bin/hyprctl"
+
+without_keymap=$(keybindings)
+name_without_keymap=$(records_files)
+
+[[ $name_without_keymap == "$name_with_keymap" ]] ||
+  fail "the cache name ignores the transient active-keymap state" \
+    "$(basename "$name_with_keymap") vs $(basename "$name_without_keymap")"
+[[ $without_keymap == "$with_keymap" ]] ||
+  fail "the warm cache renders the same entries back"
+pass "the cache outlives a menu taking keyboard focus"
 
 # Rows show their description in the Omarchy language: a numbered one
 # matches its %1 pattern, an unknown one stays as written, and the chord
