@@ -1,11 +1,13 @@
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Services.Pam
 import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import "FingerprintModel.js" as FingerprintModel
+import "KeyboardLayoutModel.js" as KeyboardLayoutModel
 
 Item {
   id: root
@@ -53,6 +55,11 @@ Item {
   property string backgroundPath: ""
   property string videoPosterPath: ""
   property int backgroundVersion: 0
+  // The layout being typed in, shown under the field when there is more than one.
+  property string keyboardLayout: ""
+  property bool multipleKeyboardLayouts: false
+  property string switchedKeyboardName: ""
+  property bool keyboardLayoutRefreshPending: false
   // The wallpaper file's mtime and size. The lock caches its wallpaper by
   // version, so a file overwritten in place must bump the version too.
   property string backgroundSignature: ""
@@ -153,6 +160,24 @@ Item {
     posterProc.running = true
   }
 
+  // Read only while the lock is up: an idle shell starts no processes.
+  function refreshKeyboardLayout() {
+    if (keyboardLayoutProc.running) {
+      keyboardLayoutRefreshPending = true
+      return
+    }
+
+    keyboardLayoutRefreshPending = false
+    keyboardLayoutProc.running = true
+  }
+
+  // A keyboard named by a switch before this opening may have moved since,
+  // unseen while unlocked, so each opening starts from a fresh reading.
+  function readKeyboardLayoutAfresh() {
+    switchedKeyboardName = ""
+    refreshKeyboardLayout()
+  }
+
   function refreshFingerprintStatus() {
     if (!fingerprintCheckProc.running) fingerprintCheckProc.running = true
   }
@@ -229,6 +254,7 @@ Item {
     Qt.callLater(function() {
       root.refreshBackground()
       root.refreshFingerprintStatus()
+      root.readKeyboardLayoutAfresh()
     })
 
     return true
@@ -467,6 +493,51 @@ Item {
     }
   }
 
+  // A switch on the lock screen raises activelayout, naming the keyboard that
+  // switched, and that is the keyboard being typed on. omarchy-system-lock
+  // resets the seat to its first layout just after the lock, which lands here too.
+  Connections {
+    target: Hyprland
+    enabled: root.locked || root.previewVisible
+    function onRawEvent(event) {
+      if (!event || !event.name) return
+      const name = String(event.name)
+      if (name === "activelayout") {
+        const named = KeyboardLayoutModel.eventKeyboardName(event)
+        if (named) root.switchedKeyboardName = named
+      }
+      if (name.indexOf("activelayout") !== -1 || name === "configreloaded") root.refreshKeyboardLayout()
+    }
+  }
+
+  // Hyprland raises no event when a keyboard is plugged in or unplugged, and the
+  // one the label names may be the one that left.
+  Connections {
+    target: InputDevices
+    enabled: root.locked || root.previewVisible
+    function onChanged() { root.refreshKeyboardLayout() }
+  }
+
+  Process {
+    id: keyboardLayoutProc
+    command: ["hyprctl", "-j", "devices"]
+    onRunningChanged: if (!running && root.keyboardLayoutRefreshPending) root.refreshKeyboardLayout()
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        let keyboards
+        try {
+          keyboards = JSON.parse(text || "{}").keyboards
+        } catch (e) {
+          return
+        }
+        const layout = KeyboardLayoutModel.activeLayout(keyboards, root.switchedKeyboardName)
+        root.keyboardLayout = layout.name
+        root.multipleKeyboardLayouts = layout.multiple
+      }
+    }
+  }
+
   WlSessionLock {
     id: sessionLock
 
@@ -523,6 +594,8 @@ Item {
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
+        keyboardLayout: root.keyboardLayout
+        multipleKeyboardLayouts: root.multipleKeyboardLayouts
         inputEnabled: root.lockRequested
         loadBackground: root.locked
         passwordText: root.enteredPassword
@@ -562,6 +635,8 @@ Item {
       authenticatingPassword: false
       failureMessage: ""
       failedAttempts: 0
+      keyboardLayout: root.keyboardLayout
+      multipleKeyboardLayouts: root.multipleKeyboardLayouts
       inputEnabled: false
       loadBackground: root.previewVisible
       passwordText: ""
@@ -988,6 +1063,7 @@ Item {
     function preview(): string {
       root.refreshBackground()
       root.refreshFingerprintStatus()
+      root.readKeyboardLayoutAfresh()
       root.previewVisible = true
       return "ok"
     }

@@ -17,6 +17,8 @@ Item {
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
+  property string keyboardLayout: ""
+  property bool multipleKeyboardLayouts: false
   property bool inputEnabled: true
   property bool loadBackground: true
   property string passwordText: ""
@@ -248,14 +250,31 @@ Item {
       }
     }
 
+    // The layout a masked password is going in, for a seat that has more than
+    // one: their digits and letters differ, and a guess reads as a wrong password.
+    Text {
+      id: keyboardLayoutIndicator
+      objectName: "keyboardLayoutIndicator"
+      textFormat: Text.PlainText
+      anchors.top: inputField.bottom
+      anchors.topMargin: 18
+      anchors.horizontalCenter: inputField.horizontalCenter
+      visible: root.multipleKeyboardLayouts && root.keyboardLayout.length > 0
+      text: "󰌌  " + root.keyboardLayout
+      color: Commons.Color.lock.placeholder
+      font.family: Style.font.family
+      font.pixelSize: Style.font.heading
+      horizontalAlignment: Text.AlignHCenter
+    }
+
     // The crossed-out icon has no meaning to a user who has never seen it — it
     // is not intuitive that it signals a broken reader — so the words carry the
     // explanation and the icon only reinforces it.
     Text {
       objectName: "fingerprintUnavailableNotice"
       textFormat: Text.PlainText
-      anchors.top: inputField.bottom
-      anchors.topMargin: 18
+      anchors.top: keyboardLayoutIndicator.visible ? keyboardLayoutIndicator.bottom : inputField.bottom
+      anchors.topMargin: keyboardLayoutIndicator.visible ? 8 : 18
       anchors.horizontalCenter: inputField.horizontalCenter
       visible: root.fingerprintConfigured && root.fingerprintUnavailable
       text: Commons.I18n.t("lock.fingerprintUnavailable")

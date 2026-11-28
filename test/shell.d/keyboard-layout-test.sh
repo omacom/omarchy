@@ -196,3 +196,20 @@ assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,Englis
   assert(!needs(false, true, true), 'nothing is needed before the first reading')
 }
 JS
+
+run_node_test <<'JS'
+const lock = requireFromRoot('shell/plugins/lock/KeyboardLayoutModel.js')
+
+const keyboard = (name, layout, keymap, index) => ({ name, layout, active_keymap: keymap, active_layout_index: index })
+const seat = [
+  keyboard('power-button', 'us,cz', 'English (US)', 0),
+  keyboard('hl-virtual-keyboard-fcitx5', 'us', 'English (US)', 0),
+  keyboard('at-translated-set-2-keyboard', 'us,cz', 'Czech (QWERTY)', 1),
+  keyboard('usb-keyboard', 'us,cz', 'English (US)', 0)
+]
+
+assertEqual(lock.activeLayout([keyboard('at-translated-set-2-keyboard', 'us', 'English (US)', 0)], '').multiple, false, 'a single layout keeps the lock screen indicator hidden')
+assertEqual(JSON.stringify(lock.activeLayout(seat, '')), JSON.stringify({ name: 'Czech (QWERTY)', multiple: true }), 'the lock screen names the layout the furthest-advanced typed keyboard is on')
+assertEqual(lock.activeLayout(seat, 'usb-keyboard').name, 'English (US)', 'the keyboard a switch named wins over the furthest-advanced one')
+assertEqual(lock.activeLayout([seat[1]], '').name, '', 'a seat with only an input method keyboard names no layout')
+JS
