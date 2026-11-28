@@ -1,0 +1,365 @@
+#!/bin/bash
+
+# omarchy:summary=List connected USB devices that need software to work, with the setup guide for each
+# omarchy:args=[--menu|--menu-other] [<usb-device-path>...]
+# omarchy:hidden=true
+
+# Prints one JSON object per device that a guide in devices.json covers:
+#   {"id":"04b8:1120","key":"04b8:1120:SERIAL","name":"EPSON L380 Series",
+#    "path":"/sys/bus/usb/devices/1-1","roles":["printer","scanner"],
+#    "guides":["printer.04b8","scanner.04b8"],"ready":false}
+# With --menu, prints "name<TAB>target" for each device that still needs
+# something, the rows of Setup > Devices; --menu-other does the same for
+# hardware with nothing to set up yet, the rows of Setup > Devices > Other.
+# Devices that work with what Omarchy ships (keyboards, mice, storage, audio,
+# webcams, hubs, Bluetooth) have no role and print nothing. Nothing here
+# installs or ships a driver: it only names the guide that says what to get.
+
+set -uo pipefail
+
+usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
+catalog="${OMARCHY_DEVICE_CATALOG:-$OMARCHY_PATH/default/omarchy/devices.json}"
+
+# Vendors whose printers carry a scanner on a vendor-specific interface that
+# SANE or the vendor's backend drives over libusb. HP is left out: its printer
+# guide offers HPLIP with Document Scanner, and the driverless printer guide
+# offers sane-airscan with it for any maker's printer that scans.
+readonly mfp_scanner_vendors=" 04b8 04a9 04f9 "
+# Vendors of standalone scanners, which expose only vendor-specific
+# interfaces: Epson, Canon, Brother, Fujitsu/PFU, Plustek, Avision, Visioneer,
+# Microtek.
+readonly scanner_vendors=" 04b8 04a9 04f9 04c5 07b3 0638 04a7 05da "
+# USB-serial bridge chips: FTDI, WCH (CH340), Silicon Labs (CP210x), Prolific.
+readonly serial_vendors=" 0403 1a86 10c4 067b "
+# Fingerprint reader vendors, as omarchy-hw-fingerprint lists them. libfprint
+# drives these from userspace, so a reader has no kernel driver bound.
+readonly fingerprint_vendors=" 27c6 138a 06cb 08ff 1c7a 147e 2808 "
+
+read_attr() {
+  local value=""
+  [[ -r $1 ]] && value=$(<"$1")
+  printf '%s' "$value"
+}
+
+# The interfaces a device exposes, as "class/subclass/protocol driver name"
+# lines. libusb claims interfaces through usbfs, so an app using the device
+# right now does not count as a kernel driver.
+interfaces() {
+  local dev=$1 intf driver
+  for intf in "$dev"/"${dev##*/}":*; do
+    [[ -r $intf/bInterfaceClass ]] || continue
+    driver=-
+    if [[ -e $intf/driver ]]; then
+      driver=$(readlink -f "$intf/driver")
+      driver=${driver##*/}
+      [[ $driver == "usbfs" ]] && driver=-
+    fi
+    printf '%s/%s/%s %s %s\n' \
+      "$(read_attr "$intf/bInterfaceClass")" \
+      "$(read_attr "$intf/bInterfaceSubClass")" \
+      "$(read_attr "$intf/bInterfaceProtocol")" \
+      "$driver" \
+      "$(read_attr "$intf/interface" | tr ' ' '_')"
+  done
+}
+
+# Roles, one per line, plus "ipp" when the device speaks IPP over USB (a
+# printer interface with protocol 04), which makes printing and scanning
+# driverless.
+roles_of() {
+  local dev=$1 vendor=$2 product=$3
+  local class driver name product_name
+  local printer=0 ipp=0 vendor_specific=0 ptp=0 mtp=0 smartcard=0 serial=0 usbmux=0
+  local hid=0 network=0 bound=0 counted=0
+
+  while read -r class driver name; do
+    [[ -n $class ]] || continue
+
+    # A USB-C Billboard only describes the alternate modes of the port it sits
+    # behind, so a hub or monitor carrying one works without a driver for it.
+    # ADB is what a phone offers with USB debugging on, for the developer who
+    # turned it on.
+    [[ $class == 11/* || $class == ff/42/01 ]] && continue
+
+    counted=1
+    [[ $driver != "-" ]] && bound=1
+    # Phones offer MTP as vendor-specific or as a still-image interface.
+    [[ $name == "MTP" ]] && mtp=1
+
+    case $class in
+    07/*)
+      printer=1
+      [[ $class == 07/01/04 ]] && ipp=1
+      ;;
+    06/*) ptp=1 ;;
+    0b/*) smartcard=1 ;;
+    03/*) [[ $driver != "-" ]] && hid=1 ;;
+    02/02/*) serial=1 ;;
+    02/0d/* | 02/0e/*) network=1 ;;
+    ff/fe/02) usbmux=1 ;;
+    ff/*) vendor_specific=1 ;;
+    esac
+  done < <(interfaces "$dev" | sort -u)
+
+  ((counted)) || return 0
+
+  if ((printer)); then
+    echo printer
+    if [[ $mfp_scanner_vendors == *" $vendor "* ]] && ((vendor_specific || ipp)); then
+      echo scanner
+    fi
+    ((ipp)) && echo ipp
+    return 0
+  fi
+
+  # iPhones and iPads are Apple's 12xx products, as usbmuxd's own udev rule has
+  # them; the T2 bridge of an Intel Mac also speaks usbmux and is not one.
+  if ((usbmux)) && [[ $vendor == "05ac" && $product == 12* ]]; then
+    echo iphone
+    return 0
+  fi
+
+  # Android phones in file-transfer mode work through gvfs-mtp, which Omarchy
+  # ships; some of them also offer PTP.
+  ((mtp)) && return 0
+
+  if ((ptp)); then
+    echo camera
+    return 0
+  fi
+
+  # A security key that is also a smart card (a YubiKey) types and does FIDO
+  # over its HID interface already; only a reader that is nothing else needs
+  # the PC/SC daemon to do anything at all.
+  if ((smartcard && !hid)); then
+    echo smartcard
+    return 0
+  fi
+
+  # A cellular modem carries a serial port next to its network interface,
+  # which ModemManager drives.
+  if ((!network)) && { ((serial)) || [[ $serial_vendors == *" $vendor "* ]]; }; then
+    echo serial
+    return 0
+  fi
+
+  if [[ $vendor == "17e9" ]]; then
+    echo displaylink
+    return 0
+  fi
+
+  # The names omarchy-hw-fingerprint trusts outright, so a reader it finds is
+  # this one rather than a second, platform entry: Elan's match-on-chip readers
+  # say "ELAN:ARM-M4" and Fingerprint Cards' lead with "FPC ".
+  product_name=$(read_attr "$dev/product")
+  product_name=${product_name,,}
+  if ((!bound)) && [[ $fingerprint_vendors == *" $vendor "* || $product_name == *fingerprint* || $product_name == *biometric* || $product_name == *elan:arm-m4* || $product_name == "fpc "* ]]; then
+    echo fingerprint
+    return 0
+  fi
+
+  if ((vendor_specific && !bound)) && [[ $scanner_vendors == *" $vendor "* ]]; then
+    echo scanner
+    return 0
+  fi
+
+  # A device the kernel bound nothing to at all.
+  ((bound)) || echo unknown
+}
+
+# The most specific guide the catalog has for a role: the exact model, then
+# driverless, then the vendor, then the role itself.
+guide_for() {
+  local role=$1 vendor=$2 product=$3 ipp=$4 key
+  local candidates=("$role.$vendor:$product")
+  ((ipp)) && candidates+=("$role.ipp")
+  candidates+=("$role.$vendor" "$role")
+
+  for key in "${candidates[@]}"; do
+    if jq -e --arg key "$key" 'has($key)' "$catalog" >/dev/null 2>&1; then
+      echo "$key"
+      return 0
+    fi
+  done
+  return 1
+}
+
+pacman_has() {
+  pacman -Q -- "$@" >/dev/null 2>&1
+}
+
+check_passes() {
+  local check=$1 serial=$2
+  case $check in
+  cups-queue)
+    # The CUPS usb backend writes the device's serial into the queue URI.
+    local queues
+    queues=$(lpstat -v 2>/dev/null) || return 1
+    if [[ -n $serial ]]; then
+      # Whole, so serial X33 is not satisfied by a queue for X33Q.
+      local line rest
+      while IFS= read -r line; do
+        [[ $line == *"serial=$serial"* ]] || continue
+        rest=${line#*"serial=$serial"}
+        [[ -z $rest || $rest == [\&?[:space:]]* ]] && return 0
+      done <<<"$queues"
+      return 1
+    else
+      [[ $queues == *"usb://"* ]]
+    fi
+    ;;
+  # Omarchy's fingerprint setup puts pam_fprintd in sudo's stack.
+  fingerprint-enabled) grep -q pam_fprintd "${OMARCHY_PAM_SUDO:-/etc/pam.d/sudo}" 2>/dev/null ;;
+  group:*) id -nG | tr ' ' '\n' | grep -qx -- "${check#group:}" ;;
+  unit:*) systemctl is-enabled --quiet -- "${check#unit:}" 2>/dev/null ;;
+  *) return 1 ;;
+  esac
+}
+
+# A guide is satisfied once one of its options is fully installed and every
+# check passes. Options are what the user picks between, so any of them counts.
+guide_ready() {
+  local guide=$1 serial=$2 packages check installed=0 installable=0
+
+  while IFS= read -r packages; do
+    [[ -n $packages ]] || continue
+    installable=1
+    # shellcheck disable=SC2086 # one word per package
+    if pacman_has $packages; then
+      installed=1
+      break
+    fi
+  done < <(jq -r --arg key "$guide" '.[$key].options // [] | .[] | ((.packages // []) + (.aur // [])) | join(" ")' "$catalog")
+
+
+  while IFS= read -r check; do
+    [[ -n $check ]] || continue
+    check_passes "$check" "$serial" || return 1
+    # A queue for this exact printer also covers vendor-installed drivers.
+    if [[ $check == "cups-queue" && -n $serial ]]; then installed=1; fi
+  done < <(jq -r --arg key "$guide" '.[$key].check // [] | .[]' "$catalog")
+
+  ((installable && !installed)) && return 1
+
+  # Nothing to install and nothing to check means there is nothing Omarchy can
+  # tell is done: such a device is never ready.
+  ((installable)) || jq -e --arg key "$guide" '(.[$key].check // []) | length > 0' "$catalog" >/dev/null
+}
+
+describe() {
+  local dev=$1 vendor product serial name roles=() guides=() role guide ipp=0 ready=true
+  vendor=$(read_attr "$dev/idVendor")
+  product=$(read_attr "$dev/idProduct")
+  [[ $vendor =~ ^[0-9a-f]{4}$ && $product =~ ^[0-9a-f]{4}$ ]] || return 0
+
+  # Hubs, root hubs and USB-C Billboard devices carry nothing to set up.
+  local device_class
+  device_class=$(read_attr "$dev/bDeviceClass")
+  [[ $device_class == "09" || $device_class == "11" ]] && return 0
+
+  while IFS= read -r role; do
+    [[ -n $role ]] || continue
+    if [[ $role == "ipp" ]]; then
+      ipp=1
+    else
+      roles+=("$role")
+    fi
+  done < <(roles_of "$dev" "$vendor" "$product")
+
+  ((${#roles[@]})) || return 0
+
+  serial=$(read_attr "$dev/serial")
+  for role in "${roles[@]}"; do
+    guide=$(guide_for "$role" "$vendor" "$product" "$ipp") || continue
+    guides+=("$guide")
+    guide_ready "$guide" "$serial" || ready=false
+  done
+
+  ((${#guides[@]})) || return 0
+
+  name="$(read_attr "$dev/manufacturer") $(read_attr "$dev/product")"
+  name=$(tr -s ' ' <<<"$name" | sed 's/^ //; s/ $//')
+  # The name is the device's own say, and a notification headline: one led by
+  # a dash would read as an option of the sender.
+  while [[ $name == -* ]]; do
+    name=${name#-}
+  done
+  name=${name# }
+  [[ -n $name ]] || name="USB device $vendor:$product"
+
+  jq -cn \
+    --arg id "$vendor:$product" \
+    --arg key "$vendor:$product${serial:+:$serial}" \
+    --arg name "$name" \
+    --arg path "$dev" \
+    --argjson roles "$(printf '%s\n' "${roles[@]}" | jq -R . | jq -sc .)" \
+    --argjson guides "$(printf '%s\n' "${guides[@]}" | jq -R . | jq -sc .)" \
+    --argjson ready "$ready" \
+    '{id: $id, key: $key, name: $name, path: $path, roles: $roles, guides: $guides, ready: $ready}'
+}
+
+menu=0
+if [[ ${1:-} == "--menu" ]]; then
+  menu=1
+  shift
+elif [[ ${1:-} == "--menu-other" ]]; then
+  menu=2
+  shift
+fi
+
+full_scan=1
+if (($#)); then
+  devices=("$@")
+  full_scan=0
+else
+  devices=("$usb_devices_path"/*)
+fi
+
+# A reader the platform drives without USB (see omarchy-hw-fingerprint) is
+# found only by a full scan, and only when no USB reader already stood for it.
+# platform_device <key> <name> <guide>: hardware on no bus this script reads.
+platform_device() {
+  local ready=true
+  guide_ready "$3" "" || ready=false
+  jq -cn --arg key "$1" --arg name "$2" --arg guide "$3" --argjson ready "$ready" \
+    '{id: "", key: $key, name: $name, path: "", roles: ["fingerprint"], guides: [$guide], ready: $ready}'
+}
+
+found=$(
+  for dev in "${devices[@]}"; do
+    # Interfaces (1-1:1.0) sit beside devices in the bus directory.
+    [[ ${dev##*/} == *:* ]] && continue
+    [[ -r $dev/idVendor ]] || continue
+    describe "$dev"
+  done
+)
+
+# A fingerprint reader the platform drives without USB (see
+# omarchy-hw-fingerprint) is found only by a full scan, and only when no USB
+# reader already stood for it. Apple Silicon laptops all carry Touch ID, which
+# Linux cannot use yet: listed so it is not a mystery, never announced.
+if ((full_scan)) && ! jq -e 'select(.roles | index("fingerprint"))' <<<"$found" >/dev/null 2>&1; then
+  if OMARCHY_USB_DEVICES_PATH="$usb_devices_path" omarchy-hw-fingerprint 2>/dev/null; then
+    found+=${found:+$'\n'}$(platform_device platform:fingerprint "Fingerprint reader" fingerprint)
+  elif omarchy-hw-aarch64-apple 2>/dev/null && omarchy-hw-laptop 2>/dev/null; then
+    found+=${found:+$'\n'}$(platform_device platform:touchid "Touch ID" fingerprint.touchid)
+  fi
+fi
+
+[[ -n $found ]] || exit 0
+
+# A device is announced, and listed among those to set up, unless every guide it
+# has says there is nothing to set up yet ("announce": false).
+found=$(jq -c --slurpfile catalog "$catalog" \
+  '. + {announce: (.guides | any(. as $g | $catalog[0][$g].announce != false))}' <<<"$found")
+
+# The target is the device's USB id, or its key when it has none (a platform
+# fingerprint reader, platform:touchid): both are what omarchy-setup-device
+# takes, and neither can collide with the fixed rows of a submenu.
+case $menu in
+1) jq -r 'select((.ready | not) and .announce) | [.name, (if .id == "" then .key else .id end)] | @tsv' <<<"$found" ;;
+2) jq -r 'select((.ready | not) and (.announce | not)) | [.name, (if .id == "" then .key else .id end)] | @tsv' <<<"$found" ;;
+*) printf '%s\n' "$found" ;;
+esac
+
+exit 0

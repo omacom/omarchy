@@ -1,0 +1,124 @@
+#!/bin/bash
+
+# omarchy:summary=Announce connected devices that need software to work, with a setup guide
+# omarchy:hidden=true
+
+# Started with the session. A device is announced whenever it needs something
+# that is not installed yet: each time it is plugged in, and at every login it
+# is found connected, until it is set up. Devices that work stay quiet.
+
+set -uo pipefail
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/devices"
+lock_file="$state_dir/announce.lock"
+
+# Interface drivers bind after the device does, some of them only once udev has
+# loaded their module, so give them a moment before reading what bound.
+readonly settle_seconds=${OMARCHY_DEVICE_SETTLE_SECONDS:-3}
+
+# A loose cable reconnects a device several times in a row; announce it once.
+readonly replug_seconds=${OMARCHY_DEVICE_REPLUG_SECONDS:-60}
+
+readonly sysfs_root=${OMARCHY_SYSFS_ROOT:-/sys}
+
+# Nerd Font glyphs, escaped so this file reads without one.
+readonly glyph_printer=$'\U000f042a'
+readonly glyph_scanner=$'\U000f06ab'
+readonly glyph_camera=$'\U000f0100'
+readonly glyph_phone=$'\U000f011c'
+readonly glyph_monitor=$'\U000f0379'
+readonly glyph_usb=$'\U000f0553'
+readonly glyph_fingerprint=$'\U000f0237'
+
+mkdir -p "$state_dir"
+
+announce() {
+  local device=$1 key id name roles body glyph recent
+
+  # Nothing to tell when it is set up, or when there is nothing to set up yet
+  # (Touch ID on Apple Silicon): Setup > Devices > Other lists those.
+  [[ $(jq -r '.ready or (.announce == false)' <<<"$device") == "true" ]] && return 0
+  key=$(jq -r .key <<<"$device")
+  # A platform reader has no USB id; its guide opens by its key.
+  id=$(jq -r 'if .id == "" then .key else .id end' <<<"$device")
+  name=$(jq -r .name <<<"$device")
+  roles=" $(jq -r '.roles | join(" ")' <<<"$device") "
+
+  case $roles in
+  *" printer scanner "*) body=$(omarchy-i18n devices.printerScanner) glyph=$glyph_printer ;;
+  *" printer "*) body=$(omarchy-i18n devices.printer) glyph=$glyph_printer ;;
+  *" scanner "*) body=$(omarchy-i18n devices.scanner) glyph=$glyph_scanner ;;
+  *" camera "*) body=$(omarchy-i18n devices.camera) glyph=$glyph_camera ;;
+  *" iphone "*) body=$(omarchy-i18n devices.iphone) glyph=$glyph_phone ;;
+  *" fingerprint "*) body=$(omarchy-i18n devices.fingerprint) glyph=$glyph_fingerprint ;;
+  *" displaylink "*) body=$(omarchy-i18n devices.displaylink) glyph=$glyph_monitor ;;
+  *" smartcard "*) body=$(omarchy-i18n devices.smartcard) glyph=$glyph_usb ;;
+  *" serial "*) body=$(omarchy-i18n devices.serial) glyph=$glyph_usb ;;
+  *) body=$(omarchy-i18n devices.unknown) glyph=$glyph_usb ;;
+  esac
+
+  # The key holds the device's serial, which is whatever the device says;
+  # hashed, it is safe as a file name.
+  recent="$state_dir/recent-$(printf '%s' "$key" | sha256sum | cut -c1-16)"
+
+  (
+    flock 9
+    if [[ -f $recent ]] && ((EPOCHSECONDS - $(stat -c %Y "$recent") < replug_seconds)); then
+      exit 0
+    fi
+
+    omarchy-notification-wait || exit 1
+
+    # --exec rather than a libnotify action: the shell runs clicks from its own
+    # hint. The device's name rides as one argv word and its id is hex digits
+    # and a colon, so neither can be reparsed as a command.
+    omarchy-notification-send \
+      --urgency normal \
+      --glyph "$glyph" \
+      "$name" \
+      "$body" \
+      --exec omarchy-launch-floating-terminal-with-presentation omarchy-setup-device "$id" || exit 1
+
+    # Only a delivered toast counts, so a device announced into a dead
+    # notification server is announced again on the next event.
+    touch "$recent"
+  ) 9>"$lock_file"
+}
+
+check() {
+  local device
+  while IFS= read -r device; do
+    [[ -n $device ]] && announce "$device"
+  done < <(omarchy-device-detect "$@")
+}
+
+# Devices connected before login.
+(
+  sleep "$settle_seconds"
+  check
+) &
+
+# udevadm prints each event as a block of KEY=value lines ending in a blank
+# line. A device's bind follows its interfaces being created, so it is the
+# event that sees the whole device. Read through process substitution rather
+# than a pipe, so the watcher is this shell and udevadm, nothing more: idle, it
+# blocks on the read and costs no CPU.
+action="" devpath=""
+while IFS= read -r line; do
+  case $line in
+  ACTION=*) action=${line#ACTION=} ;;
+  DEVPATH=*) devpath=${line#DEVPATH=} ;;
+  "")
+    if [[ $action == "bind" && -n $devpath ]]; then
+      (
+        sleep "$settle_seconds"
+        [[ -d $sysfs_root$devpath ]] && check "$sysfs_root$devpath"
+      ) &
+    fi
+    action="" devpath=""
+    ;;
+  esac
+done < <(udevadm monitor --udev --property --subsystem-match=usb/usb_device 2>/dev/null)
+
+# The monitor only ends when udev goes away; let checks already started finish.
+wait

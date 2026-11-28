@@ -164,7 +164,9 @@ function mergeAppRows(items, itemOrder, appRows) {
 // Rows carry the id of the submenu that produced them, so a provider that runs
 // again drops its previous batch — a plugin that was just enabled disappears
 // from the Enable list — without disturbing static children declared in JSONC.
-function swapProviderRows(items, itemOrder, menuId, rows) {
+// Rows land after those children, or before them when `leading` is set: the
+// devices provider lists what was just plugged in above the fixed rows.
+function swapProviderRows(items, itemOrder, menuId, rows, leading) {
   var source = items || ({})
   var order = Array.isArray(itemOrder) ? itemOrder : []
   var incoming = Array.isArray(rows) ? rows : []
@@ -179,14 +181,26 @@ function swapProviderRows(items, itemOrder, menuId, rows) {
     nextOrder.push(id)
   }
 
+  var insertAt = nextOrder.length
+  if (leading) {
+    for (var c = 0; c < nextOrder.length; c++) {
+      if (nextItems[nextOrder[c]].parent === menuId) {
+        insertAt = c
+        break
+      }
+    }
+  }
+
+  var added = []
   for (var j = 0; j < incoming.length; j++) {
     var row = incoming[j]
     if (!row || !row.id || nextItems[row.id]) continue
     row.providerMenu = menuId
-    row.order = nextOrder.length
     nextItems[row.id] = row
-    nextOrder.push(row.id)
+    added.push(row.id)
   }
+  nextOrder.splice.apply(nextOrder, [insertAt, 0].concat(added))
+  for (var k = insertAt; k < nextOrder.length; k++) nextItems[nextOrder[k]].order = k
 
   return { items: nextItems, itemOrder: nextOrder }
 }

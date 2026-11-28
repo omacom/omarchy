@@ -430,6 +430,31 @@ assert(
   'provider merge leaves rows belonging to another provider alone'
 )
 
+// A leading provider lists its rows above the submenu's static children, and
+// keeps them there when it runs again.
+const devicesItems = {
+  root: { id: 'root', parent: '' },
+  'setup.devices': { id: 'setup.devices', parent: 'root' },
+  'setup.devices.printer': { id: 'setup.devices.printer', parent: 'setup.devices' },
+  'setup.devices.scanner': { id: 'setup.devices.scanner', parent: 'setup.devices' },
+}
+const devicesOrder = ['root', 'setup.devices', 'setup.devices.printer', 'setup.devices.scanner']
+const deviceRows = values => values.map(value => ({ id: `setup.devices.${value}`, kind: 'action', parent: 'setup.devices', label: value }))
+const leadingMerge = menu.swapProviderRows(devicesItems, devicesOrder, 'setup.devices', deviceRows(['epson']), true)
+assert(
+  leadingMerge.itemOrder.join(',') === 'root,setup.devices,setup.devices.epson,setup.devices.printer,setup.devices.scanner',
+  'a leading provider lists its rows before the static children'
+)
+assert(
+  leadingMerge.itemOrder.every((id, index) => index < 2 || leadingMerge.items[id].order === index),
+  'a leading provider renumbers the rows it moved'
+)
+assert(
+  menu.swapProviderRows(leadingMerge.items, leadingMerge.itemOrder, 'setup.devices', deviceRows(['epson', 'iphone']), true)
+    .itemOrder.join(',') === 'root,setup.devices,setup.devices.epson,setup.devices.iphone,setup.devices.printer,setup.devices.scanner',
+  'a leading provider that runs again keeps its rows on top'
+)
+
 assertDeepEqual(
   menu.parseKeybindingsRecords(
     'SUPER + K                           → Keybindings\tlua\thl.dsp.global("omarchy:menu.learn.keybindings")\n'

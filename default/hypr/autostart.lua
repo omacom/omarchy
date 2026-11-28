@@ -11,6 +11,7 @@ hl.on("hyprland.start", function()
 
   -- Defer background daemons that aren't needed for the first frame so
   -- omarchy-shell brings up the desktop without competing for CPU and I/O.
+  hl.exec_cmd("sleep 2 && " .. o.launch("omarchy-device-watch"))
   -- Encrypted drives unlock with their keyfile or ask for their password in the shell (omarchy-drive-unlock).
   hl.exec_cmd("sleep 2 && " .. o.launch("omarchy-drive-automount"))
 

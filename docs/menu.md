@@ -123,7 +123,7 @@ can point a submenu at an existing provider but cannot declare a new one:
   the launcher. App rows are searchable by their desktop Keywords but never
   routable, so an installed app cannot capture a menu route (htop ships
   `Keywords=system;...`, and SUPER+ESCAPE must still open the system menu).
-- `fonts`, `power-profiles`, `kernels`, and `languages` are bash one-liners in the `providers` map in
+- `fonts`, `power-profiles`, `kernels`, `languages`, `devices` (the connected devices that still need software, from `omarchy-device-detect --menu`, under _Setup > Devices_), and `devices-other` (hardware with nothing to set up yet, such as Touch ID on Apple Silicon, from `--menu-other`, under _Setup > Devices > Other_) are bash one-liners in the `providers` map in
   `Menu.qml`. The contract is one tab-delimited line per row:
   `label\tvalue\tcurrent`, with an optional fourth field that becomes a search-only
   term for the row (the languages provider passes each language's English name, so
@@ -131,6 +131,8 @@ can point a submenu at an existing provider but cannot declare a new one:
   icon, and selection runs the spec's `actionFor(value)`. Row ids are
   `<menuId>.<slugify(value)>`, with a `-` appended on collision so two values
   that slugify alike cannot silently drop a row.
+
+A provider marked `leading` lists its rows above the submenu's static children instead of below them, as `devices` and `devices-other` do so a device just plugged in sits above the fixed guides. A provider row's id is `<menuId>.<slugify(value)>`, so its values must not slugify to a fixed child's id: the devices providers use USB ids and `platform:` keys, never role names.
 
 A provider marked `volatile` re-runs every time its submenu is entered — a
 font installed since the shell started shows up without a restart — but not

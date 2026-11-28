@@ -52,6 +52,14 @@ Software comes from a package manager, not from downloaded installers.
 
 And when you close a window, the app actually quits. There's no macOS limbo where the program keeps running with no windows. `Super + W` — or `Super + Q`, if that's the finger memory you arrived with — means gone.
 
+### Plugging in printers, scanners and other devices
+
+Omarchy doesn't install drivers behind your back. When you plug in something that needs software it doesn't have yet — a printer, a scanner, a camera, an iPhone, a smart card reader, a DisplayLink dock — a notification says what it found. Click it and a guide shows what the device needs, offers to install it, and opens the right app afterwards: _Print Settings_ for printers, _Document Scanner_ for scanners. It keeps telling you, each time you plug the device in and at every login, until it's set up. Keyboards, mice, drives, webcams, and anything else that already works stay quiet.
+
+You can get back to those guides any time from _Setup > Devices_ in the Omarchy menu, which lists the devices still waiting to be set up above _Printer_ and _Scanner_ — the place to add a printer on your network, too. _Other_ has the guides for everything else, and lists hardware Linux can't use yet, like Touch ID on Apple Silicon Macs, with what to do instead.
+
+Some makers' drivers aren't in Omarchy's repositories. For those, the guide offers the [AUR](29-other-packages.md) package and links the maker's own download page, so you can pick.
+
 ### On Mac hardware
 
 Omarchy runs well on Intel Macs, and on M1, M2 and M3 Macs with Omarchy for Apple Silicon. See [Mac support](44-mac-support.md). And the keyboard is kind to you: Omarchy doesn't remap anything, and Linux treats the Command key as Super, so Super sits right where Cmd always was. Your thumb won't notice the move.

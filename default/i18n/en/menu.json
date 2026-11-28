@@ -465,6 +465,36 @@
   "setup.input": {
     "label": "Input"
   },
+  "setup.devices": {
+    "label": "Devices"
+  },
+  "setup.devices.printer": {
+    "label": "Printer"
+  },
+  "setup.devices.scanner": {
+    "label": "Scanner"
+  },
+  "setup.devices.other": {
+    "label": "Other"
+  },
+  "setup.devices.other.camera": {
+    "label": "Camera"
+  },
+  "setup.devices.other.iphone": {
+    "label": "iPhone or iPad"
+  },
+  "setup.devices.other.smartcard": {
+    "label": "Smart Card Reader"
+  },
+  "setup.devices.other.serial": {
+    "label": "Serial Device"
+  },
+  "setup.devices.other.displaylink": {
+    "label": "DisplayLink"
+  },
+  "setup.devices.other.fingerprint": {
+    "label": "Fingerprint Reader"
+  },
   "setup.region": {
     "label": "Region"
   },

@@ -372,6 +372,24 @@ Item {
       volatile: true,
       actionFor: function(value) { return "omarchy-kernel set " + Util.shellQuote(value) }
     },
+    // Connected devices that still need software, by the name they report;
+    // the value is the device id (or role) omarchy-setup-device takes.
+    "devices": {
+      script: "omarchy-device-detect --menu 2>/dev/null",
+      icon: "\udb81\udd53",
+      volatile: true,
+      leading: true,
+      actionFor: function(value) { return "omarchy-launch-floating-terminal-with-presentation " + Util.shellQuote("omarchy-setup-device " + Util.shellQuote(value)) }
+    },
+    // Hardware that is there but has nothing to set up yet, like Touch ID on
+    // Apple Silicon, under Setup > Devices > Other.
+    "devices-other": {
+      script: "omarchy-device-detect --menu-other 2>/dev/null",
+      icon: "\udb81\udd53",
+      volatile: true,
+      leading: true,
+      actionFor: function(value) { return "omarchy-launch-floating-terminal-with-presentation " + Util.shellQuote("omarchy-setup-device " + Util.shellQuote(value)) }
+    },
     // systemd-boot's snapshot entries, newest first, as omarchy-boot-sync
     // published them. Picking one boots it once; it can be restored from there.
     // On Limine, omarchy-snapshot list asks sudo for snapper's table, which a
@@ -503,7 +521,7 @@ Item {
         order: 0
       })
     }
-    var merged = MenuModel.swapProviderRows(root.items, root.itemOrder, menuId, providerRows)
+    var merged = MenuModel.swapProviderRows(root.items, root.itemOrder, menuId, providerRows, spec.leading === true)
     root.items = merged.items
     root.itemOrder = merged.itemOrder
     if (root.opened) root.rebuildDisplay()

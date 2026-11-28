@@ -1,0 +1,425 @@
+#!/bin/bash
+
+# omarchy:summary=Show how to get a connected device working, and offer to install what it needs
+# omarchy:args=[printer|scanner|camera|iphone|smartcard|serial|displaylink|fingerprint|<vendor:product>]
+# omarchy:examples=omarchy setup device | omarchy setup device printer | omarchy setup device 04b8:1120
+
+# Omarchy ships no drivers for this: every guide in devices.json lists options
+# -- packages from the repositories, the AUR where a driver is nowhere else, or
+# the maker's download page -- and the user always picks. Installing an option
+# brings in what the device needs to be used, not just its driver, and then
+# sets it up: a printer gets its CUPS queue, a scanner its permissions.
+
+set -uo pipefail
+
+catalog="${OMARCHY_DEVICE_CATALOG:-$OMARCHY_PATH/default/omarchy/devices.json}"
+target=${1:-}
+
+if [[ -n $target && ! $target =~ ^[a-z]+$ && ! $target =~ ^[0-9a-f]{4}:[0-9a-f]{4}(:.*)?$ && ! $target =~ ^platform:[a-z]+$ ]]; then
+  echo "Usage: omarchy-setup-device [<role>|<vendor:product>|platform:<name>]" >&2
+  exit 1
+fi
+
+guide_field() {
+  jq -r --arg key "$1" --arg field "$2" '.[$key][$field] // empty | if type == "array" then .[] elif type == "object" then .command else . end' "$catalog"
+}
+
+# option_field <guide> <index> <field>, one line per array item.
+option_field() {
+  jq -r --arg key "$1" --argjson i "$2" --arg field "$3" '.[$key].options[$i][$field] // empty | if type == "array" then .[] else . end' "$catalog"
+}
+
+option_count() {
+  jq -r --arg key "$1" '.[$key].options // [] | length' "$catalog"
+}
+
+# {id}, {vendor} and {product} let the guide for unknown devices link to the
+# device itself.
+fill() {
+  local text=$1 id=$2
+  # Without a device there is nothing to link to.
+  if [[ -z $id && $text == *"{"* ]]; then
+    return 0
+  fi
+  text=${text//\{id\}/$id}
+  text=${text//\{vendor\}/${id%%:*}}
+  text=${text//\{product\}/${id#*:}}
+  printf '%s' "$text"
+}
+
+installed() {
+  pacman -Q -- "$@" >/dev/null 2>&1
+}
+
+open_app() {
+  setsid uwsm-app -- bash -c "$1" >/dev/null 2>&1 &
+}
+
+open_url() {
+  omarchy-launch-browser "$1" >/dev/null 2>&1 &
+}
+
+print_guide() {
+  local guide=$1 id=$2 title summary url step n=0 i count pkgs mark
+  title=$(guide_field "$guide" title)
+  summary=$(guide_field "$guide" summary)
+  url=$(fill "$(guide_field "$guide" url)" "$id")
+
+  echo
+  gum style --bold "$title"
+  fold -s -w 78 <<<"$summary"
+  echo
+  while IFS= read -r step; do
+    [[ -n $step ]] || continue
+    n=$((n + 1))
+    fold -s -w 78 <<<"$n. $(fill "$step" "$id")"
+  done < <(guide_field "$guide" steps)
+
+  count=$(option_count "$guide")
+  if ((count > 0)); then
+    printf '\nOptions:\n'
+    for ((i = 0; i < count; i++)); do
+      pkgs=$(
+        option_field "$guide" "$i" packages
+        option_field "$guide" "$i" aur
+      )
+      mark="○"
+      # shellcheck disable=SC2086 # one word per package
+      if [[ -n $pkgs ]] && installed $pkgs; then
+        mark=$'\033[32m✓\033[0m'
+      fi
+      printf '  %s %s\n' "$mark" "$(option_field "$guide" "$i" label)"
+    done
+  fi
+
+  if [[ -n $url ]]; then
+    printf '\nMore: %s\n' "$url"
+  fi
+}
+
+# The device URI of an existing CUPS queue, empty when there is none.
+queue_uri() {
+  lpstat -v 2>/dev/null | sed -n "s|^device for $1: ||p"
+}
+
+# Adds the CUPS queue for a USB printer once its driver is installed, with the
+# driver that names its model. When several installed drivers name it, the user
+# picks, with those from the packages just chosen first. Falls back to Print
+# Settings, where the user picks, whenever the match is not certain.
+# add_printer_queue <device-json> [<chosen-package>...]
+add_printer_queue() {
+  local device=$1 serial name model uri="" ppd="" queue base line rest pkg
+  local drivers=() preferred=() others=() labels=() choice i
+  shift
+  serial=$(jq -r '.key | split(":")[2:] | join(":")' <<<"$device")
+  name=$(jq -r .name <<<"$device")
+  # The model is the first word with a digit after the maker's name: "EPSON
+  # L380 Series" -> L380, "HP LaserJet MFP M28w" -> M28w. A name without one
+  # is too vague to pick a driver by.
+  model=$(awk '{for (i = 2; i <= NF; i++) if ($i ~ /[0-9]/) { print $i; exit }}' <<<"$name")
+
+  if [[ -n $serial ]]; then
+    # Whole, so serial X33 does not pick the printer whose serial is X33Q.
+    while read -r _ line; do
+      [[ $line == *"serial=$serial"* ]] || continue
+      rest=${line#*"serial=$serial"}
+      if [[ -z $rest || $rest == [\&?]* ]]; then
+        uri=$line
+        break
+      fi
+    done < <(sudo lpinfo --include-schemes usb -v 2>/dev/null)
+  fi
+
+  if [[ -n $model ]]; then
+    mapfile -t drivers < <(sudo lpinfo -m 2>/dev/null | grep -i -E "[^[:alnum:]]$model([^[:alnum:]]|$)")
+    for line in "${drivers[@]}"; do
+      for pkg in "$@"; do
+        if [[ ${line%% *} == *"$pkg"* ]]; then
+          preferred+=("$line")
+          continue 2
+        fi
+      done
+      others+=("$line")
+    done
+    drivers=("${preferred[@]}" "${others[@]}")
+  fi
+
+  if ((${#drivers[@]} == 1)); then
+    ppd=${drivers[0]%% *}
+  elif ((${#drivers[@]} > 1)); then
+    for i in "${!drivers[@]}"; do
+      labels+=("$((i + 1)). ${drivers[$i]#* }")
+    done
+    choice=$(gum choose --header "Which driver for $name?" "${labels[@]}") || choice=""
+    if [[ $choice =~ ^([0-9]+)\. ]]; then
+      ppd=${drivers[$((BASH_REMATCH[1] - 1))]%% *}
+    fi
+  fi
+
+  if [[ -z $uri || -z $ppd ]]; then
+    echo "Couldn't match a driver to this model on its own. Opening Print Settings to finish: choose Add and pick the printer."
+    open_app system-config-printer
+    return 0
+  fi
+
+  # A queue of the same name for another printer (a second one of the same
+  # model) is left alone: this one is told apart by its serial.
+  base=$(tr -c 'A-Za-z0-9_-' '_' <<<"$name" | sed 's/_*$//')
+  queue=$base
+  line=$(queue_uri "$queue")
+  if [[ -n $line && $line != "$uri" ]]; then
+    queue="${base}_$(tr -c 'A-Za-z0-9_-' '_' <<<"$serial" | sed 's/_*$//')"
+    line=$(queue_uri "$queue")
+    if [[ -n $line && $line != "$uri" ]]; then
+      echo "A printer queue named $queue already belongs to another printer. Opening Print Settings to finish."
+      open_app system-config-printer
+      return 0
+    fi
+  fi
+
+  echo "Adding $name as $queue with $ppd"
+  if sudo lpadmin -p "$queue" -E -v "$uri" -m "$ppd"; then
+    # The first printer becomes the default, as it would on any other system.
+    if ! lpstat -d 2>/dev/null | grep -q ':'; then
+      sudo lpadmin -d "$queue"
+    fi
+    echo "$name is ready to print."
+  else
+    echo "CUPS refused the queue. Opening Print Settings to finish."
+    open_app system-config-printer
+  fi
+}
+
+# SANE, gphoto2 and usbmuxd ship udev rules that let the logged-in user reach
+# their devices, but udev applies them when a device is added. Replaying the add
+# saves unplugging it.
+grant_usb_access() {
+  local device=$1 path
+  path=$(jq -r .path <<<"$device")
+  if [[ -d $path ]]; then
+    sudo udevadm trigger --action=add --settle "$path"
+  fi
+}
+
+# install_and_set_up <device-json-or-empty> <guide>...
+install_and_set_up() {
+  local device=$1 guide i count choice labels=() picked=()
+  local packages=() aur=() run=() setups=() line
+  shift
+
+  # Every part gets its own choice, every time, Skip included.
+  for guide in "$@"; do
+    count=$(option_count "$guide")
+    ((count > 0)) || continue
+    labels=()
+    for ((i = 0; i < count; i++)); do
+      labels+=("$(option_field "$guide" "$i" label)")
+    done
+    choice=$(gum choose --header "$(guide_field "$guide" title): what should be installed?" "${labels[@]}" "Skip") || return 1
+    [[ -z $choice || $choice == "Skip" ]] && continue
+
+    for ((i = 0; i < count; i++)); do
+      [[ ${labels[$i]} == "$choice" ]] || continue
+      line=$(option_field "$guide" "$i" download)
+      if [[ -n $line ]]; then
+        echo "Opening $line"
+        open_url "$line"
+        break
+      fi
+      mapfile -t -O "${#packages[@]}" packages < <(option_field "$guide" "$i" packages)
+      mapfile -t -O "${#aur[@]}" aur < <(option_field "$guide" "$i" aur)
+      mapfile -t -O "${#run[@]}" run < <(option_field "$guide" "$i" run)
+      mapfile -t -O "${#setups[@]}" setups < <(guide_field "$guide" setup)
+      picked+=("$choice")
+      break
+    done
+  done
+
+  ((${#picked[@]})) || return 0
+
+  echo
+  echo "Ready to install:"
+  if ((${#packages[@]})); then
+    printf '  From the Arch repositories: %s\n' "${packages[*]}"
+  fi
+  if ((${#aur[@]})); then
+    printf '  From the AUR, built from community-maintained recipes: %s\n' "${aur[*]}"
+  fi
+  for line in "${run[@]}"; do
+    printf '  Then run: %s\n' "$line"
+  done
+  for line in "${setups[@]}"; do
+    case $line in
+    cups-queue) echo "  Then add the printer to CUPS" ;;
+    usb-access) echo "  Then let you use the device without unplugging it" ;;
+    esac
+  done
+  echo
+  gum confirm "Go ahead?" || return 1
+
+  if ((${#packages[@]})); then
+    omarchy-pkg-add "${packages[@]}" || return 1
+  fi
+  if ((${#aur[@]})); then
+    omarchy-pkg-aur-add "${aur[@]}" || return 1
+  fi
+  for line in "${run[@]}"; do
+    bash -c "$line" || return 1
+  done
+
+  if [[ -n $device ]]; then
+    while IFS= read -r line; do
+      case $line in
+      cups-queue) add_printer_queue "$device" "${packages[@]}" "${aur[@]}" ;;
+      usb-access) grant_usb_access "$device" ;;
+      esac
+    done < <(printf '%s\n' "${setups[@]}" | sort -u)
+  fi
+}
+
+# Prints every guide, then offers one menu for all of them: a printer that
+# scans installs and opens both halves from the same place.
+# The apps that use a guide's device, as "label<TAB>command" lines: the guide's
+# own, then that of each option installed with an app of its own (Epson Scan 2
+# rather than Document Scanner).
+guide_apps() {
+  local guide=$1 i count pkgs
+  jq -r --arg key "$guide" '.[$key].open // empty | [.label, .command] | @tsv' "$catalog"
+  count=$(option_count "$guide")
+  for ((i = 0; i < count; i++)); do
+    pkgs=$(
+      option_field "$guide" "$i" packages
+      option_field "$guide" "$i" aur
+    )
+    # shellcheck disable=SC2086 # one word per package
+    if [[ -n $pkgs ]] && installed $pkgs; then
+      jq -r --arg key "$guide" --argjson i "$i" '.[$key].options[$i].open // empty | [.label, .command] | @tsv' "$catalog"
+    fi
+  done
+}
+
+show_guides() {
+  local device=$1 id=$2 guide label command url actions=() action installable=0
+  local -A apps=()
+  shift 2
+  local guides=("$@")
+
+  for guide in "${guides[@]}"; do
+    print_guide "$guide" "$id"
+    (($(option_count "$guide") > 0)) && installable=1
+  done
+
+  while true; do
+    # Rebuilt every round, so an app installed a moment ago can be opened.
+    actions=()
+    apps=()
+    ((installable)) && actions+=("Install and set up")
+    for guide in "${guides[@]}"; do
+      while IFS=$'\t' read -r label command; do
+        [[ -n $label && -z ${apps["Open $label"]:-} ]] || continue
+        apps["Open $label"]=$command
+        actions+=("Open $label")
+      done < <(guide_apps "$guide")
+    done
+    for guide in "${guides[@]}"; do
+      url=$(fill "$(guide_field "$guide" url)" "$id")
+      [[ -n $url ]] && actions+=("Read: $(guide_field "$guide" title)")
+    done
+    actions+=("Done")
+
+    echo
+    action=$(gum choose "${actions[@]}") || return 0
+    case $action in
+    "Install and set up")
+      echo
+      if install_and_set_up "$device" "${guides[@]}"; then
+        echo
+        echo "Done. Anything left is in the steps above."
+      else
+        echo
+        echo "Stopped before finishing. Choose Install and set up again to continue."
+      fi
+      ;;
+    "Open "*) open_app "${apps[$action]}" ;;
+    "Read: "*)
+      for guide in "${guides[@]}"; do
+        if [[ $action == "Read: $(guide_field "$guide" title)" ]]; then
+          open_url "$(fill "$(guide_field "$guide" url)" "$id")"
+          break
+        fi
+      done
+      ;;
+    *) return 0 ;;
+    esac
+  done
+}
+
+show_device() {
+  local device=$1 name id serial guides=()
+  name=$(jq -r .name <<<"$device")
+  id=$(jq -r .id <<<"$device")
+  serial=$(jq -r '.key | split(":")[2:] | join(":")' <<<"$device")
+  mapfile -t guides < <(jq -r '.guides[]' <<<"$device")
+
+  gum style --border rounded --padding "0 2" --bold "$name" "USB $id${serial:+, serial $serial}"
+  show_guides "$device" "$id" "${guides[@]}"
+}
+
+mapfile -t devices < <(omarchy-device-detect)
+
+# A role picks the connected devices that have it; with none connected, its
+# general guide still helps (a network printer is set up the same way).
+if [[ $target =~ ^[a-z]+$ ]]; then
+  if ! jq -e --arg key "$target" 'has($key)' "$catalog" >/dev/null; then
+    echo "No guide for $target. Try: $(jq -r 'keys | map(select(test("^[a-z]+$"))) | join(", ")' "$catalog")" >&2
+    exit 1
+  fi
+  matching=()
+  for device in "${devices[@]}"; do
+    jq -e --arg role "$target" '.roles | index($role)' <<<"$device" >/dev/null && matching+=("$device")
+  done
+  devices=("${matching[@]}")
+  if ((${#devices[@]} == 0)); then
+    show_guides "" "" "$target"
+    exit 0
+  fi
+elif [[ -n $target ]]; then
+  matching=()
+  for device in "${devices[@]}"; do
+    jq -e --arg target "$target" '.id == $target or .key == $target' <<<"$device" >/dev/null && matching+=("$device")
+  done
+  devices=("${matching[@]}")
+  if ((${#devices[@]} == 0)); then
+    echo "Device $target is not connected, or needs nothing to work."
+    exit 0
+  fi
+else
+  # Connected lists what still needs something; a device already set up is
+  # reached by its role or id.
+  matching=()
+  for device in "${devices[@]}"; do
+    jq -e '.ready | not' <<<"$device" >/dev/null && matching+=("$device")
+  done
+  devices=("${matching[@]}")
+fi
+
+if ((${#devices[@]} == 0)); then
+  echo "Every connected device works with what is installed."
+  echo "For a printer on the network, choose Setup > Devices > Printer."
+  exit 0
+fi
+
+if ((${#devices[@]} == 1)); then
+  show_device "${devices[0]}"
+  exit 0
+fi
+
+# Numbered, so two printers of the same model are still two rows.
+labels=()
+for i in "${!devices[@]}"; do
+  labels+=("$((i + 1)). $(jq -r '"\(.name)  (\(.key))"' <<<"${devices[$i]}")")
+done
+choice=$(gum choose --header "Which device?" "${labels[@]}") || exit 0
+if [[ $choice =~ ^([0-9]+)\. ]]; then
+  show_device "${devices[$((BASH_REMATCH[1] - 1))]}"
+fi
