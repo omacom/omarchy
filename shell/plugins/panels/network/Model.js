@@ -421,6 +421,20 @@ function canForgetNetwork(network) {
   return !!(network && network.known && !network.connected)
 }
 
+// What the DNS row shows after omarchy-dns exits non-zero. The command's own
+// text is the failure the panel used to discard; %2 is empty when it printed
+// nothing, and the summary still names the provider that did not change.
+function dnsFailureMessage(stderr, provider, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var name = String(provider || "").trim() || "DNS"
+  var detail = String(stderr || "").replace(/\s+/g, " ").trim()
+  if (detail.length > 180) detail = detail.slice(0, 179) + "…"
+  return t("network.dnsChangeFailed", "Could not set DNS to %1. %2")
+    .replace("%1", name)
+    .replace("%2", function() { return detail })
+    .trim()
+}
+
 function networkFailureReason(reason, needsCredentials, reasons, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var r = reasons || {}
@@ -476,6 +490,7 @@ if (typeof module !== "undefined") {
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
+    dnsFailureMessage: dnsFailureMessage,
     networkFailureReason: networkFailureReason,
     shouldRepromptPassphrase: shouldRepromptPassphrase
   }
