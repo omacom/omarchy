@@ -46,6 +46,7 @@ Item {
   // Outputs the lock last saw, so only a display arriving counts as a wake.
   property int knownScreenCount: 0
   property bool previewVisible: false
+  property bool previewRequested: false
   property string enteredPassword: ""
   property string pendingPassword: ""
   property string failureMessage: ""
@@ -535,42 +536,47 @@ Item {
     }
   }
 
-  PanelWindow {
-    id: previewWindow
-    // Right-to-left languages read this window mirrored.
-    Binding { target: previewWindow.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
-    Binding { target: previewWindow.contentItem; property: "LayoutMirroring.childrenInherit"; value: true }
+  Loader {
+    active: root.previewRequested || root.previewVisible
+    sourceComponent: Component {
+      PanelWindow {
+        id: previewWindow
+        // Right-to-left languages read this window mirrored.
+        Binding { target: previewWindow.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
+        Binding { target: previewWindow.contentItem; property: "LayoutMirroring.childrenInherit"; value: true }
 
-    visible: root.previewVisible
-    anchors { top: true; bottom: true; left: true; right: true }
-    color: "transparent"
-    WlrLayershell.namespace: "omarchy-lock-preview"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-    exclusionMode: ExclusionMode.Ignore
+        visible: root.previewVisible
+        anchors { top: true; bottom: true; left: true; right: true }
+        color: "transparent"
+        WlrLayershell.namespace: "omarchy-lock-preview"
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+        exclusionMode: ExclusionMode.Ignore
 
-    LockView {
-      anchors.fill: parent
-      readonly property var wallpaperRequest: root.lockWallpaperRequest(previewWindow.screen, width, height)
-      backgroundPath: root.backgroundPath
-      videoPosterPath: root.videoPosterPath
-      backgroundVersion: wallpaperRequest.version
-      backgroundVersionPrefix: wallpaperRequest.versionPrefix
-      wallpaperDecodeSize: Qt.size(wallpaperRequest.width, wallpaperRequest.height)
-      fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
-      fingerprintUnavailable: root.fingerprintUnavailable
-      authenticatingPassword: false
-      failureMessage: ""
-      failedAttempts: 0
-      inputEnabled: false
-      loadBackground: root.previewVisible
-      passwordText: ""
-    }
+        LockView {
+          anchors.fill: parent
+          readonly property var wallpaperRequest: root.lockWallpaperRequest(previewWindow.screen, width, height)
+          backgroundPath: root.backgroundPath
+          videoPosterPath: root.videoPosterPath
+          backgroundVersion: wallpaperRequest.version
+          backgroundVersionPrefix: wallpaperRequest.versionPrefix
+          wallpaperDecodeSize: Qt.size(wallpaperRequest.width, wallpaperRequest.height)
+          fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
+          fingerprintUnavailable: root.fingerprintUnavailable
+          authenticatingPassword: false
+          failureMessage: ""
+          failedAttempts: 0
+          inputEnabled: false
+          loadBackground: root.previewVisible
+          passwordText: ""
+        }
 
-    MouseArea {
-      anchors.fill: parent
-      acceptedButtons: Qt.LeftButton | Qt.RightButton
-      onClicked: root.previewVisible = false
+        MouseArea {
+          anchors.fill: parent
+          acceptedButtons: Qt.LeftButton | Qt.RightButton
+          onClicked: root.previewVisible = false
+        }
+      }
     }
   }
 
@@ -988,6 +994,7 @@ Item {
     function preview(): string {
       root.refreshBackground()
       root.refreshFingerprintStatus()
+      root.previewRequested = true
       root.previewVisible = true
       return "ok"
     }

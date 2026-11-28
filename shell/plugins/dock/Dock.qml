@@ -255,8 +255,21 @@ Item {
     for (var i = 0; i < windows.length; i++) windows[i].toplevel.close()
   }
 
+  property bool appGridRequested: false
+  property string pendingAppGridAction: ""
+
+  function invokeAppGrid(action) {
+    if (appGridLoader.item) {
+      if (action === "open") appGridLoader.item.open()
+      else if (action === "toggle") appGridLoader.item.toggle()
+    } else {
+      root.pendingAppGridAction = action
+      root.appGridRequested = true
+    }
+  }
+
   function openApps() {
-    appGrid.open()
+    root.invokeAppGrid("open")
   }
 
   readonly property var pinnedKeys: root.pendingPins || DockModel.pinnedIds(root.dockConfig, root.defaultDockConfig)
@@ -395,7 +408,7 @@ Item {
 
     // The layout commands call this after changing a workspace's mode.
     function refresh(): void { root.refresh() }
-    function apps(): void { appGrid.toggle() }
+    function apps(): void { root.invokeAppGrid("toggle") }
   }
 
   // An app dragged out of the app grid: the grid holds the pointer and
@@ -455,9 +468,21 @@ Item {
     }
   }
 
-  AppGrid {
-    id: appGrid
-    appLibrary: root.appLibrary
-    dock: root
+  Loader {
+    id: appGridLoader
+    active: root.appGridRequested
+    sourceComponent: Component {
+      AppGrid {
+        appLibrary: root.appLibrary
+        dock: root
+      }
+    }
+    onLoaded: {
+      if (!root.pendingAppGridAction) return
+      var action = root.pendingAppGridAction
+      root.pendingAppGridAction = ""
+      if (action === "open") item.open()
+      else if (action === "toggle") item.toggle()
+    }
   }
 }

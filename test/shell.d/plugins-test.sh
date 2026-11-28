@@ -211,4 +211,49 @@ if (publicManifestMatch) {
 }
 
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
+
+const summonMatch = shellSource.match(/function summon\(pluginId, payloadJson\) \{[\s\S]*?\n  \}/)
+const hideMatch = shellSource.match(/function hide\(pluginId\) \{[\s\S]*?\n  \}/)
+const deliverMatch = shellSource.match(/function deliverIfLoaded\(pluginId\) \{[\s\S]*?\n  \}/)
+const invokeMatch = shellSource.match(/function invokeIfLoaded\(pluginId, method, arg\) \{[\s\S]*?\n  \}/)
+assert(
+  !!(summonMatch && hideMatch && deliverMatch && invokeMatch),
+  'shell defines panel summon, hide, and payload delivery helpers'
+)
+
+const delivered = []
+const panelHost = {
+  openPanelIds: {},
+  pendingPayloads: {},
+  panelLoaders: {},
+  console,
+  shell: {
+    pluginRegistry: {
+      installedPlugins: { 'omarchy.emojis': {}, 'omarchy.reminders': {} },
+      resolveEnabledId(id) { return id },
+      isEnabled() { return true }
+    },
+    isBarWidgetPanelPlugin() { return false }
+  }
+}
+require('vm').runInNewContext(
+  `${summonMatch[0]}\n${hideMatch[0]}\n${deliverMatch[0]}\n${invokeMatch[0]}`,
+  panelHost
+)
+panelHost.summon('omarchy.emojis', '{"first":1}')
+panelHost.summon('omarchy.reminders', '{"other":true}')
+panelHost.hide('omarchy.emojis')
+panelHost.summon('omarchy.emojis', '{"second":2}')
+panelHost.panelLoaders['omarchy.emojis'] = { item: { open(payload) { delivered.push(payload) } } }
+panelHost.deliverIfLoaded('omarchy.emojis')
+assertDeepEqual(
+  delivered,
+  ['{"second":2}'],
+  'hiding a panel before it loads drops its queued summon payload'
+)
+assertDeepEqual(
+  panelHost.pendingPayloads['omarchy.reminders'],
+  ['{"other":true}'],
+  'hiding one panel keeps queued payloads for other panels'
+)
 JS
