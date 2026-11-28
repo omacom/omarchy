@@ -528,7 +528,7 @@ Item {
   // A move started after the jump settles on its own finish instead.
   function landed() { if (t >= 1) settled() }
 
-  readonly property var layout: { layoutRevision; return layoutWith(expanded, openDeck) }
+  readonly property var layout: { const _ = layoutRevision; return layoutWith(expanded, openDeck) }
 
   // The deck as it would stand with this deck open; the keyboard asks before
   // it moves.
