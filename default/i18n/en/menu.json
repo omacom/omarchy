@@ -1447,5 +1447,8 @@
   },
   "update.hardware.trackpad": {
     "label": "Trackpad"
+  },
+  "setup.plugin.browse": {
+    "label": "Plugin Marketplace"
   }
 }
