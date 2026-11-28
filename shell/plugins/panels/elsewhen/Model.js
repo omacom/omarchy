@@ -359,8 +359,150 @@ function indexOfZoneKey(zones, key) {
   return -1
 }
 
+// Regional, country and POSIX-DST link ids whose own name is not a city,
+// mapped to the canonical zone whose representative city names the place.
+var REGIONAL_ZONE_PLACES = {
+  "US/Eastern": "America/New_York",
+  "US/Michigan": "America/Detroit",
+  "US/East-Indiana": "America/Indiana/Indianapolis",
+  "US/Indiana-Starke": "America/Indiana/Knox",
+  "US/Central": "America/Chicago",
+  "US/Mountain": "America/Denver",
+  "US/Arizona": "America/Phoenix",
+  "US/Pacific": "America/Los_Angeles",
+  "US/Alaska": "America/Anchorage",
+  "US/Aleutian": "America/Adak",
+  "US/Hawaii": "Pacific/Honolulu",
+  "US/Samoa": "Pacific/Pago_Pago",
+  "Canada/Atlantic": "America/Halifax",
+  "Canada/Eastern": "America/Toronto",
+  "Canada/Central": "America/Winnipeg",
+  "Canada/Mountain": "America/Edmonton",
+  "Canada/Pacific": "America/Vancouver",
+  "Canada/Saskatchewan": "America/Regina",
+  "Canada/Newfoundland": "America/St_Johns",
+  "Canada/Yukon": "America/Whitehorse",
+  "Mexico/BajaNorte": "America/Tijuana",
+  "Mexico/BajaSur": "America/Mazatlan",
+  "Mexico/General": "America/Mexico_City",
+  "Brazil/Acre": "America/Rio_Branco",
+  "Brazil/DeNoronha": "America/Noronha",
+  "Brazil/East": "America/Sao_Paulo",
+  "Brazil/West": "America/Manaus",
+  "Chile/Continental": "America/Santiago",
+  "Chile/EasterIsland": "Pacific/Easter",
+  "Australia/ACT": "Australia/Sydney",
+  "Australia/NSW": "Australia/Sydney",
+  "Australia/North": "Australia/Darwin",
+  "Australia/Queensland": "Australia/Brisbane",
+  "Australia/South": "Australia/Adelaide",
+  "Australia/Tasmania": "Australia/Hobart",
+  "Australia/Victoria": "Australia/Melbourne",
+  "Australia/West": "Australia/Perth",
+  "Australia/LHI": "Australia/Lord_Howe",
+  "Cuba": "America/Havana",
+  "Egypt": "Africa/Cairo",
+  "Eire": "Europe/Dublin",
+  "GB": "Europe/London",
+  "GB-Eire": "Europe/London",
+  "Hongkong": "Asia/Hong_Kong",
+  "Iran": "Asia/Tehran",
+  "Israel": "Asia/Jerusalem",
+  "Jamaica": "America/Jamaica",
+  "Japan": "Asia/Tokyo",
+  "Korea": "Asia/Seoul",
+  "Kuwait": "Asia/Kuwait",
+  "Libya": "Africa/Tripoli",
+  "Navajo": "America/Denver",
+  "NZ": "Pacific/Auckland",
+  "NZ-CHAT": "Pacific/Chatham",
+  "Poland": "Europe/Warsaw",
+  "Portugal": "Europe/Lisbon",
+  "PRC": "Asia/Shanghai",
+  "ROC": "Asia/Taipei",
+  "ROK": "Asia/Seoul",
+  "Singapore": "Asia/Singapore",
+  "Taiwan": "Asia/Taipei",
+  "Turkey": "Europe/Istanbul",
+  "W-SU": "Europe/Moscow",
+  "EST5EDT": "America/New_York",
+  "CST6CDT": "America/Chicago",
+  "MST7MDT": "America/Denver",
+  "PST8PDT": "America/Los_Angeles"
+}
+
+// Pure same-place renames, excluding cross-place links (e.g. Iceland ->
+// Africa/Abidjan, Pacific/Truk -> Pacific/Port_Moresby) and distinct cities
+// (Canberra, Belfast, Tel Aviv) so offline zoneTabCoords never places one city
+// at another city's coordinates.
+var LEGACY_ZONE_PLACES = Object.assign({}, REGIONAL_ZONE_PLACES, {
+  "Asia/Calcutta": "Asia/Kolkata",
+  "Asia/Dacca": "Asia/Dhaka",
+  "Asia/Rangoon": "Asia/Yangon",
+  "Asia/Saigon": "Asia/Ho_Chi_Minh",
+  "Asia/Katmandu": "Asia/Kathmandu",
+  "Asia/Ulan_Bator": "Asia/Ulaanbaatar",
+  "Asia/Istanbul": "Europe/Istanbul",
+  "Asia/Ashkhabad": "Asia/Ashgabat",
+  "Asia/Macao": "Asia/Macau",
+  "Asia/Thimbu": "Asia/Thimphu",
+  "Asia/Ujung_Pandang": "Asia/Makassar",
+  "Atlantic/Faeroe": "Atlantic/Faroe",
+  "Europe/Kiev": "Europe/Kyiv",
+  "Australia/Yancowinna": "Australia/Broken_Hill",
+  "America/Buenos_Aires": "America/Argentina/Buenos_Aires",
+  "America/Catamarca": "America/Argentina/Catamarca",
+  "America/Cordoba": "America/Argentina/Cordoba",
+  "America/Jujuy": "America/Argentina/Jujuy",
+  "America/Mendoza": "America/Argentina/Mendoza",
+  "America/Godthab": "America/Nuuk",
+  "America/Santa_Isabel": "America/Tijuana",
+  "Pacific/Enderbury": "Pacific/Kanton",
+  "Pacific/Ponape": "Pacific/Pohnpei",
+  "Kwajalein": "Pacific/Kwajalein"
+})
+
+// Same-zone legacy cities whose own coordinates come from the geocoder, not
+// from the target zone's representative city in zone1970.tab.
+var GEOCODE_ZONE_ALIASES = Object.assign({}, LEGACY_ZONE_PLACES, {
+  "Asia/Tel_Aviv": "Asia/Jerusalem",
+  "Europe/Belfast": "Europe/London",
+  "Australia/Canberra": "Australia/Sydney"
+})
+
+var NON_PLACE_ZONES = {
+  "UTC": true, "UCT": true, "GMT": true, "GMT+0": true, "GMT-0": true,
+  "GMT0": true, "Universal": true, "Zulu": true, "Factory": true,
+  "POSIX": true, "localtime": true, "CET": true, "EET": true,
+  "MET": true, "WET": true, "EST": true, "MST": true, "HST": true
+}
+
+function canonicalPlaceZone(id) {
+  var zone = String(id || "")
+  var target = LEGACY_ZONE_PLACES[zone]
+  return typeof target === "string" ? target : zone
+}
+
+function geocodeZoneFor(id) {
+  var zone = String(id || "")
+  var target = GEOCODE_ZONE_ALIASES[zone]
+  return typeof target === "string" ? target : zone
+}
+
+function isPlaceZone(id) {
+  var zone = String(id || "").trim()
+  if (zone === "" || zone.indexOf("Etc/") === 0) return false
+  return NON_PLACE_ZONES[zone] !== true
+}
+
 function labelForZoneId(id) {
   return String(id || "").split("/").pop().replace(/_/g, " ")
+}
+
+function defaultCityForZone(id) {
+  var zone = String(id || "")
+  var regional = REGIONAL_ZONE_PLACES[zone]
+  return labelForZoneId(typeof regional === "string" ? regional : zone)
 }
 
 // Tapping a city on this machine's clock makes it "here", and the zone's own
@@ -370,7 +512,7 @@ function homeCityAfterTap(label, zoneId, homeOverride, localZone) {
   var local = String(localZone || "")
   if (name === "" || local === "" || String(zoneId || "") !== local) return null
   var override = String(homeOverride || "").trim()
-  var zoneCity = labelForZoneId(local)
+  var zoneCity = defaultCityForZone(local)
   if (name === (override === "" ? zoneCity : override)) return null
   return name === zoneCity ? "" : name
 }
@@ -387,7 +529,7 @@ function resolveHere(here, legacyCity, localZone) {
   }
   var legacy = cleanLabel(legacyCity)
   if (legacy !== "") return { label: legacy, id: zone, chosen: true }
-  return { label: labelForZoneId(zone), id: zone, chosen: false }
+  return { label: defaultCityForZone(zone), id: zone, chosen: false }
 }
 
 // Picking `pick` as here: { here, zones, zoneChange }. `here` is the new
@@ -404,13 +546,15 @@ function hereAfterPick(zones, current, pick, localZone) {
   var name = cleanLabel(pick.label)
   if (name === "") return null
   var place = withPlace({}, pick)
-  var bare = name === labelForZoneId(zone) && place.lat === undefined
+  var bare = name === defaultCityForZone(zone) && place.lat === undefined
   var here = bare ? null : withPlace({ name: name, zone: zone }, pick)
   if (zone !== local) return { here: here, zones: zones, zoneChange: zone }
 
   var out = zones
   var at = current ? indexOfZone(zones, current.label, zone) : -1
-  if (at >= 0 && (name === current.label || !hasEntry(zones, zone, name))) {
+  if (at < 0 && current && !current.chosen && defaultCityForZone(zone) !== labelForZoneId(zone))
+    at = indexOfZone(zones, labelForZoneId(zone), zone)
+  if (at >= 0 && (name === zones[at].label || !hasEntry(zones, zone, name))) {
     var row = { label: name, id: zone }
     if (zones[at].people) row.people = zones[at].people
     out = zones.slice()
@@ -609,7 +753,7 @@ function addZone(zones, id, label, place) {
   var zoneId = String(id || "").trim()
   if (zoneId === "" || !ZONE_ID.test(zoneId)) return zones
   var name = cleanLabel(label)
-  if (name === "") name = labelForZoneId(zoneId)
+  if (name === "") name = defaultCityForZone(zoneId)
   var row = withPlace({ label: name, id: zoneId }, place)
   var at = indexOfZone(zones, name, zoneId)
   if (at >= 0) {
@@ -932,19 +1076,28 @@ function geocodeUrl(label) {
     + encodeURIComponent(label)
 }
 
-// { place, answered }: a place in the row's own zone beats the top result, and
-// `answered` is false when the request itself failed.
+// { place, answered }: a result is adopted only when the geocoder keeps it in
+// the row's own zone (or its canonical zone alias), never falling back to a
+// top result from another continent. `answered` is false when the request
+// itself failed.
 function pickGeocode(text, zone) {
   var results = geocodeResults(text)
   if (!results) return { place: null, answered: false }
+  var want = String(zone || "")
+  if (want === "") return { place: null, answered: true }
+  var target = geocodeZoneFor(want)
   var best = null
-  for (var i = 0; i < results.length && !best; i++) if (results[i] && results[i].timezone === zone) best = results[i]
-  if (!best && results.length > 0 && results[0] && typeof results[0] === "object") best = results[0]
+  var i, r
+  for (i = 0; i < results.length && !best; i++)
+    if ((r = results[i]) && r.timezone === want) best = r
+  for (i = 0; !best && target !== want && i < results.length; i++)
+    if ((r = results[i]) && r.timezone === target) best = r
+  for (i = 0; !best && i < results.length; i++)
+    if ((r = results[i]) && r.timezone && canonicalPlaceZone(r.timezone) === target) best = r
   return { place: best ? { lat: best.latitude, lon: best.longitude } : null, answered: true }
 }
 
-// The zone's representative city from zone1970.tab (ISO 6709), the offline fallback.
-function zoneTabCoords(tabText, zone) {
+function zoneTabEntry(tabText, zone) {
   var lines = String(tabText || "").split("\n")
   for (var i = 0; i < lines.length; i++) {
     var parts = lines[i].split("\t")
@@ -955,6 +1108,14 @@ function zoneTabCoords(tabText, zone) {
     return { lat: Math.round(dec(m[1], m[2], m[3], m[4]) * 1e4) / 1e4, lon: Math.round(dec(m[5], m[6], m[7], m[8]) * 1e4) / 1e4 }
   }
   return null
+}
+
+// The zone's representative city from zone1970.tab (ISO 6709), the offline fallback.
+function zoneTabCoords(tabText, zone) {
+  var place = zoneTabEntry(tabText, zone)
+  if (place) return place
+  var canonical = canonicalPlaceZone(zone)
+  return canonical !== String(zone || "") ? zoneTabEntry(tabText, canonical) : null
 }
 
 function forecastUrl(points) {
@@ -1351,7 +1512,10 @@ if (typeof module !== "undefined") {
     rows: rows,
     indexOfZone: indexOfZone,
     indexOfZoneKey: indexOfZoneKey,
+    canonicalPlaceZone: canonicalPlaceZone,
+    isPlaceZone: isPlaceZone,
     labelForZoneId: labelForZoneId,
+    defaultCityForZone: defaultCityForZone,
     homeCityAfterTap: homeCityAfterTap,
     serializeZones: serializeZones,
     addZone: addZone,
