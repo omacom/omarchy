@@ -18,7 +18,15 @@ cat >"$home/.config/hypr/bindings.lua" <<'EOF'
 -- existing user config
 EOF
 
-HOME="$home" OMARCHY_PATH="$omarchy_path" "$ROOT/bin/omarchy-refresh-config" hypr/bindings.lua >/dev/null
+mkdir "$tmpdir/bin"
+printf '#!/bin/bash\necho 1700000000\n' >"$tmpdir/bin/date"
+chmod +x "$tmpdir/bin/date"
+
+refresh_bindings() {
+  PATH="$tmpdir/bin:$PATH" HOME="$home" OMARCHY_PATH="$omarchy_path" "$ROOT/bin/omarchy-refresh-config" hypr/bindings.lua
+}
+
+refresh_bindings >/dev/null || fail "initial config refresh"
 
 cmp -s "$omarchy_path/config/hypr/bindings.lua" "$home/.config/hypr/bindings.lua" ||
   fail "refresh-config copies from OMARCHY_PATH/config"
@@ -29,6 +37,45 @@ grep -Fq -- '-- existing user config' "$backup" ||
   fail "refresh-config backup contains previous user config"
 
 pass "refresh-config copies from OMARCHY_PATH/config and backs up existing files"
+
+refresh_bindings >/dev/null || fail "refreshing an unchanged config"
+grep -Fq -- '-- existing user config' "$backup" || fail "repeat refresh preserves the first backup"
+
+live_config="$home/.config/hypr/bindings.lua"
+echo 'second edit' >"$live_config"
+refresh_bindings >/dev/null || fail "refreshing a second edit in the same second"
+grep -Fq -- '-- existing user config' "$backup" || fail "second edit preserves the first backup"
+grep -Fxq 'second edit' "$live_config".bak.* || fail "second edit gets its own backup"
+
+pass "repeated refreshes preserve each version"
+
+cat >"$tmpdir/bin/cp" <<'EOF'
+#!/bin/bash
+[[ ${!#} == *.bak.* ]] && exit 1
+exec /usr/bin/cp "$@"
+EOF
+chmod +x "$tmpdir/bin/cp"
+
+echo 'keep this edit' >"$live_config"
+if refresh_bindings >/dev/null 2>&1; then
+  fail "refresh-config reports a failed backup"
+fi
+grep -Fxq 'keep this edit' "$live_config" || fail "failed backup leaves the live config intact"
+
+pass "refresh-config stops on backup failure"
+
+cat >"$tmpdir/bin/cp" <<'EOF'
+#!/bin/bash
+[[ ${!#} != *.bak.* ]] && exit 1
+exec /usr/bin/cp "$@"
+EOF
+
+if refresh_bindings >/dev/null 2>&1; then
+  fail "refresh-config reports a failed replacement"
+fi
+grep -Fxq 'keep this edit' "$live_config".bak.* || fail "failed replacement preserves the completed backup"
+
+pass "refresh-config preserves the backup on replacement failure"
 
 if HOME="$home" OMARCHY_PATH="$omarchy_path" "$ROOT/bin/omarchy-refresh-config" hypr/missing.lua >"$tmpdir/out" 2>"$tmpdir/err"; then
   fail "refresh-config rejects configs missing from OMARCHY_PATH/config"
