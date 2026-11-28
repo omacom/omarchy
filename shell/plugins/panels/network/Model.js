@@ -70,7 +70,150 @@ function connectionIcon(kind, signalStrength, connectivity) {
   var restricted = connectivity === "portal" || connectivity === "limited"
   if (kind === "wifi") return restricted ? "󰤩" : wifiIconFor(signalStrength)
   if (kind === "ethernet") return restricted ? "󰈂" : "󰈀"
+  if (kind === "mobile") return mobileIconFor(signalStrength, true)
   return "󰤮"
+}
+
+// Cellular bars. A modem that is off or has no service gets the crossed-out
+// glyph rather than empty bars, which would read as "connected, no signal".
+function mobileIconFor(strength, usable) {
+  if (!usable) return "󰞃"
+  var icons = ["󰢿", "󰢼", "󰢽", "󰢾"]
+  var value = parseInt(strength, 10)
+  if (!isFinite(value) || value < 0) value = 0
+  var index = Math.max(0, Math.min(3, Math.ceil(value / 25) - 1))
+  return icons[index]
+}
+
+// Quickshell.Networking only models Wi-Fi and wired devices, so the first
+// mobile broadband modem is read from nmcli (state, profile) and mmcli
+// (operator, signal, access technology) instead. Prints nothing when there
+// is no modem. Everything describes that one device: its active profile, or
+// else the first saved profile that is unbound or bound to one of its ports
+// (NetworkManager may name the modem by its AT port while a profile names
+// the MBIM one), and the ModemManager object NetworkManager reports for it.
+// Runs in the C locale because nmcli translates words like "disabled", and
+// without nmcli's escaping so names with colons display as typed. A name can
+// hold any character, so every value has its control characters (tabs,
+// newlines) dropped, and the connection name is read on its own, apart from
+// the fields used to find the profile and modem: one name must not be able
+// to add or replace a field.
+var mobileStatusScript =
+  "export LC_ALL=C;" +
+  " kv() { printf '%s\\t%s\\n' \"$1\" \"$(printf '%s' \"$2\" | tr -d '\\000-\\037\\177')\"; };" +
+  " dev=$(nmcli -t -f DEVICE,TYPE dev 2>/dev/null | awk -F: '$2 == \"gsm\" || $2 == \"cdma\" { print $1; exit }');" +
+  " [[ -n $dev ]] || exit 0;" +
+  " kv device \"$dev\";" +
+  " show=$(nmcli -e no -t -f GENERAL.STATE,GENERAL.CON-UUID,GENERAL.IP-IFACE,GENERAL.UDI dev show \"$dev\" 2>/dev/null);" +
+  " field() { printf '%s\\n' \"$show\" | sed -n \"s/^GENERAL\\.$1://p\"; };" +
+  " kv state \"$(field STATE)\"; kv connection \"$(nmcli -e no -g GENERAL.CONNECTION dev show \"$dev\" 2>/dev/null)\"; kv iface \"$(field IP-IFACE)\";" +
+  " kv radio \"$(nmcli -t radio wwan 2>/dev/null)\";" +
+  " modem=$(field UDI); mm=;" +
+  " case $modem in /org/freedesktop/ModemManager1/Modem/*) mm=$(mmcli -m \"$modem\" -K 2>/dev/null) ;; esac;" +
+  " ports=\" $dev $(field IP-IFACE) $(printf '%s\\n' \"$mm\" | awk -F' *: ' '$1 ~ /^modem\\.generic\\.ports\\.value/ { split($2, p, \" \"); printf \"%s \", p[1] }')\";" +
+  " uuid=$(field CON-UUID);" +
+  " if [[ -z $uuid ]]; then" +
+  "   for u in $(nmcli -g UUID,TYPE con show 2>/dev/null | awk -F: '$2 == \"gsm\" || $2 == \"cdma\" { print $1 }'); do" +
+  "     bound=$(nmcli -e no -g connection.interface-name con show uuid \"$u\" 2>/dev/null);" +
+  "     if [[ -z $bound ]]; then uuid=$u; break; fi;" +
+  "     case $ports in *\" $bound \"*) uuid=$u; break ;; esac;" +
+  "   done;" +
+  " fi;" +
+  " if [[ -n $uuid ]]; then kv profile_uuid \"$uuid\";" +
+  "   kv profile \"$(nmcli -e no -g connection.id con show uuid \"$uuid\" 2>/dev/null)\"; fi;" +
+  " printf '%s\\n' \"$mm\" | awk -F' *: ' '{ gsub(/[[:cntrl:]]/, \"\", $2) }" +
+  "   $1 == \"modem.3gpp.operator-name\" { print \"operator\\t\" $2 }" +
+  "   $1 == \"modem.generic.signal-quality.value\" { print \"signal\\t\" $2 }" +
+  "   $1 == \"modem.generic.access-technologies.value[1]\" { print \"tech\\t\" $2 }" +
+  "   $1 == \"modem.generic.state\" { print \"modem_state\\t\" $2 }'"
+
+// The first value of each field wins, so nothing printed later can replace
+// the device the row acts on.
+function parseMobileStatus(raw) {
+  var next = {}
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var idx = lines[i].indexOf("\t")
+    if (idx <= 0) continue
+    var key = lines[i].substring(0, idx)
+    if (!Object.prototype.hasOwnProperty.call(next, key)) next[key] = lines[i].substring(idx + 1).trim()
+  }
+  if (!next.device) return { available: false }
+
+  var code = parseInt(next.state, 10)
+  var state = "unavailable"
+  if (code === 100) state = "connected"
+  else if (code > 30 && code < 100) state = "connecting"
+  else if (code === 30) state = "disconnected"
+
+  var cleaned = function(value) {
+    var v = String(value || "").trim()
+    return v === "--" ? "" : v
+  }
+  var signal = parseInt(next.signal, 10)
+
+  return {
+    available: true,
+    device: next.device,
+    state: state,
+    connection: cleaned(next.connection),
+    iface: cleaned(next.iface),
+    radioEnabled: next.radio !== "disabled",
+    profileUuid: cleaned(next.profile_uuid),
+    profile: cleaned(next.profile),
+    operator: cleaned(next.operator),
+    tech: cleaned(next.tech),
+    signal: isFinite(signal) ? signal : -1,
+    modemState: cleaned(next.modem_state)
+  }
+}
+
+// One line of `gdbus monitor` on ModemManager. Only changes to what the
+// modem row shows count; bearer traffic counters change every few seconds
+// while connected and would otherwise re-probe constantly. A modem being
+// added or removed, and ModemManager starting or stopping, count too.
+function isMobileStatusEvent(line) {
+  var text = String(line || "")
+  if (/ObjectManager\.Interfaces(Added|Removed) \(objectpath '\/org\/freedesktop\/ModemManager1\/Modem\//.test(text)) return true
+  if (/^The name org\.freedesktop\.ModemManager1 (is owned by|does not have an owner)/.test(text)) return true
+  if (text.indexOf("org.freedesktop.ModemManager1.Modem.StateChanged") !== -1) return true
+  if (text.indexOf("PropertiesChanged ('org.freedesktop.ModemManager1.Modem") === -1) return false
+  return /'(State|SignalQuality|AccessTechnologies|OperatorName)'/.test(text)
+}
+
+function mobileTechLabel(tech) {
+  var value = String(tech || "").toLowerCase()
+  if (value === "") return ""
+  if (value.indexOf("5gnr") === 0) return "5G"
+  if (value === "lte") return "LTE"
+  if (["umts", "hsdpa", "hsupa", "hspa", "hspa-plus"].indexOf(value) >= 0) return "3G"
+  if (["gsm", "gprs", "edge"].indexOf(value) >= 0) return "2G"
+  return value.toUpperCase()
+}
+
+// The modem row's title: the profile name, falling back to the carrier.
+function mobileTitle(status, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var s = status || {}
+  return s.connection || s.profile || s.operator || t("network.mobileBroadband", "Mobile broadband")
+}
+
+// Second line of the modem row: "LTE · 54%" plus the connection state.
+function mobileDetail(status, tr, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var s = status || {}
+  if (!s.available) return ""
+  if (!s.radioEnabled) return t("network.mobileRadioOff", "Mobile radio off")
+  if (s.state === "unavailable") return s.modemState === "locked" ? t("network.simLocked", "SIM locked") : t("network.noService", "No service")
+
+  var parts = []
+  var tech = mobileTechLabel(s.tech)
+  if (tech) parts.push(tech)
+  if (s.signal >= 0) parts.push(formatter(fmt)(s.signal) + "%")
+  if (s.state === "connected") parts.push(t("network.connected", "Connected"))
+  else if (s.state === "connecting") parts.push(t("network.connecting", "Connecting…"))
+  else if (!s.profileUuid) parts.push(t("network.noMobileProfile", "No connection set up"))
+  return parts.join(" · ")
 }
 
 function formatHeaderSpeed(mbps, fmt) {
@@ -449,6 +592,13 @@ if (typeof module !== "undefined") {
     parseNetworkStatus: parseNetworkStatus,
     wifiIconFor: wifiIconFor,
     connectionIcon: connectionIcon,
+    mobileIconFor: mobileIconFor,
+    mobileStatusScript: mobileStatusScript,
+    parseMobileStatus: parseMobileStatus,
+    isMobileStatusEvent: isMobileStatusEvent,
+    mobileTechLabel: mobileTechLabel,
+    mobileTitle: mobileTitle,
+    mobileDetail: mobileDetail,
     connectedSignalStrength: connectedSignalStrength,
     parseActiveApSignal: parseActiveApSignal,
     connectivityState: connectivityState,
