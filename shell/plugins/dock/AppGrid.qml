@@ -26,6 +26,7 @@ Item {
   property var menuEntry: null
   property point menuPoint
   property string filterText: ""
+  onFilterTextChanged: if (filterInput.text !== filterText) filterInput.text = filterText
   property int selectedIndex: 0
   property var apps: []
 
@@ -67,7 +68,7 @@ Item {
       grid.positionViewAtBeginning()
     }
     root.opened = true
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function close() {
@@ -104,7 +105,7 @@ Item {
 
   function cancelUninstall() {
     root.uninstallEntry = null
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function confirmUninstall() {
@@ -112,7 +113,7 @@ Item {
     root.uninstallEntry = null
     // The grid stays open: the app drops out of it once it is gone, and only
     // an uninstall that needs a terminal closes it.
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
     if (entry && root.appLibrary) root.appLibrary.remove(entry.id, root.appLibrary.entryName(entry))
   }
 
@@ -257,9 +258,8 @@ Item {
       Item {
         id: keyCatcher
         anchors.fill: parent
-        focus: true
 
-        Keys.priority: Keys.BeforeItem
+        // Focus is on filterInput, which forwards every key here first.
         Keys.onPressed: function(event) {
           if (root.uninstallEntry) {
             if (uninstallConfirm.handleKey(event)) event.accepted = true
@@ -283,8 +283,6 @@ Item {
             root.select(root.columns)
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             root.launch(root.selectedIndex)
-          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
-            root.setFilter(root.filterText + event.text)
           } else {
             return
           }
@@ -308,16 +306,32 @@ Item {
           radius: Style.cornerRadius
           color: Util.alpha(Commons.Color.menu.text, 0.06)
 
-          Text {
+          FilterInput {
+            id: filterInput
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.leftMargin: Style.spacing.controlPaddingX
             anchors.rightMargin: Style.spacing.controlPaddingX
             anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: root.filterText || Commons.I18n.t("dock.searchApps")
+            keyHandler: keyCatcher
+            // Input-method commits bypass key handling, so the dialog has to refuse them here.
+            readOnly: !!root.uninstallEntry
             color: Commons.Color.menu.text
-            opacity: root.filterText ? 1 : 0.58
+            selectionColor: Commons.Color.menu.selectedBackground
+            selectedTextColor: Commons.Color.menu.selectedText
+            font.family: Style.font.menuFamily
+            font.pixelSize: Style.font.heading
+            onTextChanged: if (text !== root.filterText) root.setFilter(text)
+          }
+
+          Text {
+            anchors.fill: filterInput
+            verticalAlignment: Text.AlignVCenter
+            visible: !root.filterText && !filterInput.preeditText
+            textFormat: Text.PlainText
+            text: Commons.I18n.t("dock.searchApps")
+            color: Commons.Color.menu.text
+            opacity: 0.58
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
