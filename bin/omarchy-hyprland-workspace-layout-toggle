@@ -91,7 +91,7 @@ else
   notify_layout "$UNSAVED_MESSAGE"
 fi
 
-# The bar shows the focused workspace's layout, and the dock shows on floating ones.
+# The bar shows the focused workspace's layout, and the dock follows it.
 if (( APPLIED )); then
   omarchy-shell -q omarchy.workspaces refresh
   omarchy-shell -q omarchy.dock refresh

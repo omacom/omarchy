@@ -58,8 +58,8 @@ flag() {
 }
 
 cmd_flag() {
-  local name="$1" key="$2" default="$3" label="$4"
-  shift 4
+  local key="$1" default="$2" label="$3"
+  shift 3
 
   if (( $# == 0 )); then
     flag "$key" "$default"
@@ -67,7 +67,7 @@ cmd_flag() {
   fi
 
   local value="$1"
-  (( $# == 1 )) || fail "$name takes a single value"
+  (( $# == 1 )) || fail "$key takes a single value"
   if [[ $value == "toggle" ]]; then
     if [[ $(flag "$key" "$default") == "on" ]]; then
       value=off
@@ -75,7 +75,7 @@ cmd_flag() {
       value=on
     fi
   fi
-  [[ $value =~ ^(on|off)$ ]] || fail "$name must be on, off, or toggle"
+  [[ $value =~ ^(on|off)$ ]] || fail "$key must be on, off, or toggle"
   commit "$NORMALIZE | .dock[\$key] = (\$value == \"on\")" --arg key "$key" --arg value "$value"
   echo "$label turned $value"
 }
@@ -123,8 +123,8 @@ command="${1:-}"
 
 case "$command" in
   position) cmd_position "$@" ;;
-  autohide) cmd_flag autohide autohide false "Dock auto-hide" "$@" ;;
-  tiling) cmd_flag tiling tiling true "Dock on tiled workspaces" "$@" ;;
+  autohide) cmd_flag autohide false "Dock auto-hide" "$@" ;;
+  tiling) cmd_flag tiling true "Dock on tiled workspaces" "$@" ;;
   pinned) cmd_pinned "$@" ;;
   pin) cmd_pin "$@" ;;
   unpin) cmd_unpin "$@" ;;

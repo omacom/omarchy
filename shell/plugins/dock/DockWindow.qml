@@ -264,10 +264,11 @@ PanelWindow {
   // Other workspaces with windows on them keep the layout they have. The
   // layout commands act on the focused workspace, so a choice on another
   // screen's dock focuses that screen first. The default is saved only when
-  // it changes: saving it reloads Hyprland.
+  // it changes, as saving it reloads Hyprland, and not at all for a workspace
+  // that cannot take a layout, such as a named one.
   function setLayout(mode) {
     var command = "omarchy-hyprland-workspace-layout-toggle " + mode
-      + "; if [[ $(omarchy-hyprland-workspace-layout-default) != \"" + mode + "\" ]]; then omarchy-hyprland-workspace-layout-default " + mode + "; fi"
+      + " && if [[ $(omarchy-hyprland-workspace-layout-default) != \"" + mode + "\" ]]; then omarchy-hyprland-workspace-layout-default " + mode + "; fi"
     if (window.monitor && !window.monitor.focused)
       command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + window.monitor.name + "\" })") + " >/dev/null && { " + command + "; }"
     Util.execDetached(command)
@@ -313,8 +314,7 @@ PanelWindow {
     var before = menu.x - popup.width + Style.normalBorderWidth
     if (window.position === "left") return after
     if (window.position === "right") return before
-    var preferBefore = Commons.I18n.rightToLeft
-    if (preferBefore) return before >= window.gap ? before : after
+    if (Commons.I18n.rightToLeft) return before >= window.gap ? before : after
     return after + popup.width <= window.width - window.gap ? after : before
   }
 
@@ -497,8 +497,9 @@ PanelWindow {
     width: slots.implicitWidth
     height: slots.implicitHeight
     // How far the dock is tucked past its edge. Auto-hide slides it, but only
-    // while the dock is on screen: arriving on a floating workspace shows it
-    // where it belongs at once.
+    // while the dock is on screen: a dock that was not shown appears where it
+    // belongs at once. Between a tiled workspace and a floating one with the
+    // dock always out, it is on screen throughout, so it slides.
     property real tuck: window.tucked ? window.slotSize + window.gap : 0
 
     // Tucking away is quicker than coming back, though not so quick that the
