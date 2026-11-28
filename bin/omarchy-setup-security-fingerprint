@@ -107,6 +107,13 @@ echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
 # Bail before installing anything if there's no reader to talk to.
 if ! omarchy-hw-fingerprint; then
   echo -e "\e[31mNo fingerprint sensor detected.\e[0m"
+  # A ThinkPad whose BIOS switches the reader off drops it from USB entirely, so
+  # detection can't tell it from a laptop without one. The BIOS still lists the
+  # switch, and its directory is visible without root, so say where it is.
+  if [[ -d ${OMARCHY_FIRMWARE_ATTRIBUTES_PATH:-/sys/class/firmware-attributes}/thinklmi/attributes/FingerprintReaderAccess ]]; then
+    echo -e "\nIf this ThinkPad has a fingerprint reader, the BIOS may have it switched off."
+    echo "Restart, press F1, and enable Security → I/O Port Access → Fingerprint Reader."
+  fi
   exit 1
 fi
 

@@ -174,6 +174,16 @@ HARDWARE_STATUS=1 run_setup
 [[ ! -s $CALL_LOG ]] || fail "missing hardware stops before package operations"
 pass "missing hardware performs no package operations"
 
+# A ThinkPad whose BIOS has the reader switched off shows no USB device at all,
+# but its BIOS still lists the switch, so setup can say where to turn it on.
+mkdir -p "$scratch/firmware/thinklmi/attributes/FingerprintReaderAccess" "$scratch/no-firmware"
+OMARCHY_FIRMWARE_ATTRIBUTES_PATH="$scratch/firmware" HARDWARE_STATUS=1 run_setup
+grep -q 'I/O Port Access' "$scratch/output" ||
+  fail "a ThinkPad with a BIOS fingerprint switch is told where to turn the reader on" "$(cat "$scratch/output")"
+OMARCHY_FIRMWARE_ATTRIBUTES_PATH="$scratch/no-firmware" HARDWARE_STATUS=1 run_setup
+grep -q 'BIOS' "$scratch/output" && fail "a machine without the BIOS switch gets no BIOS hint"
+pass "missing hardware on a ThinkPad points at the BIOS fingerprint switch"
+
 # Successful setup must reuse the same lock/recovery installer as updates.
 : > "$CALL_LOG"
 OMARCHY_PATH="$scratch" ENROLL_STATUS=0 VERIFY_STATUS=0 \
