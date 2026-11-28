@@ -275,6 +275,26 @@ assert state.find(state.load("claude"), "main")["accountId"] == "personal"
 assert state.load("claude")["active"] == "personal-2"
 assert state.load("claude")["threshold"] == 95
 
+# A malformed ~/.claude.json is refused rather than rewritten from empty.
+machine("malformed")
+malformed = '{"projects": {"local": {"trusted": true}}, "mcpServers": '
+(Path.home() / ".claude.json").write_text(malformed)
+try:
+  transfer.import_provider("claude", payload["providers"]["claude"], False)
+except state.AccountError as error:
+  assert "can't be read" in str(error)
+else:
+  raise AssertionError("must refuse to rewrite a malformed .claude.json")
+assert (Path.home() / ".claude.json").read_text() == malformed
+assert not list(Path.home().rglob(".account-copy-backup-*"))
+
+# A broken login is still replaced by the one copied in.
+machine("broken-login")
+claude(state.primary_home("claude"), "personal", "before-break")
+main_login().write_text('{"claudeAiOauth": ')
+transfer.import_provider("claude", payload["providers"]["claude"], True)
+assert state.read_json(main_login())["claudeAiOauth"]["accessToken"] == "fake-personal"
+
 # An older installed receiver lacks name synchronization. Use the destination's
 # own backend for the new receiver so additional registry fields survive.
 machine("newer-backend")

@@ -328,7 +328,14 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
               backups[path] = None
           if provider == "claude":
             # Preserve local onboarding, folder trust, MCP and other logins.
-            current = accounts.read_json(path) or {}
+            # A .claude.json that doesn't parse is refused, not rewritten from
+            # empty; a broken login is what the copy replaces. Older backends
+            # have no account_config, so check here.
+            current = accounts.read_json(path) if path.exists() else {}
+            if not isinstance(current, dict):
+              if name == ".claude.json":
+                raise accounts.AccountError(f"{path} can't be read, so no login was copied.")
+              current = {}
             current.update(data)
             data = current
           write_json(path, data)
