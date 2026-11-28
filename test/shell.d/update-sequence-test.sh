@@ -16,6 +16,7 @@ steps=(
   omarchy-update-lock
   omarchy-update-requires-free-space
   omarchy-update-confirm
+  omarchy-update-time
   omarchy-update-pkg-prune
   omarchy-snapshot
   omarchy-update-stay-awake
@@ -84,6 +85,7 @@ expected_steps() {
     omarchy-update-lock \
     omarchy-update-requires-free-space \
     ${1:+omarchy-update-confirm} \
+    omarchy-update-time \
     omarchy-update-pkg-prune \
     omarchy-snapshot \
     omarchy-update-stay-awake \

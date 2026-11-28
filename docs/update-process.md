@@ -121,6 +121,10 @@ omarchy-update
   │    └─ abort below the configured free-space threshold on /
   ├─ confirm unless -y
   ├─ authorize sudo once, then keep the timestamp fresh in the background
+  ├─ omarchy-update-time --if-behind
+  │    └─ a clock older than the installed keyrings (an Apple Silicon RTC reads
+  │       1970 until NTP syncs) restarts timesyncd and waits up to 30 seconds,
+  │       then stops the update before gpg or TLS fail on it
   ├─ omarchy-update-pkg-prune
   │    └─ trim the pacman cache to two versions per package, deliberately
   │       before the snapshot since the cache lives on the snapshotted subvolume
@@ -305,7 +309,7 @@ scripts.
 | `omarchy-update-boot` | Hidden helper that runs the platform's `update-verify` lifecycle operation through `omarchy-lifecycle-dispatch`, with `sudo` only when the platform implements it. | **Keep internal/hidden.** Keeps platform boot checks out of the pipeline and stubbable in tests. |
 | `omarchy-update-restart` | Restarts components selected by `restart-*-required` markers, always restarts the shell, and prompts for reboot after kernel/Hyprland updates. Internal phase flags let the update finish sudo-capable restarts before user hooks and defer only the unprivileged reboot prompt. | **Keep.** Important final step; may eventually include service-restart checks. |
 | `omarchy-update-firmware` | Manual firmware update command using fwupd. Not part of the normal update pipeline. | **Keep separate.** Firmware is not a routine system update step. |
-| `omarchy-update-time` | Restarts `systemd-timesyncd`. | **Question.** Not really an update command. Consider renaming/moving under system/time maintenance. |
+| `omarchy-update-time` | Restarts `systemd-timesyncd`. With `--if-behind`, run by `omarchy update`, it acts only on a clock older than the installed keyrings: restarts timesyncd if it is the running NTP client and waits for the sync, failing the update if the clock stays behind. | **Question.** Not really an update command. Consider renaming/moving under system/time maintenance. |
 
 ## Closed decisions
 
