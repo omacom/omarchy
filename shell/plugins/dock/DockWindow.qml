@@ -48,11 +48,24 @@ PanelWindow {
   readonly property bool contentShown: shown && !tucked
 
   readonly property int gap: Style.spacing.xs
-  readonly property int iconSize: Math.round(36 * Style.fontScale)
+  readonly property real requestedIconSize: (dock ? dock.iconSize : 36) * Style.fontScale
+  property real animatedIconSize: slotMetrics.iconSize
+  readonly property real iconSize: Math.min(animatedIconSize, slotMetrics.iconLimit)
+  Behavior on animatedIconSize {
+    enabled: window.shown
+    NumberAnimation { duration: Style.duration(280); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+  }
+  readonly property real maximumIconSize: 66 * Style.fontScale
+  readonly property real maximumSlotSize: maximumIconSize + iconInset * 2
   // Each app has a square slot with its icon in the middle, and the slots run
   // straight to the edge of the dock.
-  readonly property int iconInset: Style.spacing.md
-  readonly property int slotSize: iconSize + iconInset * 2
+  readonly property real availableLength: Math.max(0, (window.vertical ? window.height : window.width) - window.gap * 2 - Math.max(0, requestedIconSize * magnification / 2 - Style.spacing.md) * 2)
+  readonly property var slotMetrics: DockModel.fitSlots(requestedIconSize, Style.spacing.md, (dock ? dock.items.length : 0) + 1 + (insertIndex >= 0 ? 1 : 0), availableLength, 0)
+  readonly property real iconInset: slotMetrics.inset
+  readonly property real slotSize: iconSize + iconInset * 2
+  readonly property real magnification: dock ? dock.magnification : 0.15
+  readonly property real inwardReach: Math.max(0, iconSize * magnification - iconInset)
+  readonly property real sideReach: Math.max(0, iconSize * magnification / 2 - iconInset)
   // An app that is starting pulses down to this.
   readonly property real pulseOpacity: 0.7
   // Room inward of the dock for its menus: the tallest, the apps button's,
@@ -80,6 +93,7 @@ PanelWindow {
   property point dropPoint
   // Where an app dragged in from the app grid would land, or -1.
   property int insertIndex: -1
+  property var externalDropArea: null
 
   // Where this window sits on its screen, which a point from the app grid's
   // fullscreen surface is given in: against its edge, clear of the space
@@ -98,12 +112,24 @@ PanelWindow {
   function moveExternalDrag(screenX, screenY) {
     var at = window.origin()
     var point = Qt.point(screenX - at.x - body.x, screenY - at.y - body.y)
-    var reach = window.slotSize
-    var along = window.vertical ? point.y : point.x
-    var across = window.vertical ? point.x : point.y
-    var length = window.vertical ? body.height : body.width
-    var depth = window.vertical ? body.width : body.height
-    var near = along >= -window.slotSize && along <= length + window.slotSize && across >= -reach && across <= depth + reach
+    // A preview may shrink crowded slots or expand folded pins. Its drop
+    // area can grow during this drag, but must not shrink under the pointer.
+    var x = window.position === "left" ? window.gap
+      : window.position === "right" ? window.width - body.width - window.gap : body.x
+    var y = window.position === "top" ? window.gap
+      : window.position === "bottom" ? window.height - body.height - window.gap : body.y
+    var area = { left: x - window.slotSize, top: y - window.slotSize,
+      right: x + body.width + window.slotSize, bottom: y + body.height + window.slotSize }
+    var previous = window.externalDropArea
+    if (previous) {
+      area.left = Math.min(area.left, previous.left)
+      area.top = Math.min(area.top, previous.top)
+      area.right = Math.max(area.right, previous.right)
+      area.bottom = Math.max(area.bottom, previous.bottom)
+    }
+    window.externalDropArea = area
+    var near = screenX - at.x >= area.left && screenX - at.x <= area.right
+      && screenY - at.y >= area.top && screenY - at.y <= area.bottom
     if (window.shown && window.autohide && near) window.revealed = true
     window.insertIndex = window.shown && near ? window.slotIndexAt(point) : -1
   }
@@ -116,6 +142,7 @@ PanelWindow {
   }
 
   function endExternalDrag() {
+    window.externalDropArea = null
     window.insertIndex = -1
     if (window.autohide) hideTimer.restart()
   }
@@ -205,11 +232,11 @@ PanelWindow {
     right: window.position !== "left"
   }
 
-  implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupRoom : 0
-  implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + window.popupRoom
+  implicitWidth: window.vertical ? window.gap + window.maximumSlotSize + window.popupRoom : 0
+  implicitHeight: window.vertical ? 0 : window.gap + window.maximumSlotSize + window.popupRoom
 
   mask: Region {
-    item: window.contentShown ? body : null
+    item: window.contentShown ? hitStrip : null
 
     Region { item: window.shown && window.autohide ? edgeTrigger : null }
     Region { item: menu.visible ? menu : null }
@@ -246,6 +273,15 @@ PanelWindow {
     }
   }
 
+  // Include every enlarged pixel in the surface mask, without moving slots.
+  Item {
+    id: hitStrip
+    x: body.x - (window.vertical ? (window.position === "right" ? window.inwardReach : 0) : window.sideReach)
+    y: body.y - (window.vertical ? window.sideReach : (window.position === "bottom" ? window.inwardReach : 0))
+    width: body.width + (window.vertical ? window.inwardReach : window.sideReach * 2)
+    height: body.height + (window.vertical ? window.sideReach * 2 : window.inwardReach)
+  }
+
   HyprlandFocusGrab {
     active: window.menuOpen
     windows: [window]
@@ -280,13 +316,14 @@ PanelWindow {
 
     x: window.position === "left" ? window.gap - tuck
       : window.position === "right" ? window.width - width - window.gap + tuck
-      : Math.round((window.width - width) / 2)
+      : (window.width - width) / 2
     y: window.position === "top" ? window.gap - tuck
       : window.position === "bottom" ? window.height - height - window.gap + tuck
-      : Math.round((window.height - height) / 2)
+      : (window.height - height) / 2
 
     HoverHandler {
       id: bodyHover
+      parent: window.contentItem
       onHoveredChanged: if (!hovered && window.autohide) hideTimer.restart()
       // Only a real move clears it: the release itself reports the pointer too.
       onPointChanged: {
@@ -320,13 +357,20 @@ PanelWindow {
     property bool hovered: mouse.containsMouse && !window.hoverStale && !window.dragging
     property bool pressed: mouse.pressed
     property alias mouse: mouse
+    property bool firstSlot: false
+    property bool lastSlot: false
+    readonly property real leadingReach: firstSlot ? window.sideReach : 0
+    readonly property real trailingReach: lastSlot ? window.sideReach : 0
 
     width: window.slotSize
     height: window.slotSize
 
     MouseArea {
       id: mouse
-      anchors.fill: parent
+      x: window.vertical ? (window.position === "right" ? -window.inwardReach : 0) : -slot.leadingReach
+      y: window.vertical ? -slot.leadingReach : (window.position === "bottom" ? -window.inwardReach : 0)
+      width: slot.width + (window.vertical ? window.inwardReach : slot.leadingReach + slot.trailingReach)
+      height: slot.height + (window.vertical ? slot.leadingReach + slot.trailingReach : window.inwardReach)
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
@@ -335,6 +379,8 @@ PanelWindow {
 
   component AppsSlot: Slot {
     id: appsSlot
+    firstSlot: true
+    lastSlot: appRepeater.count === 0
 
     property real displayedShift: window.insertIndex >= 0 ? -window.slotSize / 2 : 0
 
@@ -365,13 +411,13 @@ PanelWindow {
       y: window.iconInset
       width: window.iconSize
       height: window.iconSize
-      scale: appsSlot.hovered ? 1.15 : 1
+      scale: appsSlot.hovered ? 1 + (window.dock ? window.dock.magnification : 0.15) : 1
       transformOrigin: window.popOrigin
 
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
 
       Grid {
-        readonly property int square: Math.round(window.iconSize * 0.22)
+        readonly property real square: window.iconSize * 0.22
         // A theme change fades it with the bar's palette.
         property color tint: Commons.Color.bar.text
 
@@ -379,7 +425,7 @@ PanelWindow {
 
         anchors.centerIn: parent
         columns: 3
-        spacing: Math.round(window.iconSize * 0.1)
+        spacing: window.iconSize * 0.1
 
         Repeater {
           model: 9
@@ -387,7 +433,7 @@ PanelWindow {
           delegate: Rectangle {
             width: parent.square
             height: parent.square
-            radius: Math.max(1, Math.round(parent.square * 0.2))
+            radius: Math.max(1, parent.square * 0.2)
             color: parent.tint
           }
         }
@@ -397,6 +443,7 @@ PanelWindow {
 
   component AppSlot: Slot {
     id: appSlot
+    lastSlot: index === appRepeater.count - 1
 
     required property int index
     required property string key
@@ -430,7 +477,7 @@ PanelWindow {
     // icon moves. Reading the pointer through a slot that moves with it would
     // feed each move back into the next.
     function bodyPoint(event) {
-      return appSlot.mapToItem(body, event.x, event.y)
+      return appSlot.mouse.mapToItem(body, event.x, event.y)
     }
 
     mouse.onPressed: function(event) {
@@ -460,7 +507,7 @@ PanelWindow {
 
     mouse.onReleased: function(event) {
       if (!appSlot.lifted) return
-      window.dropPoint = appSlot.mapToItem(body, event.x, event.y)
+      window.dropPoint = appSlot.mouse.mapToItem(window.contentItem, event.x, event.y)
       var from = window.dragIndex
       var to = window.dropIndex
       appSlot.dragged = true
@@ -497,7 +544,7 @@ PanelWindow {
         x: window.vertical ? 0 : appSlot.displayedShift
         y: window.vertical ? appSlot.displayedShift : 0
       }
-      scale: appSlot.lifted || appSlot.hovered ? 1.15 : 1
+      scale: appSlot.lifted ? 1.15 : appSlot.hovered ? 1 + (window.dock ? window.dock.magnification : 0.15) : 1
       transformOrigin: window.popOrigin
 
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
@@ -551,7 +598,7 @@ PanelWindow {
     Image {
       id: current
       anchors.fill: parent
-      sourceSize: Qt.size(window.iconSize * 2, window.iconSize * 2)
+      sourceSize: Qt.size(window.maximumIconSize * 2, window.maximumIconSize * 2)
       fillMode: Image.PreserveAspectFit
       asynchronous: true
       smooth: true

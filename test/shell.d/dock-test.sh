@@ -12,6 +12,76 @@ trap 'rm -rf "$TMPDIR"' EXIT
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
 
+const coordinateQml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/DockWindow.qml', 'utf8')
+const bodyHoverBlock = coordinateQml.match(/    HoverHandler \{\n      id: bodyHover[\s\S]*?\n    \}/)[0]
+const hoverParentMatch = bodyHoverBlock.match(/^\s*parent:\s*([^\n]+)/m)
+const hoverParentExpr = hoverParentMatch ? hoverParentMatch[1].trim() : 'body'
+const coordinateMoveBody = bodyHoverBlock.match(/onPointChanged: \{([\s\S]*?)\n      \}/)[1]
+const releaseBody = coordinateQml.match(/mouse\.onReleased: function\(event\) \{([\s\S]*?)\n    \}/)[1]
+const coordinateMove = new Function('window', 'body', 'hitStrip', 'point', 'Style', coordinateMoveBody)
+const coordinateRelease = new Function('window', 'body', 'hitStrip', 'appSlot', 'event', releaseBody)
+const makeItem = (x, y) => ({
+  x,
+  y,
+  mapToItem(target, px, py) { return { x: this.x + px - target.x, y: this.y + py - target.y } }
+})
+const inwardReach = 66 * 0.35 - 6
+const sideReach = 66 * 0.35 / 2 - 6
+const contentItem = makeItem(0, 0)
+const bodyItem = makeItem(100, 120)
+const hitStripItem = makeItem(bodyItem.x - sideReach, bodyItem.y - inwardReach)
+const appSlotItem = makeItem(bodyItem.x + 78, bodyItem.y)
+appSlotItem.mouse = makeItem(appSlotItem.x, appSlotItem.y - inwardReach)
+appSlotItem.lifted = true
+appSlotItem.dragged = false
+const coordinateWindow = {
+  contentItem,
+  hoverStale: false,
+  dragging: true,
+  dragIndex: 1,
+  dropIndex: 2,
+  dropPoint: null,
+  endDrag() { this.dragging = false; this.hoverStale = true },
+  dock: { moveItem() {} }
+}
+const hoverParent = new Function('window', 'body', 'hitStrip', 'return ' + hoverParentExpr)(coordinateWindow, bodyItem, hitStripItem)
+coordinateRelease(coordinateWindow, bodyItem, hitStripItem, appSlotItem, contentItem.mapToItem(appSlotItem.mouse, 210, 150))
+assert(coordinateWindow.hoverStale, 'releasing a dock drag marks hover stale')
+coordinateMove(coordinateWindow, bodyItem, hitStripItem, { position: contentItem.mapToItem(hoverParent, 211, 150) }, { space: n => n })
+assert(coordinateWindow.hoverStale, 'one pixel after a drag release preserves post-drag hover suppression across item origins')
+coordinateMove(coordinateWindow, bodyItem, hitStripItem, { position: contentItem.mapToItem(hoverParent, 217, 150) }, { space: n => n })
+assert(!coordinateWindow.hoverStale, 'a deliberate move after a drag release clears post-drag hover suppression')
+
+
+for (const [icon, count, length, extra] of [[66, 12, 742, 0], [36, 29, 1280, 24], [36, 120, 742, 24]]) {
+  const fit = dock.fitSlots(icon, 6, count, length, extra)
+  assert((fit.iconSize + fit.inset * 2) * count + extra <= length + 0.0001, 'all dock slots fit the available edge: ' + count + ' slots on ' + length)
+  assert(fit.iconSize > 0 && fit.iconSize <= icon, 'fitting keeps every icon visible without enlarging requested icons')
+}
+const dragQml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/DockWindow.qml', 'utf8')
+const method = name => dragQml.match(new RegExp('function ' + name + '\\([^)]*\\) \\{([\\s\\S]*?)\\n  \\}'))[1]
+const dropWindow = { position: 'left', vertical: true, width: 240, height: 742, gap: 3, shown: true, autohide: false, insertIndex: -1, externalDropArea: null,
+  origin: () => ({x: 0, y: 0}), slotIndexAt: () => 5, settleShifts: () => {}, dock: {pinAt: key => { pinnedDrop = key }} }
+Object.defineProperty(dropWindow, 'slotSize', {get() { const fit = dock.fitSlots(66, 6, 12 + (this.insertIndex >= 0 ? 1 : 0), 736, 0); return fit.iconSize + fit.inset * 2 }})
+const dropBody = { x: 3, get y() { return (742 - this.height) / 2 }, get width() { return dropWindow.slotSize }, get height() { return dropWindow.slotSize * (12 + (dropWindow.insertIndex >= 0 ? 1 : 0)) } }
+const moveDrop = new Function('window', 'body', 'Qt', 'screenX', 'screenY', method('moveExternalDrag'))
+dropWindow.moveExternalDrag = (x, y) => moveDrop(dropWindow, dropBody, {point: (x,y) => ({x,y})}, x, y)
+const initialSlot = dropWindow.slotSize
+dropWindow.moveExternalDrag(120, 371)
+assert(dropWindow.insertIndex >= 0 && dropWindow.slotSize < initialSlot, 'a crowded dock shows a fitted app-drop preview')
+dropWindow.moveExternalDrag(120, 371)
+assert(dropWindow.insertIndex >= 0, 'preview shrink cannot reject the stationary drag pointer')
+let pinnedDrop = null
+const timer = {restart() {}}
+dropWindow.endExternalDrag = () => new Function('window', 'collapseTimer', 'hideTimer', method('endExternalDrag'))(dropWindow, timer, timer)
+new Function('window', 'screenX', 'screenY', 'key', method('dropExternalDrag'))(dropWindow, 120, 371, 'org.example.Drop')
+assertEqual(pinnedDrop, 'org.example.Drop', 'releasing a crowded preview pins the app')
+assertEqual(dropWindow.externalDropArea, null, 'the next drag starts with fresh acceptance bounds')
+
+const roomy = dock.fitSlots(36, 6, 4, 1280, 0)
+assertEqual(roomy.iconSize, 36, 'a dock that already fits keeps its normal icon size')
+assertEqual(roomy.inset, 6, 'a dock that already fits keeps its normal spacing')
+
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
 assertEqual(dock.normalizePosition('diagonal'), 'bottom', 'dock falls back to the bottom')
@@ -199,6 +269,22 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
   fail "dock auto-hide takes only on, off, or toggle"
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
+
+omarchy_dock icon-size 24 >/dev/null
+omarchy_dock magnification 30 >/dev/null
+[[ $(omarchy_dock icon-size) == 24 && $(omarchy_dock magnification) == 30 ]] || fail "dock amounts persist"
+omarchy_dock icon-size 66 >/dev/null
+[[ $(omarchy_dock icon-size) == 66 ]] || fail "dock accepts the largest size choice"
+for value in 0 67 invalid; do
+  if omarchy_dock icon-size "$value" 2>/dev/null; then fail "icon size rejects invalid values"; fi
+done
+pins_before=$(omarchy_dock pinned)
+omarchy_dock position left >/dev/null
+omarchy_dock autohide on >/dev/null
+omarchy_dock reset >/dev/null
+[[ $(omarchy_dock icon-size) == 36 && $(omarchy_dock magnification) == 15 && $(omarchy_dock pinned) == "$pins_before" ]] || fail "dock amount reset preserves pins"
+[[ $(omarchy_dock position) == bottom && $(omarchy_dock autohide) == off ]] || fail "dock reset restores native position and auto-hide defaults"
+pass "dock amount controls validate and reset independently"
 
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and

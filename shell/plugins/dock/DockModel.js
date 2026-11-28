@@ -208,8 +208,19 @@ function pickClickWindow(mode, windows, workspaceId) {
   return picked < 0 ? -1 : candidates[picked]
 }
 
+// Keep the complete strip reachable on short displays and with many windows.
+// Insets shrink with icons; a minimum fixed inset would overflow again when
+// enough instances are open. The independent limit also bounds resize motion.
+function fitSlots(icon, inset, count, length, extra) {
+  var capacity = Math.max(0, length - Math.max(0, extra || 0)) / Math.max(1, count)
+  var padding = Math.min(inset, capacity * inset / Math.max(1, icon + inset * 2))
+  var limit = Math.max(0, capacity - padding * 2)
+  return { iconSize: Math.min(icon, limit), iconLimit: limit, inset: padding }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    fitSlots: fitSlots,
     normalizePosition: normalizePosition,
     isVertical: isVertical,
     normalizeId: normalizeId,
