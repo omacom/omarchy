@@ -265,8 +265,9 @@ PanelWindow {
 
   Timer {
     id: hideTimer
-    // Long enough to cross a gap between the edge and the icons, no longer.
-    interval: 150
+    // Long enough to cross a gap between the edge and the icons, or to drift
+    // off the dock for a moment, without it already being gone.
+    interval: 195
     onTriggered: {
       if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging && !window.movingDock) window.revealed = false
     }
