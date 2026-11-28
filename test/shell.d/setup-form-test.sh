@@ -37,11 +37,6 @@ printf '%s\n' "${@: -1}" >>"$GUM_DIR/curl-urls"
 printf '{"name":"","latitude":null,"longitude":null,"country":"","timezone":"%s"}\n' "$TZ_GUESS"
 EOF
 
-cat >"$tmp_dir/timedatectl" <<'EOF'
-#!/bin/bash
-printf '%s\n' UTC Europe/Copenhagen America/Chicago Asia/Shanghai Europe/Warsaw
-EOF
-
 # Calls one prompt bare under `set -euo pipefail` — the shape that makes the
 # status capture load-bearing. A cancelled prompt is a failing assignment, so a
 # regression to a plain `status=$?` kills the shell before the function can
@@ -85,7 +80,7 @@ printf 'hostname=%s\n' "${hostname:-}"
 printf 'timezone=%s\n' "${timezone:-}"
 EOF
 
-chmod +x "$tmp_dir/gum" "$tmp_dir/curl" "$tmp_dir/timedatectl" "$tmp_dir/driver"
+chmod +x "$tmp_dir/gum" "$tmp_dir/curl" "$tmp_dir/driver"
 export PATH="$tmp_dir:$PATH"
 export GUM_DIR="$tmp_dir" GUM_SCRIPT="$tmp_dir/script" GUM_ARGS="$tmp_dir/args" GUM_COUNT="$tmp_dir/count"
 export NOTICES="$tmp_dir/notices" MARKER="$tmp_dir/marker"
@@ -320,15 +315,24 @@ if grep -qE -- '--(value|selected)' "$GUM_ARGS"; then
   fail "timezone prompt leaves the search empty and the pick to the user" "$(cat "$GUM_ARGS")"
 fi
 grep -qF UTC "$tmp_dir/stdin.1" || fail "timezone prompt offers the system timezone list"
+grep -qFx Asia/Ashgabat "$tmp_dir/stdin.1" || fail "timezone prompt offers the canonical zone"
+! grep -qFx Asia/Ashkhabad "$tmp_dir/stdin.1" || fail "timezone prompt drops tzdata backward-compatibility aliases"
+grep -qFx Etc/GMT+5 "$tmp_dir/stdin.1" || fail "timezone prompt offers the fixed-offset zones"
 [[ $(sort -u "$tmp_dir/curl-urls") == "https://geo.omarchy.org/" ]] || fail "timezone prompt asks only geo.omarchy.org" "$(cat "$tmp_dir/curl-urls")"
 pass "timezone prompt offers geo.omarchy.org's timezone first when it answers"
+
+TZ_GUESS=Asia/Calcutta run_prompt omarchy_prompt_timezone "0:Asia/Kolkata"
+assert_status 0 "timezone prompt accepts an aliased geo guess"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Asia/Kolkata" ]] || fail "the zone an aliased geo guess links to leads the list" "$(head "$tmp_dir/stdin.1")"
+! grep -qFx Asia/Calcutta "$tmp_dir/stdin.1" || fail "timezone prompt never offers the alias itself"
+pass "timezone prompt resolves an aliased geo guess to a listed zone"
 
 # An unnetworked first boot has no guess, and the fallback has to survive `set -e`
 run_prompt omarchy_prompt_timezone "0:America/Chicago"
 assert_status 0 "timezone prompt survives a failed geo guess"
 [[ $(field timezone) == "America/Chicago" ]] || fail "timezone prompt keeps the filtered timezone"
 [[ $(head -n 1 "$GUM_ARGS") == filter* ]] || fail "timezone prompt filters when there is no geo guess"
-[[ $(head -n 1 "$tmp_dir/stdin.1") == "UTC" ]] || fail "timezone prompt keeps the system order without a guess" "$(cat "$tmp_dir/stdin.1")"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Africa/Abidjan" ]] || fail "timezone prompt keeps the sorted order without a guess" "$(cat "$tmp_dir/stdin.1")"
 pass "timezone prompt falls back to filtering when the geo guess fails"
 
 OMARCHY_FORM_TIMEZONE_DEFAULT=Asia/Shanghai TZ_GUESS=Europe/Copenhagen run_prompt omarchy_prompt_timezone "0:Asia/Shanghai"
@@ -338,13 +342,13 @@ pass "install media can put its timezone first, which stays a choice"
 
 TZ_GUESS=Mars/Olympus run_prompt omarchy_prompt_timezone "0:UTC"
 assert_status 0 "a timezone prompt with an unknown guess succeeds"
-[[ $(head -n 1 "$tmp_dir/stdin.1") == "UTC" ]] || fail "timezone prompt keeps the system order for an unknown guess" "$(cat "$tmp_dir/stdin.1")"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Africa/Abidjan" ]] || fail "timezone prompt keeps the sorted order for an unknown guess" "$(cat "$tmp_dir/stdin.1")"
 ! grep -qxF Mars/Olympus "$tmp_dir/stdin.1" || fail "timezone prompt never offers a guess that is not a timezone" "$(cat "$tmp_dir/stdin.1")"
 OMARCHY_FORM_TIMEZONE_DEFAULT=$'Mars/Olympus\nUTC' run_prompt omarchy_prompt_timezone "0:UTC"
 ! grep -qxF Mars/Olympus "$tmp_dir/stdin.1" || fail "timezone prompt matches the guess as one whole timezone" "$(cat "$tmp_dir/stdin.1")"
 OMARCHY_FORM_TIMEZONE_DEFAULT=$'Europe/Copenhagen\nAmerica/Chicago' run_prompt omarchy_prompt_timezone "0:UTC"
 assert_status 0 "a multiline timezone guess does not stop setup"
-[[ $(head -n 1 "$tmp_dir/stdin.1") == "UTC" ]] || fail "timezone prompt does not promote several zones as one guess" "$(cat "$tmp_dir/stdin.1")"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Africa/Abidjan" ]] || fail "timezone prompt does not promote several zones as one guess" "$(cat "$tmp_dir/stdin.1")"
 OMARCHY_FORM_TIMEZONE_DEFAULT=$'UTC\nEurope/Copenhagen\nAmerica/Chicago\nAsia/Shanghai\nEurope/Warsaw' run_prompt omarchy_prompt_timezone "0:UTC"
 assert_status 0 "a guess containing the whole list does not stop setup"
 assert_returned "timezone prompt survives a guess containing the whole list under set -e"

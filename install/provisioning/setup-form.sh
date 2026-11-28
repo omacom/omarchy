@@ -399,6 +399,19 @@ omarchy_generate_hostname() {
   [[ $hostname =~ $OMARCHY_HOSTNAME_PATTERN ]] || hostname=$OMARCHY_HOSTNAME_DEFAULT
 }
 
+# `timedatectl list-timezones` builds its list from tzdata.zi, which carries the
+# backward-compatibility links alongside the zones they point at, so the picker
+# offered Asia/Ashkhabad right under Asia/Ashgabat. zone.tab is one row per
+# country per zone and holds none of those obsolete aliases; UTC and the fixed
+# Etc/GMT offsets are not in it.
+omarchy_timezones() {
+  {
+    echo UTC
+    awk '!/^#/ && NF { print $3 }' /usr/share/zoneinfo/zone.tab
+    awk '$1 == "Z" && $2 ~ /^Etc\/GMT[+-]/ { print $2 }' /usr/share/zoneinfo/tzdata.zi
+  } | sort
+}
+
 # A fresh machine often hasn't joined a network yet, so the geo guess fails
 # often; guard it or a `set -e` caller dies before the picker opens.
 #
@@ -416,7 +429,12 @@ omarchy_prompt_timezone() {
   [[ -n $guess ]] || guess=$(curl -fsS --max-time 5 https://geo.omarchy.org/ 2>/dev/null | jq -r '.timezone // empty' 2>/dev/null) || guess=""
   [[ -n $guess ]] || guess=${OMARCHY_FORM_TIMEZONE_FALLBACK:-}
 
-  zones=$(timedatectl list-timezones)
+  zones=$(omarchy_timezones)
+  # geo.omarchy.org and install media can name a tzdata alias like Asia/Calcutta;
+  # map it to the zone it links to, or it cannot lead a list without aliases.
+  if [[ -n $guess && $guess != *$'\n'* && $'\n'$zones$'\n' != *$'\n'"$guess"$'\n'* ]]; then
+    guess=$(awk -v tz="$guess" '$1 == "L" && $3 == tz {print $2; exit}' /usr/share/zoneinfo/tzdata.zi) || guess=""
+  fi
   if [[ -n $guess && $guess != *$'\n'* && $'\n'$zones$'\n' == *$'\n'"$guess"$'\n'* ]]; then
     zones=$(printf '%s\n' "$guess"; grep -vxF -- "$guess" <<<"$zones")
   fi
