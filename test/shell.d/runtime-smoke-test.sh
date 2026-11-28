@@ -449,7 +449,43 @@ pass "shell IPC returns effective shell config"
 
 [[ $(scratch_ipc shell summon omarchy.menu '{"menu":"apps"}') == "ok" ]] || fail_with_log "shell IPC summons menu apps overlay"
 scratch_ipc_quiet shell hide omarchy.menu >/dev/null
-[[ $(scratch_ipc shell summon missing.plugin "{}") == "unknown" ]] || fail_with_log "shell IPC rejects unknown plugin"
+unknown_stdout=""
+unknown_stderr=""
+unknown_rc=0
+unknown_err_file=$(mktemp "$SCRATCH_DIR/unknown-plugin.XXXXXX")
+unknown_stdout=$(scratch_ipc shell summon missing.plugin "{}" 2>"$unknown_err_file") || unknown_rc=$?
+unknown_stderr=$(<"$unknown_err_file")
+(( unknown_rc != 0 )) && [[ -z $unknown_stdout && $unknown_stderr == *"unknown plugin: missing.plugin"* ]] ||
+  fail_with_log "shell IPC summon rejects unknown plugin (rc=$unknown_rc out=$unknown_stdout err=$unknown_stderr)"
+
+unknown_rc=0
+unknown_stdout=$(scratch_ipc shell toggle missing.plugin "{}" 2>"$unknown_err_file") || unknown_rc=$?
+unknown_stderr=$(<"$unknown_err_file")
+(( unknown_rc != 0 )) && [[ -z $unknown_stdout && $unknown_stderr == *"unknown plugin: missing.plugin"* ]] ||
+  fail_with_log "shell IPC toggle rejects unknown plugin (rc=$unknown_rc out=$unknown_stdout err=$unknown_stderr)"
+
+unknown_stdout=$(scratch_ipc_quiet shell toggle missing.plugin "{}" 2>"$unknown_err_file") ||
+  fail_with_log "quiet shell IPC toggle ignores unknown plugin"
+unknown_stderr=$(<"$unknown_err_file")
+[[ -z $unknown_stdout && -z $unknown_stderr ]] ||
+  fail_with_log "quiet shell IPC toggle stays silent on unknown plugin (out=$unknown_stdout err=$unknown_stderr)"
+
+# Disabling a plugin while open must not let a subsequent toggle report success
+# by taking the hide path on stale open state.
+[[ $(scratch_ipc shell setPluginEnabled "$hot_reload_id" true) == "ok" ]] ||
+  fail_with_log "hot-reload plugin could not be re-enabled for disabled-toggle check"
+[[ $(scratch_ipc shell summon "$hot_reload_id" "{}") == "ok" ]] ||
+  fail_with_log "hot-reload plugin could not be summoned before disabling"
+[[ $(scratch_ipc shell setPluginEnabled "$hot_reload_id" false) == "ok" ]] ||
+  fail_with_log "hot-reload plugin could not be disabled while open"
+for method in toggle summon; do
+  disabled_rc=0
+  disabled_stdout=$(scratch_ipc shell "$method" "$hot_reload_id" "{}" 2>"$unknown_err_file") || disabled_rc=$?
+  disabled_stderr=$(<"$unknown_err_file")
+  (( disabled_rc != 0 )) && [[ -z $disabled_stdout && $disabled_stderr == *"disabled plugin: $hot_reload_id"* ]] ||
+    fail_with_log "shell IPC $method rejects a panel disabled while open (rc=$disabled_rc out=$disabled_stdout err=$disabled_stderr)"
+done
+rm -f "$unknown_err_file"
 pass "shell IPC summon and hide contract works"
 
 [[ $(scratch_ipc notifications ping) == "ok" ]] || fail_with_log "notifications IPC responds"

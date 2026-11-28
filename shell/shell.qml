@@ -1314,7 +1314,22 @@ ShellRoot {
 
   function toggle(pluginId, payloadJson) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
+    if (!id) return false
+    var plugins = shell.pluginRegistry.installedPlugins
+    if (!plugins[id] || !shell.pluginRegistry.isEnabled(id)) {
+      console.warn("toggle: unknown or disabled plugin:", id)
+      return false
+    }
     return isPluginOpen(id) ? hide(id) : summon(id, payloadJson)
+  }
+
+  // Why summon or toggle could not act on a plugin: it was never installed,
+  // it is turned off, or it is a bar-widget panel with no widget in the bar.
+  function pluginMiss(pluginId) {
+    var id = shell.pluginRegistry.resolveEnabledId(pluginId)
+    if (!id || !shell.pluginRegistry.installedPlugins[id]) return "unknown"
+    if (!shell.pluginRegistry.isEnabled(id)) return "disabled"
+    return "unavailable"
   }
 
   // Map of pluginId -> Loader, populated by the Instantiator delegate below.
@@ -2093,15 +2108,15 @@ ShellRoot {
     }
 
     function summon(id: string, payloadJson: string): string {
-      return shell.summon(id, payloadJson) ? "ok" : "unknown"
+      return shell.summon(id, payloadJson) ? "ok" : shell.pluginMiss(id)
     }
 
     function hide(id: string): void {
       shell.hide(id)
     }
 
-    function toggle(id: string, payloadJson: string): void {
-      shell.toggle(id, payloadJson)
+    function toggle(id: string, payloadJson: string): string {
+      return shell.toggle(id, payloadJson) ? "ok" : shell.pluginMiss(id)
     }
 
     // A bar section's panels answer to their position as well as their id, so a

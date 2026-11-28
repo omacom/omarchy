@@ -16,6 +16,16 @@ fail() {
   exit 1
 }
 
+# summon and toggle answer "ok", or why they could not act on the plugin.
+fail_plugin_miss() {
+  [[ $1 == "shell" && ( $2 == "summon" || $2 == "toggle" ) ]] || return 0
+  case $output in
+    unknown) fail "unknown plugin: ${3:-}" ;;
+    disabled) fail "disabled plugin: ${3:-}" ;;
+    unavailable) fail "no live bar widget for plugin: ${3:-}" ;;
+  esac
+}
+
 if (( $# == 0 )) || [[ $1 == "-h" || $1 == "--help" ]]; then
   cat <<USAGE
 Usage: omarchy-shell [-q] <target> <method> [args...]
@@ -92,6 +102,7 @@ if [[ -S $socket && $request != *$'\x1e'* && $request != *$'\x1f'* ]]; then
     output=${output%$'\x1e'*}
     # Match qs ipc's path, whose $(...) drops trailing newlines.
     while [[ $output == *$'\n' ]]; do output=${output%$'\n'}; done
+    fail_plugin_miss "$@"
     if (( !QUIET )) && [[ -n $output ]]; then
       echo "$output"
     fi
@@ -130,6 +141,8 @@ case $output in
     fail "omarchy-shell is not ready"
     ;;
 esac
+
+fail_plugin_miss "$@"
 
 if (( !QUIET )) && [[ -n $output ]]; then
   echo "$output"

@@ -141,9 +141,7 @@ or `omarchy.power`. There is no `bar` target.
 | `listShellConfig`                     | effective shell.json as JSON    |
 | `debugBarGeometry`                    | bar geometry dump for debugging |
 
-`setPluginEnabled` takes a string; only literal `"true"` enables. Methods
-answer on stdout with exit 0 — `ok` on success, `unknown` or an error
-string on a miss.
+`setPluginEnabled` takes a string; only literal `"true"` enables. Most methods answer on stdout with exit 0 — `ok` on success, `unknown` or an error string on a miss. `shell summon` and `shell toggle` instead answer why they could not act: `unknown` for a plugin that is not installed, `disabled` for one that is turned off, and `unavailable` for a bar-widget panel with no widget in the bar. Through `omarchy-shell` each is a failure: it writes `unknown plugin: <id>`, `disabled plugin: <id>` or `no live bar widget for plugin: <id>` to stderr with nothing on stdout and exits 1, unless `-q` is passed, which suppresses output and exits 0.
 
 ## shell.json
 
