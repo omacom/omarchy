@@ -34,7 +34,7 @@ recover_modeless() {
   (
     flock -w 1 9 || exit 0
 
-    local delay=3 state reloaded unanswered=0
+    local delay=3 state reloaded unanswered=0 recovering=0
 
     while true; do
       omarchy-hyprland-monitor-modeless
@@ -44,9 +44,22 @@ recover_modeless() {
       # for is not an answer, and nothing else will ask again -- but a compositor
       # that stays silent has gone, taking the session and this loop's reason
       # with it.
-      (( state == 1 )) && break
+      if (( state == 1 )); then
+        # Hyprland sends a new mode but not the xdg-output size that goes with
+        # it, so clients already running keep the monitor at 0x0 until a reload
+        # (#14422): GTK takes its scale as infinite and Nautilus crashes. Every
+        # reload above was made while it was still 0x0, so make one more now.
+        # The configreloaded it fires finds nothing modeless and stops there.
+        if (( recovering )) && ! omarchy-hyprland-reload-guard paused; then
+          hyprctl reload >/dev/null 2>&1 || true
+        fi
+        break
+      fi
       (( state == 2 )) && (( ++unanswered > 20 )) && break
-      (( state == 0 )) && unanswered=0
+      if (( state == 0 )); then
+        unanswered=0
+        recovering=1
+      fi
 
       reloaded=0
       # Reloading into half-replaced package config is what the guard prevents.
