@@ -34,6 +34,7 @@ QtObject {
     property int body: 12
   }
   function space(px) { return px }
+  function duration(ms) { return 0 }
   function normalStateColor(foreground, accent) { return foreground }
   function focusStateColor(foreground, accent) { return accent }
   function hoverStateColor(foreground, accent) { return accent }

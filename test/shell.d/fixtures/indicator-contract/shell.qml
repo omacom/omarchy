@@ -500,6 +500,7 @@ ShellRoot {
         remoteSession.moduleName = "RemoteSession"
         root.injectBar(remoteSession)
         root.assertTrue(remoteSession.active === false, "Remote Session starts inactive without a gliff server")
+        root.assertTrue(remoteSession.pressable === false, "Remote Session is not pressable")
         remoteSessionService.active = true
         remoteSessionService.peers = ["10.0.0.5"]
         root.assertTrue(remoteSession.active === true, "Remote Session follows the service state")
