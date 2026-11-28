@@ -54,6 +54,29 @@ hl = {
 }
 o = setmetatable({}, { __index = function() return function() end end })
 
+-- Only omarchy-capture-region's slurp carries the picker marker.
+local processes = {
+  ["101"] = { comm = "slurp\n", environ = "PATH=/usr/bin\0OMARCHY_CAPTURE_REGION_PICKER=1\0" },
+  ["202"] = { comm = "wl-kbptr\n", environ = "OMARCHY_CAPTURE_REGION_PICKER=1\0" },
+  ["303"] = { comm = "slurp\n", environ = "PATH=/usr/bin\0" },
+}
+local real_open = io.open
+io.open = function(path, mode)
+  local pid, file = path:match("^/proc/(%d+)/(%a+)$")
+  if not pid then
+    return real_open(path, mode)
+  end
+  local process = processes[pid]
+  local contents = process and process[file]
+  if not contents then
+    return nil
+  end
+  return {
+    read = function(_, format) return format == "*l" and contents:match("[^\n]*") or contents end,
+    close = function() end,
+  }
+end
+
 dofile(os.getenv("ROOT") .. "/default/hypr/bindings/utilities.lua")
 
 local user = bind("CTRL + TAB")
@@ -68,15 +91,29 @@ local function enabled_picker_binds()
   return count
 end
 
+local function layer(address, pid)
+  return { address = address, namespace = "selection", pid = pid }
+end
+
+for _, other in ipairs({ layer("wl-kbptr", 202), layer("plain-slurp", 303), layer("gone", 404) }) do
+  handlers["layer.opened"](other)
+end
+assert(enabled_picker_binds() == 0, "another client's selection layer gets none of the picker's binds")
+for _, other in ipairs({ layer("wl-kbptr"), layer("plain-slurp"), layer("gone") }) do
+  handlers["layer.closed"](other)
+end
+
 local function use_picker()
-  handlers["layer.opened"]({ namespace = "selection" })
-  handlers["layer.opened"]({ namespace = "selection" })
+  handlers["layer.opened"](layer("monitor-1", 101))
+  handlers["layer.opened"](layer("monitor-1", 101))
+  handlers["layer.opened"](layer("monitor-2", 101))
   assert(enabled_picker_binds() == 8, "the picker enables its eight binds while open")
 
-  handlers["layer.closed"]({ namespace = "selection" })
+  handlers["layer.closed"](layer("monitor-1"))
+  handlers["layer.closed"](layer("unknown"))
   assert(enabled_picker_binds() == 8, "the picker keeps its binds while a layer is still open")
 
-  handlers["layer.closed"]({ namespace = "selection" })
+  handlers["layer.closed"](layer("monitor-2"))
   assert(enabled_picker_binds() == 0, "the picker disables its binds once every layer closes")
 end
 
@@ -94,9 +131,9 @@ hl.unbind("TAB")
 use_picker()
 assert(#binds == 9, "the picker binds a chord again after something else unbinds it")
 
-handlers["layer.opened"]({ namespace = "selection" })
+handlers["layer.opened"](layer("monitor-1", 101))
 hl.unbind("RETURN")
-handlers["layer.closed"]({ namespace = "selection" })
+handlers["layer.closed"](layer("monitor-1"))
 assert(enabled_picker_binds() == 0, "the picker closes cleanly after a chord is unbound while open")
 LUA
 
