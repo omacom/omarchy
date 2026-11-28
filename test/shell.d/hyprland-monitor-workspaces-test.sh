@@ -99,7 +99,7 @@ end
 
 function workspace_object(workspace)
   if not workspace then return nil end
-  return setmetatable({}, { __index = function(_, key)
+  return setmetatable({}, { __name = "HLWorkspace", __index = function(_, key)
     if key == "id" then return workspace.id end
     if key == "name" then return tostring(workspace.id) end
     if key == "special" then return false end
@@ -113,7 +113,12 @@ function monitor_object(monitor)
   return setmetatable({
     set_workspace = function(_, spec)
       world.calls = world.calls + 1
-      local workspace = workspace_numbered(tonumber(spec.workspace))
+      -- Hyprland 0.57 takes a workspace object or selector, not an options table.
+      local mt = getmetatable(spec)
+      local id = mt and mt.__name == "HLWorkspace" and spec.id or spec
+      assert(type(id) == "string" or type(id) == "number",
+        "HLMonitor.set_workspace: expected a workspace object or selector")
+      local workspace = workspace_numbered(tonumber(id))
       if workspace and workspace.monitor == monitor.name then
         monitor.active = workspace.id
         world.focused = monitor.name
@@ -432,6 +437,71 @@ check(on(3) == nil, "the number Hyprland gave it is left to go away")
 check(shows("eDP-1") >= 1 and shows("eDP-1") <= 10, "the laptop is back on its own, not " .. shows("eDP-1"))
 ' || fail "an unplugged monitor's workspaces come back with it, whatever the connector"
 pass "an unplugged monitor's workspaces come back with it, whatever the connector"
+
+run_lua fallback-free-lower '
+plug("DP-1", 0, "LG", 2)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xb", 2)
+window("0xc", 3)
+monitor_named("DP-1").active = 3
+
+plug("FALLBACK", 1, "", 4)
+world.handlers["monitor.added"]({ name = "FALLBACK" })
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+check(world.windows["0xb"].workspace == 2 and world.windows["0xc"].workspace == 3, "the stand-in output renumbered the workspaces")
+check(not state_file():find("FALLBACK", 1, true), "the stand-in output was given a block: " .. state_file())
+
+-- It wakes on 1, free and below the workspaces holding its windows.
+plug("DP-1", 2, "LG", 1)
+world.focused = "DP-1"
+world.handlers["monitor.added"]({ name = "DP-1" })
+unplug("FALLBACK")
+world.handlers["monitor.removed"]({ name = "FALLBACK" })
+fire_timers()
+check(on(2) == "DP-1" and on(3) == "DP-1", "both are back on the monitor")
+check(shows("DP-1") == 2 or shows("DP-1") == 3, "the monitor shows one of them, not empty " .. shows("DP-1"))
+' || fail "Hyprland's stand-in output gets no block, and the monitor wakes back on its windows"
+pass "Hyprland's stand-in output gets no block, and the monitor wakes back on its windows"
+
+run_lua fallback-start '
+-- The session starts with the monitor off: only FALLBACK exists.
+plug("FALLBACK", 9, "", 1)
+world.focused = "FALLBACK"
+local m = load_module()
+world.handlers["hyprland.start"]()
+
+plug("DP-1", 0, "LG", 2)
+world.handlers["monitor.added"]({ name = "DP-1" })
+unplug("FALLBACK")
+world.handlers["monitor.removed"]({ name = "FALLBACK" })
+fire_timers()
+check(m.workspace_id(hl.get_monitor("DP-1"), 1) == 1, "the first real monitor got " .. m.workspace_id(hl.get_monitor("DP-1"), 1) .. ", not 1")
+check(not state_file():find("FALLBACK", 1, true), "FALLBACK was given a block: " .. state_file())
+' || fail "a session started with no monitor gives the first real one 1-10"
+pass "a session started with no monitor gives the first real one 1-10"
+
+run_lua fallback-saved '
+-- A session from before FALLBACK was left out saved it a block.
+os.execute("mkdir -p " .. os.getenv("XDG_STATE_HOME") .. "/omarchy/monitors")
+local file = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/monitors/workspaces", "w")
+file:write("0\tDP-1\tLG\n1\t\tFALLBACK\n")
+file:close()
+
+plug("DP-1", 0, "LG", 1)
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(not state_file():find("FALLBACK", 1, true), "the saved FALLBACK block was kept: " .. state_file())
+check(m.workspace_id(hl.get_monitor("DP-1"), 1) == 1, "the monitor lost its block")
+plug("DP-2", 1, "Dell", 2)
+world.handlers["monitor.added"]({ name = "DP-2" })
+check(m.workspace_id(hl.get_monitor("DP-2"), 1) == 11, "FALLBACK still reserves the next block")
+' || fail "a block saved for FALLBACK is dropped"
+pass "a block saved for FALLBACK is dropped"
 
 run_lua removed-deferred '
 plug("eDP-1", 0, "Panel", 1)
