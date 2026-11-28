@@ -9,6 +9,7 @@ run_logged "$OMARCHY_INSTALL/hardware/low-memory.sh"
 run_logged "$OMARCHY_INSTALL/hardware/gb10/nvidia-memory-pools.sh"
 run_logged "$OMARCHY_INSTALL/hardware/nvidia/dgx-spark-boot.sh"
 
+run_logged "$OMARCHY_INSTALL/hardware/memory-watermark.sh"
 run_logged "$OMARCHY_INSTALL/hardware/network.sh"
 run_logged "$OMARCHY_INSTALL/hardware/set-wireless-regdom.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-ath12k-board-data.sh"
