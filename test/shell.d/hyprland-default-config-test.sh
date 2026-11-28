@@ -35,6 +35,69 @@ LUA
 done
 pass "look and feel mutes bells, holds the splash's frame and hides the startup cursor only when the running compositor supports them"
 
+lua - <<'LUA' || fail "returning to a floating requester reveals its open picker"
+local events, actions = {}, {}
+local active, deferred
+local function record(action)
+  return function(args)
+    assert(args.window.class == "xdg-desktop-portal-gtk")
+    if args.mode then assert(args.mode == "top") end
+    return action
+  end
+end
+
+o = { window = function() end }
+hl = {
+  on = function(event, callback) events[event] = callback end,
+  get_active_window = function() return active end,
+  timer = function(callback) deferred = callback end,
+  dispatch = function(action) actions[#actions + 1] = action end,
+  dsp = { focus = record("focus"), window = { alter_zorder = record("raise") } },
+}
+dofile(os.getenv("ROOT") .. "/default/hypr/apps/portal-dialogs.lua")
+
+local workspace = { visible = true }
+local browser = { floating = true, workspace = workspace }
+local unrelated = { floating = true, workspace = workspace }
+local picker = { class = "xdg-desktop-portal-gtk", mapped = true, workspace = workspace }
+active = browser
+events["window.open_early"](picker)
+active = unrelated
+events["window.active"](unrelated)
+assert(not deferred, "another window remains usable while the picker is open")
+active = browser
+events["window.active"](browser)
+assert(#actions == 0, "wait for Hyprland to finish raising the browser")
+deferred()
+assert(table.concat(actions, ",") == "raise,focus", "raise the picker and return keyboard focus to it")
+
+events["window.active"](browser)
+active = unrelated
+deferred()
+assert(#actions == 2, "a deferred raise leaves a newer focus change alone")
+
+active = browser
+events["window.active"](browser)
+picker.workspace = { visible = true }
+deferred()
+assert(#actions == 2, "a deferred raise leaves a picker moved to another workspace alone")
+picker.workspace = workspace
+
+events["window.active"](browser)
+events["window.close"](picker)
+deferred()
+assert(#actions == 2, "closing a picker invalidates a pending raise")
+deferred = nil
+events["window.active"](browser)
+assert(not deferred, "the browser can take focus again after the picker closes")
+
+browser.pinned = true
+events["window.open_early"](picker)
+events["window.active"](browser)
+assert(not deferred, "an unpinned picker cannot be raised over a pinned requester")
+LUA
+pass "returning to a floating requester reveals its open picker"
+
 run_application_bindings() {
   local home="$1"
   local prelude="${2:-}"
