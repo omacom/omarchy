@@ -139,12 +139,11 @@ PanelWindow {
   }
   property var menuItem: null
   property Item menuSlot: null
-  // The apps button's menu: where the dock sits, the workspace's layout, and
+  // The apps button's menu: where the dock sits, the default layout, and
   // whether the dock hides. Position and Layout open their choices in a
   // submenu beside it, on hover as a menu bar's do, or on a click.
   property bool settingsMenu: false
   property string openSubmenu: ""
-  readonly property string workspaceMode: dock && dock.modes[workspaceId] ? dock.modes[workspaceId] : "dwindle"
 
   onWorkspaceIdChanged: if (dock) dock.readMode(workspaceId)
   onShownChanged: {
@@ -167,18 +166,12 @@ PanelWindow {
     window.menuSlot = slot
   }
 
-  // The layout commands cycle the focused workspace through dwindle, scrolling,
-  // and floating, so a layout is one step forward or back from any other. A
-  // choice on another screen's dock focuses that screen first.
+  // The layout picked here is the default every workspace uses, as under
+  // Appearance > Workspace Layout. A workspace with windows on it keeps the
+  // layout it has, so picking one never rearranges work in progress.
   function setLayout(mode) {
-    var order = ["dwindle", "scrolling", "floating"]
-    var from = order.indexOf(window.workspaceMode)
-    var to = order.indexOf(mode)
-    if (from < 0 || to < 0 || from === to) return
-    var command = "omarchy-hyprland-workspace-layout-toggle" + ((to - from + 3) % 3 === 1 ? "" : " back")
-    if (window.monitor && !window.monitor.focused)
-      command = "hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + window.monitor.name + "\" })") + " >/dev/null && " + command
-    Util.execDetached(command)
+    if (!window.dock || mode === window.dock.defaultMode) return
+    Util.execDetached("omarchy-hyprland-workspace-layout-default " + mode)
   }
 
   function settleShifts() {
@@ -797,7 +790,7 @@ PanelWindow {
 
           visible: window.openSubmenu === "layout"
           text: modelData[1]
-          checked: window.workspaceMode === modelData[0]
+          checked: !!window.dock && window.dock.defaultMode === modelData[0]
           onTriggered: {
             window.setLayout(modelData[0])
             window.closeMenu()
