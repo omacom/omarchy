@@ -1205,7 +1205,7 @@ Panel {
         color: accountRow.selectedAccount || accountRow.switchingAccount ? root.foreground : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
-        width: Style.space(22)
+        Layout.preferredWidth: Style.space(22)
         horizontalAlignment: Text.AlignHCenter
         Layout.alignment: Qt.AlignVCenter
         opacity: accountRow.switchingAccount || accountRow.renameInFlight ? 0.45 : 1.0
