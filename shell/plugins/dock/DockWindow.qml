@@ -778,7 +778,8 @@ PanelWindow {
         delegate: PopupMenuRow {
           required property var modelData
 
-          visible: window.openSubmenu === "position"
+          // The bar's edge is no place for the dock, so it isn't offered.
+          visible: window.openSubmenu === "position" && modelData[0] !== window.barEdge
           text: modelData[1]
           checked: window.position === modelData[0]
           onTriggered: {
