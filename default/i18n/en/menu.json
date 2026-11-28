@@ -1013,6 +1013,9 @@
   "install.development.scala": {
     "label": "Scala"
   },
+  "install.development.bend": {
+    "label": "Bend"
+  },
   "install.development.javascript.node": {
     "label": "Node.js"
   },
@@ -1336,6 +1339,9 @@
   },
   "remove.development.scala": {
     "label": "Scala"
+  },
+  "remove.development.bend": {
+    "label": "Bend"
   },
   "remove.development.javascript.node": {
     "label": "Node.js"
