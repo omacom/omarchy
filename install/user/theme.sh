@@ -1,8 +1,8 @@
 # Setup user theme folder and seed the default only when no theme exists yet.
 mkdir -p ~/.config/omarchy/themes
 
-# Each region names the theme a new user starts on (docs/regions.md).
-default_theme=$(<"$OMARCHY_PATH/default/regions/$(omarchy-region)/theme")
+# A theme made for this computer comes first, then the one the region names (docs/regions.md).
+default_theme=$(omarchy-theme-default)
 
 if [[ ! -s $HOME/.local/state/omarchy/current/theme.name ]]; then
   # iso-chroot and provision-owner both run without a live session to notify.

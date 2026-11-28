@@ -199,3 +199,14 @@ if PATH="$failing_bin:$work/stubs:$ROOT/bin:$PATH" omarchy-reinstall-pkgs >/dev/
 fi
 ! grep -q -- '--needed' "$STUB_LOG" || fail "reinstall installs nothing when the platform cannot be told" "$(cat "$STUB_LOG")"
 pass "omarchy-reinstall-pkgs stops when the platform cannot be told"
+
+# Optional mirror lists stay free of duplicates and do not overlap base or each other.
+other=$(names "$ROOT/install/omarchy-other.packages")
+other_aarch64=$(names "$ROOT/install/omarchy-other-aarch64.packages")
+[[ -z $(sort <<<"$other" | uniq -d) ]] || fail "omarchy-other.packages has no duplicate entries" "$(sort <<<"$other" | uniq -d)"
+[[ -z $(sort <<<"$other_aarch64" | uniq -d) ]] || fail "omarchy-other-aarch64.packages has no duplicate entries" "$(sort <<<"$other_aarch64" | uniq -d)"
+overlap_base=$(comm -12 <(sort <<<"$base") <(sort <<<"$other"))
+[[ -z $overlap_base ]] || fail "omarchy-other.packages does not duplicate omarchy-base.packages" "$overlap_base"
+overlap_other=$(comm -12 <(sort <<<"$other") <(sort <<<"$other_aarch64"))
+[[ -z $overlap_other ]] || fail "omarchy-other.packages and omarchy-other-aarch64.packages do not overlap" "$overlap_other"
+pass "optional mirror lists have no duplicates or overlap with base or each other"

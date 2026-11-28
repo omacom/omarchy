@@ -33,6 +33,7 @@ safe_stage_path() {
 }
 
 if omarchy-cmd-missing supergfxctl; then
+  echo "Installing supergfxctl..."
   omarchy-pkg-add supergfxctl
 
   # Create config before starting service to prevent hang on first boot

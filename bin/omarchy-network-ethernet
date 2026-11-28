@@ -1,0 +1,656 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Control wired Ethernet interfaces, profiles, DHCP, and static IPv4
+# omarchy:group=network
+# omarchy:subcommand=status [--json] — Show Ethernet interfaces, carrier, link speed, and IP details
+# omarchy:subcommand=list [--json] — List saved Ethernet connection profiles
+# omarchy:subcommand=connect [interface|profile] [--json] — Connect an Ethernet interface or profile
+# omarchy:subcommand=disconnect [interface] [--json] — Disconnect an Ethernet interface
+# omarchy:subcommand=dhcp [interface|profile] [--json] — Configure an Ethernet connection for automatic DHCP
+# omarchy:subcommand=static <ip/prefix> --gateway <gw> [--dns <ip,...>] [interface|profile] — Set a static IPv4 address
+# omarchy:subcommand=forget <profile|uuid> [--json] — Delete saved Ethernet connection profile(s)
+# omarchy:examples=omarchy network ethernet status | omarchy network ethernet connect | omarchy network ethernet static 192.168.1.50/24 --gateway 192.168.1.1 --dns 1.1.1.1 | omarchy network ethernet dhcp
+
+"""Human- and agent-friendly CLI for wired Ethernet management via NetworkManager."""
+
+import ipaddress
+import json
+import os
+import subprocess
+import sys
+
+USAGE = """\
+Usage: omarchy network ethernet [--json] <command> [args...]
+
+  status [interface] [--json]           Show Ethernet interfaces, carrier, speed, and IP
+  list [--json]                         List saved Ethernet connection profiles
+  connect [interface|profile] [--json]  Connect an Ethernet interface or profile
+  disconnect [interface] [--json]       Disconnect an Ethernet interface
+  dhcp [interface|profile] [--json]     Switch an Ethernet connection to DHCP (IPv4)
+  static <ip/prefix> --gateway <gw> [--dns <ip,...>] [interface|profile] [--json]
+                                        Configure a static IPv4 address and apply
+  forget <profile|uuid> [--json]        Delete saved Ethernet profile(s)
+"""
+
+
+class UsageError(Exception):
+    pass
+
+
+def c_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    return env
+
+
+def run_cmd(args: list[str], *, check: bool = False) -> subprocess.CompletedProcess[str]:
+    proc = subprocess.run(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=c_env(),
+    )
+    if check and proc.returncode != 0:
+        msg = (proc.stderr or proc.stdout).strip()
+        raise RuntimeError(msg or f"{args[0]} exited with status {proc.returncode}")
+    return proc
+
+
+def nm_split_escaped(line: str) -> list[str]:
+    fields: list[str] = []
+    cur: list[str] = []
+    esc = False
+    for ch in line:
+        if esc:
+            cur.append(ch)
+            esc = False
+        elif ch == "\\":
+            esc = True
+        elif ch == ":":
+            fields.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    if esc:
+        cur.append("\\")
+    fields.append("".join(cur))
+    return fields
+
+
+def nm_parse_kv(output: str) -> dict[str, list[str]]:
+    result: dict[str, list[str]] = {}
+    for line in output.splitlines():
+        if ":" not in line:
+            continue
+        key, val = line.split(":", 1)
+        key = key.strip()
+        val = val.strip()
+        if not val or val == "--":
+            continue
+        result.setdefault(key, []).append(val)
+    return result
+
+
+def sysfs_read(iface: str, attr: str) -> str:
+    net_root = os.environ.get("OMARCHY_NET_CLASS_PATH", "/sys/class/net")
+    try:
+        with open(os.path.join(net_root, iface, attr), "r", encoding="utf-8") as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
+
+
+def default_route_interface() -> str:
+    proc = run_cmd(["ip", "-j", "route", "get", "1.1.1.1"])
+    if proc.returncode != 0:
+        return ""
+    try:
+        routes = json.loads(proc.stdout)
+        if routes and isinstance(routes, list):
+            return str(routes[0].get("dev") or "")
+    except (ValueError, TypeError):
+        pass
+    return ""
+
+
+IDLE_DEVICE_STATES = {"disconnected", "unavailable", "unmanaged"}
+
+
+def ethernet_devices() -> list[dict]:
+    proc = run_cmd(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status"], check=True)
+    default_dev = default_route_interface()
+    devices: list[dict] = []
+    for line in proc.stdout.splitlines():
+        parts = nm_split_escaped(line)
+        if len(parts) < 4:
+            continue
+        dev, dev_type, state, conn = parts[0], parts[1], parts[2], parts[3]
+        if dev_type != "ethernet" or state == "unmanaged":
+            continue
+        kv = nm_parse_kv(
+            run_cmd(
+                [
+                    "nmcli",
+                    "-e",
+                    "no",
+                    "-t",
+                    "-f",
+                    "GENERAL.HWADDR,GENERAL.CON-UUID,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS,WIRED-PROPERTIES.CARRIER",
+                    "device",
+                    "show",
+                    dev,
+                ],
+                check=True,
+            ).stdout
+        )
+        con_uuid = (kv.get("GENERAL.CON-UUID") or [""])[0]
+        mac = (kv.get("GENERAL.HWADDR") or [""])[0]
+        ip_cidr = (kv.get("IP4.ADDRESS[1]") or [""])[0]
+        ip_addr = ""
+        prefix: int | None = None
+        if "/" in ip_cidr:
+            ip_addr, pref_s = ip_cidr.split("/", 1)
+            prefix = int(pref_s) if pref_s.isdigit() else None
+        elif ip_cidr:
+            ip_addr = ip_cidr
+        gateway = (kv.get("IP4.GATEWAY") or [""])[0]
+        dns = [v for k, vals in kv.items() if k.startswith("IP4.DNS[") for v in vals]
+
+        carrier_raw = sysfs_read(dev, "carrier")
+        if carrier_raw in ("0", "1"):
+            carrier = carrier_raw == "1"
+        else:
+            carrier = (kv.get("WIRED-PROPERTIES.CARRIER") or [""])[0].lower() == "on"
+
+        speed_raw = sysfs_read(dev, "speed")
+        speed_mbps = int(speed_raw) if speed_raw.isdigit() and int(speed_raw) > 0 else None
+        duplex = sysfs_read(dev, "duplex")
+        if duplex not in ("full", "half"):
+            duplex = ""
+
+        devices.append(
+            {
+                "device": dev,
+                "state": state,
+                "connected": state == "connected",
+                "carrier": carrier,
+                "connection": "" if conn in ("", "--") else conn,
+                "uuid": con_uuid,
+                "speed_mbps": speed_mbps,
+                "duplex": duplex,
+                "ip": ip_addr,
+                "prefix": prefix,
+                "gateway": gateway,
+                "dns": dns,
+                "mac": mac,
+                "default_route": dev == default_dev,
+            }
+        )
+    return devices
+
+
+def saved_ethernet_profiles() -> list[dict]:
+    proc = run_cmd(
+        ["nmcli", "-t", "-f", "NAME,UUID,TYPE,DEVICE,AUTOCONNECT", "connection", "show"],
+        check=True,
+    )
+    profiles: list[dict] = []
+    for line in proc.stdout.splitlines():
+        parts = nm_split_escaped(line)
+        if len(parts) < 5:
+            continue
+        name, uid, ctype, dev, auto = parts[0], parts[1], parts[2], parts[3], parts[4]
+        if ctype != "802-3-ethernet":
+            continue
+        meta_proc = run_cmd(
+            [
+                "nmcli",
+                "-e",
+                "no",
+                "-g",
+                "ipv4.method,connection.interface-name",
+                "connection",
+                "show",
+                "uuid",
+                uid,
+            ],
+            check=True,
+        )
+        meta_lines = meta_proc.stdout.splitlines()
+        method = (meta_lines[0].strip() if len(meta_lines) >= 1 else "") or "auto"
+        bound_iface = meta_lines[1].strip() if len(meta_lines) >= 2 else ""
+        if bound_iface == "--":
+            bound_iface = ""
+        profiles.append(
+            {
+                "name": name,
+                "uuid": uid,
+                "device": "" if dev in ("", "--") else dev,
+                "interface": bound_iface,
+                "active": dev not in ("", "--"),
+                "autoconnect": auto.lower() == "yes",
+                "method": method,
+            }
+        )
+    return profiles
+
+
+def pick_ethernet_device(preferred: str | None = None) -> dict:
+    devs = ethernet_devices()
+    if preferred:
+        for d in devs:
+            if d["device"] == preferred:
+                return d
+        raise RuntimeError(f"Ethernet interface '{preferred}' not found")
+    if not devs:
+        raise RuntimeError("no Ethernet interface found")
+    for d in devs:
+        if d["connected"]:
+            return d
+    for d in devs:
+        if d["carrier"]:
+            return d
+    return devs[0]
+
+
+def profile_for_device(dev: dict, profiles: list[dict]) -> dict | None:
+    if dev["uuid"]:
+        for p in profiles:
+            if p["uuid"] == dev["uuid"]:
+                return p
+    for p in profiles:
+        if p["device"] == dev["device"] or p["interface"] == dev["device"]:
+            return p
+    return None
+
+
+def resolve_profile_for_target(target: str | None) -> tuple[dict, str | None]:
+    """Resolve an optional interface/profile/UUID target to (profile_dict, iface_or_None)."""
+    profiles = saved_ethernet_profiles()
+    devs = ethernet_devices()
+
+    if target:
+        for p in profiles:
+            if p["uuid"] == target or p["name"] == target:
+                return p, p["device"] or p["interface"] or None
+        for d in devs:
+            if d["device"] == target:
+                matched = profile_for_device(d, profiles)
+                if matched:
+                    return matched, d["device"]
+                raise RuntimeError(
+                    f"no saved Ethernet profile for '{target}'; connect it first or pass a profile name"
+                )
+        raise RuntimeError(f"no Ethernet interface or profile matching '{target}'")
+
+    dev = pick_ethernet_device()
+    matched = profile_for_device(dev, profiles)
+    if matched:
+        return matched, dev["device"]
+    raise RuntimeError(
+        f"no saved Ethernet profile for '{dev['device']}'; connect it first or pass a profile name"
+    )
+
+
+def format_speed(speed_mbps: int | None, duplex: str) -> str:
+    if not speed_mbps:
+        return ""
+    if speed_mbps >= 1000 and speed_mbps % 1000 == 0:
+        base = f"{speed_mbps // 1000} Gbps"
+    elif speed_mbps >= 1000:
+        base = f"{speed_mbps / 1000:.1f} Gbps"
+    else:
+        base = f"{speed_mbps} Mbps"
+    return f"{base} ({duplex})" if duplex else base
+
+
+def print_ethernet_status(devs: list[dict], as_json: bool) -> None:
+    if as_json:
+        print(json.dumps({"interfaces": devs}))
+        return
+    if not devs:
+        print("Ethernet:    no wired interfaces found")
+        return
+    for idx, d in enumerate(devs):
+        if idx > 0:
+            print()
+        print(f"Interface:   {d['device']}")
+        print(f"State:       {d['state']}")
+        print(f"Carrier:     {'yes' if d['carrier'] else 'no'}")
+        if d["connection"]:
+            print(f"Profile:     {d['connection']}")
+        speed = format_speed(d["speed_mbps"], d["duplex"])
+        if speed:
+            print(f"Link:        {speed}")
+        if d["ip"]:
+            addr = f"{d['ip']}/{d['prefix']}" if d["prefix"] is not None else d["ip"]
+            print(f"IPv4:        {addr}")
+        if d["gateway"]:
+            print(f"Gateway:     {d['gateway']}")
+        if d["dns"]:
+            print(f"DNS:         {', '.join(d['dns'])}")
+
+
+def print_ethernet_profiles(profiles: list[dict], as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(profiles))
+        return
+    if not profiles:
+        print("No saved Ethernet profiles.")
+        return
+    print(f"{'':2s} {'NAME':28s} {'METHOD':8s} {'AUTO':5s}  UUID")
+    for p in profiles:
+        mark = "*" if p["active"] else " "
+        auto = "yes" if p["autoconnect"] else "no"
+        print(f"{mark:2s} {p['name'][:28]:28s} {p['method']:8s} {auto:5s}  {p['uuid']}")
+
+
+def strip_double_dash(args: list[str]) -> list[str]:
+    if args and args[0] == "--":
+        return args[1:]
+    return args
+
+
+def cmd_connect(args: list[str], as_json: bool) -> int:
+    pos = strip_double_dash(args)
+    if len(pos) > 1:
+        raise UsageError("Usage: omarchy network ethernet connect [interface|profile]")
+    target = pos[0] if pos else None
+    devs = ethernet_devices()
+    profiles = saved_ethernet_profiles()
+
+    if target:
+        matched_dev = next((d for d in devs if d["device"] == target), None)
+        if matched_dev:
+            run_cmd(["nmcli", "device", "connect", matched_dev["device"]], check=True)
+            chosen_iface = matched_dev["device"]
+        else:
+            matched_prof = next((p for p in profiles if p["uuid"] == target or p["name"] == target), None)
+            if not matched_prof:
+                raise RuntimeError(f"no Ethernet interface or profile matching '{target}'")
+            run_cmd(["nmcli", "connection", "up", "uuid", matched_prof["uuid"]], check=True)
+            chosen_iface = matched_prof["device"] or None
+    else:
+        dev = pick_ethernet_device()
+        run_cmd(["nmcli", "device", "connect", dev["device"]], check=True)
+        chosen_iface = dev["device"]
+
+    updated = ethernet_devices()
+    if chosen_iface:
+        updated = [d for d in updated if d["device"] == chosen_iface] or updated
+    if as_json:
+        print(json.dumps({"interfaces": updated}))
+    else:
+        for d in updated:
+            addr = f" ({d['ip']})" if d["ip"] else ""
+            print(f"Connected {d['device']}{addr}")
+    return 0
+
+
+def cmd_disconnect(args: list[str], as_json: bool) -> int:
+    pos = strip_double_dash(args)
+    if len(pos) > 1:
+        raise UsageError("Usage: omarchy network ethernet disconnect [interface]")
+    dev = pick_ethernet_device(pos[0] if pos else None)
+    if dev["state"] not in IDLE_DEVICE_STATES:
+        run_cmd(["nmcli", "device", "disconnect", dev["device"]], check=True)
+    updated = [d for d in ethernet_devices() if d["device"] == dev["device"]]
+    if as_json:
+        print(json.dumps({"interfaces": updated}))
+    else:
+        print(f"Disconnected {dev['device']}")
+    return 0
+
+
+def cmd_dhcp(args: list[str], as_json: bool) -> int:
+    pos = strip_double_dash(args)
+    if len(pos) > 1:
+        raise UsageError("Usage: omarchy network ethernet dhcp [interface|profile]")
+    prof, iface = resolve_profile_for_target(pos[0] if pos else None)
+    run_cmd(
+        [
+            "nmcli",
+            "connection",
+            "modify",
+            "uuid",
+            prof["uuid"],
+            "ipv4.method",
+            "auto",
+            "ipv4.addresses",
+            "",
+            "ipv4.gateway",
+            "",
+        ],
+        check=True,
+    )
+    up_cmd = ["nmcli", "connection", "up", "uuid", prof["uuid"]]
+    if iface:
+        up_cmd += ["ifname", iface]
+    run_cmd(up_cmd, check=True)
+    updated = ethernet_devices()
+    if iface:
+        updated = [d for d in updated if d["device"] == iface] or updated
+    if as_json:
+        print(json.dumps({"profile": prof["name"], "method": "auto", "interfaces": updated}))
+    else:
+        print(f"Switched '{prof['name']}' to DHCP")
+    return 0
+
+
+def cmd_static(args: list[str], as_json: bool) -> int:
+    cidr: str | None = None
+    gateway: str | None = None
+    dns_list: list[str] = []
+    dns_specified = False
+    target: str | None = None
+    after_dash = False
+
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if not after_dash and tok == "--":
+            after_dash = True
+            i += 1
+        elif not after_dash and tok == "--gateway":
+            if i + 1 >= len(args):
+                raise UsageError("--gateway requires an IPv4 address")
+            gateway = args[i + 1]
+            i += 2
+        elif not after_dash and tok == "--dns":
+            if i + 1 >= len(args):
+                raise UsageError("--dns requires comma-separated IPv4 address(es)")
+            dns_specified = True
+            dns_list.extend(x.strip() for x in args[i + 1].split(",") if x.strip())
+            i += 2
+        elif not after_dash and tok.startswith("-"):
+            raise UsageError(f"unknown option '{tok}'")
+        elif cidr is None:
+            cidr = tok
+            i += 1
+        elif target is None:
+            target = tok
+            i += 1
+        else:
+            raise UsageError(f"unexpected argument '{tok}'")
+
+    if not cidr or not gateway:
+        raise UsageError(
+            "Usage: omarchy network ethernet static <ip/prefix> --gateway <gw> [--dns <ip,...>] [interface|profile]"
+        )
+
+    if "/" not in cidr:
+        raise UsageError(f"invalid IPv4 address '{cidr}' (expected CIDR like 192.168.1.50/24)")
+    try:
+        iface_net = ipaddress.IPv4Interface(cidr)
+    except ValueError as exc:
+        raise UsageError(f"invalid IPv4 CIDR '{cidr}': {exc}") from exc
+    if iface_net.network.prefixlen == 0:
+        raise UsageError(f"invalid prefix length in '{cidr}'")
+    if iface_net.network.prefixlen < 31 and iface_net.ip in (
+        iface_net.network.network_address,
+        iface_net.network.broadcast_address,
+    ):
+        raise UsageError(f"'{cidr}' cannot be the network or broadcast address")
+
+    try:
+        gw_ip = ipaddress.IPv4Address(gateway)
+    except ValueError as exc:
+        raise UsageError(f"invalid IPv4 gateway '{gateway}': {exc}") from exc
+
+    validated_dns: list[str] = []
+    for entry in dns_list:
+        try:
+            validated_dns.append(str(ipaddress.IPv4Address(entry)))
+        except ValueError as exc:
+            raise UsageError(f"invalid IPv4 DNS address '{entry}': {exc}") from exc
+
+    prof, iface = resolve_profile_for_target(target)
+    mod_cmd = [
+        "nmcli",
+        "connection",
+        "modify",
+        "uuid",
+        prof["uuid"],
+        "ipv4.method",
+        "manual",
+        "ipv4.addresses",
+        str(iface_net),
+        "ipv4.gateway",
+        str(gw_ip),
+    ]
+    if dns_specified:
+        if validated_dns:
+            mod_cmd += ["ipv4.dns", " ".join(validated_dns), "ipv4.ignore-auto-dns", "yes"]
+        else:
+            mod_cmd += ["ipv4.dns", "", "ipv4.ignore-auto-dns", "no"]
+    run_cmd(mod_cmd, check=True)
+
+    up_cmd = ["nmcli", "connection", "up", "uuid", prof["uuid"]]
+    if iface:
+        up_cmd += ["ifname", iface]
+    run_cmd(up_cmd, check=True)
+
+    updated = ethernet_devices()
+    if iface:
+        updated = [d for d in updated if d["device"] == iface] or updated
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "profile": prof["name"],
+                    "method": "manual",
+                    "address": str(iface_net),
+                    "gateway": str(gw_ip),
+                    "dns": validated_dns,
+                    "interfaces": updated,
+                }
+            )
+        )
+    else:
+        print(f"Configured '{prof['name']}' with static IPv4 {iface_net} via {gw_ip}")
+    return 0
+
+
+def cmd_forget(args: list[str], as_json: bool) -> int:
+    pos = strip_double_dash(args)
+    if len(pos) != 1:
+        raise UsageError("Usage: omarchy network ethernet forget <profile|uuid>")
+    target = pos[0]
+    matches = [p for p in saved_ethernet_profiles() if p["uuid"] == target or p["name"] == target]
+    if not matches:
+        raise RuntimeError(f"no saved Ethernet profile matching '{target}'")
+    deleted = []
+    for p in matches:
+        run_cmd(["nmcli", "connection", "delete", "uuid", p["uuid"]], check=True)
+        deleted.append({"name": p["name"], "uuid": p["uuid"]})
+    if as_json:
+        print(json.dumps({"forgotten": deleted}))
+    else:
+        for p in deleted:
+            print(f"Forgot Ethernet profile: {p['name']} ({p['uuid']})")
+    return 0
+
+
+def parse_global_flags(argv: list[str]) -> tuple[bool, list[str]]:
+    as_json = False
+    rest: list[str] = []
+    after_dash = False
+    skip_next = False
+    value_flags = {"--gateway", "--dns"}
+    for arg in argv:
+        if skip_next:
+            rest.append(arg)
+            skip_next = False
+            continue
+        if not after_dash and arg == "--":
+            after_dash = True
+            rest.append(arg)
+            continue
+        if not after_dash and arg in value_flags:
+            rest.append(arg)
+            skip_next = True
+            continue
+        if not after_dash and arg == "--json":
+            as_json = True
+            continue
+        rest.append(arg)
+    return as_json, rest
+
+
+def main(argv: list[str]) -> int:
+    if any(a in ("-h", "--help") for a in argv[:2]) and "--" not in argv[:2]:
+        print(USAGE, end="")
+        return 0
+
+    as_json, args = parse_global_flags(argv)
+    cmd = args[0] if args else "status"
+    rest = args[1:]
+
+    if cmd == "status":
+        pos = strip_double_dash(rest)
+        if len(pos) > 1:
+            raise UsageError("Usage: omarchy network ethernet status [interface]")
+        devs = ethernet_devices()
+        if pos:
+            devs = [d for d in devs if d["device"] == pos[0]]
+            if not devs:
+                raise RuntimeError(f"Ethernet interface '{pos[0]}' not found")
+        print_ethernet_status(devs, as_json)
+        return 0
+
+    if cmd == "list":
+        if strip_double_dash(rest):
+            raise UsageError("Usage: omarchy network ethernet list")
+        print_ethernet_profiles(saved_ethernet_profiles(), as_json)
+        return 0
+
+    if cmd == "connect":
+        return cmd_connect(rest, as_json)
+
+    if cmd == "disconnect":
+        return cmd_disconnect(rest, as_json)
+
+    if cmd == "dhcp":
+        return cmd_dhcp(rest, as_json)
+
+    if cmd == "static":
+        return cmd_static(rest, as_json)
+
+    if cmd == "forget":
+        return cmd_forget(rest, as_json)
+
+    raise UsageError(f"unknown command '{cmd}'\n\n{USAGE}")
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        raise SystemExit(130)
+    except UsageError as exc:
+        sys.stderr.write(f"omarchy-network-ethernet: {exc}\n")
+        raise SystemExit(2)
+    except (RuntimeError, OSError) as exc:
+        sys.stderr.write(f"omarchy-network-ethernet: {exc}\n")
+        raise SystemExit(1)

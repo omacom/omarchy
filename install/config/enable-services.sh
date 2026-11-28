@@ -1,11 +1,13 @@
 # Enable services only. Installs are followed by reboot, so don't start/reload
 # daemons mid-install. UFW and hardware-gated services stay in their own scripts.
-# Kill one runaway app scope (systemd-oomd.service) instead of letting reclaim
-# thrashing take the whole session down; [Install] pulls in systemd-oomd.socket
-# via Also=. omarchy-shutdown-ramfs.timer builds /run/initramfs in the
-# background after boot so shutdown skips mkinitcpio.
+# CUPS and Docker are socket-activated so neither daemon stays resident until
+# needed. Kill one runaway app scope (systemd-oomd.service) instead of letting
+# reclaim thrashing take the whole session down; [Install] pulls in
+# systemd-oomd.socket via Also=. omarchy-shutdown-ramfs.timer builds
+# /run/initramfs in the background after boot so shutdown skips mkinitcpio.
 systemctl enable \
-  cups.service \
+  cups.socket \
+  cups.path \
   avahi-daemon.service \
   linux-modules-cleanup.service \
   docker.socket \

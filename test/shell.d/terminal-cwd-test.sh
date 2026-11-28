@@ -121,7 +121,7 @@ cat >"$launch_bin/uwsm-app" <<'SH'
 printf 'PWD=%s ARGS=%s\n' "$PWD" "$*" >"$OMARCHY_TEST_LAUNCH_OUT"
 SH
 printf '#!/bin/bash\nexit 0\n' >"$launch_bin/foot"
-printf '#!/bin/bash\nprintf "%s\\n" "%s"\n' "$work_dir" >"$launch_bin/omarchy-cmd-terminal-cwd"
+printf '#!/bin/bash\n[[ ${OMARCHY_TEST_FORBID_CWD:-0} == 1 ]] && exit 99\nprintf "%%s\\n" "%s"\n' "$work_dir" >"$launch_bin/omarchy-cmd-terminal-cwd"
 chmod +x "$launch_bin"/*
 
 printf 'foot.desktop\n' >"$launch_cfg/xdg-terminals.list"
@@ -130,6 +130,8 @@ cat >"$launch_data/applications/foot.desktop" <<'EOF'
 TryExec=foot
 Exec=foot
 X-TerminalArgDir=--working-directory=
+X-TerminalArgAppId=--app-id=
+X-TerminalArgExec=-e
 EOF
 
 run_launch() {
@@ -143,8 +145,14 @@ run_launch() {
 
 [[ $(run_launch --pid="$terminal_pid") == *"ARGS=foot --working-directory=$work_dir" ]] ||
   fail "plain terminal launch uses X-TerminalArgDir directly without xdg-terminal-exec" "$(cat "$launch_out")"
-[[ $(run_launch --app-id=org.omarchy.herdr herdr) == *"ARGS=xdg-terminal-exec --dir=$work_dir --app-id=org.omarchy.herdr herdr" ]] ||
-  fail "terminal launch with extra arguments falls back to xdg-terminal-exec" "$(cat "$launch_out")"
+[[ $(run_launch --app-id=org.omarchy.herdr herdr) == *"ARGS=foot --working-directory=$work_dir --app-id=org.omarchy.herdr -e herdr" ]] ||
+  fail "terminal launch with --app-id and command uses fast path directly" "$(cat "$launch_out")"
+[[ $(OMARCHY_TEST_FORBID_CWD=1 run_launch --dir="$downloads_dir" --app-id=org.omarchy.btop -e btop --utf-force) == *"ARGS=foot --working-directory=$downloads_dir --app-id=org.omarchy.btop -e btop --utf-force" ]] ||
+  fail "terminal launch with --dir, --app-id, and -e uses fast path without running terminal-cwd" "$(cat "$launch_out")"
+[[ $(OMARCHY_TEST_FORBID_CWD=1 run_launch --app-id=org.omarchy.btop --dir="$downloads_dir" -e btop --utf-force) == *"ARGS=foot --working-directory=$downloads_dir --app-id=org.omarchy.btop -e btop --utf-force" ]] ||
+  fail "terminal launch accepts --dir after --app-id without running terminal-cwd" "$(cat "$launch_out")"
+[[ $(run_launch --title=Custom herdr) == *"ARGS=xdg-terminal-exec --dir=$work_dir --title=Custom herdr" ]] ||
+  fail "terminal launch with unsupported options falls back to xdg-terminal-exec" "$(cat "$launch_out")"
 
 printf 'foot.desktop:New\nfoot.desktop\n' >"$launch_cfg/xdg-terminals.list"
 [[ $(run_launch) == *"ARGS=xdg-terminal-exec --dir=$work_dir" ]] ||

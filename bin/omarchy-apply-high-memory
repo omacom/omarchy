@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# omarchy:summary=Cap app-graphical.slice MemoryMax at boot on >=56 GiB hosts (64 GiB+ RAM)
+# omarchy:hidden=true
+
+# On 64 GiB+ machines (>=56 GiB reported MemTotal), zram is capped at 8 GiB
+# (<=12.5% of RAM; ~6% at 128 GiB), so fast multi-threaded bursts in browsers,
+# terminals, or builds can fill zram in <1s and outrun systemd-oomd.
+#
+# Writes /run/systemd/user/app-graphical.slice.d/10-omarchy-high-memory.conf at
+# boot, reserving 11 GiB (8 GiB worst-case uncompressed zram + ~3 GiB for
+# session.slice, system.slice, and kernel reserves) outside app-graphical.slice.
+# Targets app-graphical.slice rather than app.slice so sibling app-models.slice
+# (omarchy-local-ai models such as DeepSeek V4.1 Flash on DGX Spark) stays
+# uncapped and isolated in its own OOM domain. User services in app.slice and
+# rootless Podman containers also sit outside this cap.
+#
+# Override or mask with /etc/systemd/user/app-graphical.slice.d/ or
+# ~/.config/systemd/user/app-graphical.slice.d/.
+
+set -euo pipefail
+
+if (( $# > 0 )); then
+  echo "Usage: $(basename "$0")" >&2
+  exit 2
+fi
+
+meminfo=${OMARCHY_MEMINFO:-/proc/meminfo}
+runtime_dir=${OMARCHY_USER_RUNTIME_DIR:-/run/systemd/user}
+dropin_dir="$runtime_dir/app-graphical.slice.d"
+dropin_file="$dropin_dir/10-omarchy-high-memory.conf"
+high_memory_kib=58720256
+reserve_mib=11264
+
+total_kib=$(awk '$1 == "MemTotal:" { print $2; exit }' "$meminfo" 2>/dev/null || true)
+if [[ ! $total_kib =~ ^[0-9]+$ ]] || (( total_kib < high_memory_kib )); then
+  exit 0
+fi
+
+app_max_mib=$(( total_kib / 1024 - reserve_mib ))
+mkdir -p "$dropin_dir"
+tmp=$(mktemp "$dropin_dir/.10-omarchy-high-memory.conf.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+cat >"$tmp" <<CONF
+# >=56 GiB MemTotal (64 GiB+ RAM): reserve 11 GiB outside app-graphical.slice
+# so fast desktop app/build bursts stay inside cgroup OOM without capping
+# sibling app-models.slice. Override or mask in
+# /etc/systemd/user/app-graphical.slice.d/10-omarchy-high-memory.conf or
+# ~/.config/systemd/user/app-graphical.slice.d/10-omarchy-high-memory.conf.
+[Slice]
+MemoryMax=${app_max_mib}M
+CONF
+chmod 0644 "$tmp"
+mv -f "$tmp" "$dropin_file"

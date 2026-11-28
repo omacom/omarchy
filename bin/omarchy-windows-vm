@@ -1178,6 +1178,7 @@ install_windows() {
   prepare_user_mount_sources || exit 1
   check_prerequisites
 
+  echo "Installing Windows VM dependencies..."
   omarchy-pkg-add freerdp openbsd-netcat gum
 
   mkdir -p "$HOME/.local/share/applications"

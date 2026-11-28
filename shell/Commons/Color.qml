@@ -16,13 +16,22 @@ QtObject {
   readonly property string stateHome: home + "/.local/state"
   readonly property string currentThemePath: stateHome + "/omarchy/current/theme"
 
-  property color foreground: "#cacccc"
-  property color background: "#101315"
-  property color accent: "#cacccc"
-  property color urgent: "#a55555"
+  readonly property var _paletteDefaults: ({
+    foreground: "#cacccc",
+    background: "#101315",
+    accent: "#cacccc",
+    urgent: "#a55555",
+    warning: "#c4a35a",
+    muted: "#707880"
+  })
+
+  property color foreground: _paletteDefaults.foreground
+  property color background: _paletteDefaults.background
+  property color accent: _paletteDefaults.accent
+  property color urgent: _paletteDefaults.urgent
   // A caution short of urgent: the theme's yellow.
-  property color warning: "#c4a35a"
-  property color muted: "#707880"
+  property color warning: _paletteDefaults.warning
+  property color muted: _paletteDefaults.muted
 
   // Flat dictionary of "section.key" -> raw string from shell.toml.
   // Reassigning this whole property is what makes surface bindings below
@@ -140,35 +149,27 @@ QtObject {
 
   function loadColors(raw) {
     var lines = String(raw || "").split("\n")
-    var foundAccent = false
-    var foundMuted = false
-    var loadedForeground = false
-    var loadedBackground = false
-    var color0Value = ""
-    var color4Value = ""
-    var color7Value = ""
-    var color8Value = ""
+    var named = Object.create(null)
+    var nextUrgent = _paletteDefaults.urgent
+    var nextWarning = _paletteDefaults.warning
     for (var i = 0; i < lines.length; i++) {
       var match = lines[i].match(/^\s*([A-Za-z0-9_-]+)\s*=\s*["']?(#[0-9A-Fa-f]{6})/)
       if (!match) continue
-      if (match[1] === "foreground") { foreground = match[2]; loadedForeground = true }
-      else if (match[1] === "background") { background = match[2]; loadedBackground = true }
-      // Prefer the explicit `accent` key; only fall back to color4 when the
-      // theme doesn't define a separate accent. color4 appears later in the
-      // file so the old single-property approach clobbered accent with it.
-      else if (match[1] === "accent") { accent = match[2]; foundAccent = true }
-      else if (match[1] === "muted") { muted = match[2]; foundMuted = true }
-      else if (match[1] === "color0") color0Value = match[2]
-      else if (match[1] === "color4") color4Value = match[2]
-      else if (match[1] === "color7") color7Value = match[2]
-      else if (match[1] === "color8") color8Value = match[2]
-      else if (match[1] === "red" || match[1] === "color1") urgent = match[2]
-      else if (match[1] === "yellow" || match[1] === "color3") warning = match[2]
+      var key = match[1]
+      var value = match[2]
+      named[key] = value
+      if (key === "red" || key === "color1") nextUrgent = value
+      else if (key === "yellow" || key === "color3") nextWarning = value
     }
-    if (!loadedBackground && color0Value.length > 0) background = color0Value
-    if (!loadedForeground && color7Value.length > 0) foreground = color7Value
-    if (!foundAccent && color4Value.length > 0) accent = color4Value
-    if (!foundMuted) muted = color8Value.length > 0 ? color8Value : foreground
+    // Resolve every stop from this file so a missing key cannot retain a color
+    // from the previous theme. Explicit foreground, background, and accent
+    // take precedence over their Base24 aliases.
+    foreground = named.foreground || named.color7 || _paletteDefaults.foreground
+    background = named.background || named.color0 || _paletteDefaults.background
+    accent = named.accent || named.color4 || _paletteDefaults.accent
+    urgent = nextUrgent
+    warning = nextWarning
+    muted = named.muted || named.color8 || foreground
   }
 
   // Last theme-supplied and user-supplied shell.toml dicts, kept separate so
