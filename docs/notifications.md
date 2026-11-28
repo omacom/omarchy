@@ -39,7 +39,7 @@ A click tries, in order: the card's `omarchy-exec-argv` command; the sender's `d
 The shell keeps its state in `~/.local/state/omarchy/notifications/` (0700), three JSON files it reads with `FileView` once at startup and rewrites whole:
 
 - `live.json`: the rows on screen, oldest first, put back after a shell restart with a 20s grace (critical ones still wait). At most 100.
-- `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and 24 hours. Rows whose reason is `silenced` were held back by Do Not Disturb.
+- `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and 24 hours. Rows whose reason is `silenced` were held back by Do Not Disturb; `fullscreen` marks rows held back while the target display had a fullscreen window.
 - `quiet.json`: `{ dnd }`.
 
 A card with the `transient` hint is never written to either file, as the hint asks: it is not put back after a restart and leaves no history when it closes. Its sender sends it again when it still applies, as `omarchy-migrate-notify` does at every login.
@@ -69,9 +69,9 @@ Images are decoded in the shell process like every other image it draws. A sende
 
 ## Silencing
 
-Do Not Disturb is a boolean in `quiet.json`, toggled via `omarchy-shell notifications toggleDnd` / `setDnd` / `isDnd`; `omarchy-toggle-notification-silencing` wraps the toggle.
+Do Not Disturb is a boolean in `quiet.json`, toggled via `omarchy-shell notifications toggleDnd` / `setDnd` / `isDnd`; `omarchy-toggle-notification-silencing` wraps the toggle. A true fullscreen window (`fullscreen` mode bit 2, not maximized) on the target display also silences incoming notifications on that display, without changing `doNotDisturb`, keeping gameplay uninterrupted and preserving direct scanout.
 
-Three kinds of notification get through Do Not Disturb:
+Three kinds of notification get through Do Not Disturb and fullscreen silencing:
 
 - `app_name` = `omarchy-action`: Omarchy's own confirmation toasts for something the user just did.
 - urgency critical *and* `app_name` = `notify-send`: bare-CLI emergency alerts. Critical alone is not enough, because chat apps use it to force visibility under their own app name.
