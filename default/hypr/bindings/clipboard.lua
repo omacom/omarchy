@@ -1,3 +1,5 @@
+local keyboard = require("default.hypr.keyboard")
+
 -- Send with explicit mods to the focused surface by omitting the window target,
 -- so universal clipboard shortcuts reach both normal windows and focused
 -- layer-shell surfaces such as Omarchy panels. A virtual keyboard (wtype) won't
@@ -5,8 +7,9 @@
 -- The down/up split works around Hyprland send_shortcut sometimes leaving
 -- synthetic key state stuck/repeating.
 -- https://github.com/hyprwm/Hyprland/discussions/14099
-local function send_shortcut_once(mods, key)
+local function send_shortcut_once(mods, letter)
   return function()
+    local key = keyboard.letter(letter)
     hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "down" }))
 
     hl.timer(function()

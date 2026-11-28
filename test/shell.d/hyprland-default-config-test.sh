@@ -262,3 +262,67 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
 (( number_claims == 9 )) ||
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
+
+# Hyprland looks a sent key name up in the active layout group only, so with a
+# non-Latin group the clipboard shortcuts send the keycode the Latin layouts put
+# each letter on. Prints the keys sent, then how many times xkbcli ran.
+clipboard_keys() {
+  OMARCHY_REGION_FILE="$tmpdir/no-region" OMARCHY_PATH="$ROOT" TEST_KB_LAYOUT="$1" TEST_KB_VARIANT="$2" lua - <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+
+local binds, sent, lookups = {}, {}, 0
+local terminal = false
+local popen = io.popen
+io.popen = function(command, ...)
+  if command:find("xkbcli", 1, true) then lookups = lookups + 1 end
+  return popen(command, ...)
+end
+local config = {
+  ["input.kb_layout"] = os.getenv("TEST_KB_LAYOUT"),
+  ["input.kb_variant"] = os.getenv("TEST_KB_VARIANT"),
+}
+hl = {
+  dsp = {
+    exec_cmd = function(command) return command end,
+    global = function(name) return name end,
+    send_key_state = function(args) return args end,
+  },
+  bind = function(keys, dispatcher, opts) binds[opts.description] = dispatcher end,
+  dispatch = function(args)
+    if args.state == "down" then sent[#sent + 1] = args.mods .. "+" .. args.key end
+  end,
+  timer = function() end,
+  get_config = function(key) return config[key] end,
+  get_active_window = function() return terminal and { tags = { "terminal*" } } or {} end,
+}
+
+require("default.hypr.helpers")
+require("default.hypr.bindings.clipboard")
+binds["Select all"]()
+binds["Universal copy"]()
+binds["Universal paste"]()
+binds["Universal cut"]()
+terminal = true
+binds["Universal copy"]()
+print(table.concat(sent, " ") .. " | " .. lookups)
+LUA
+}
+keys=$(clipboard_keys ru,us ,)
+[[ $keys == "CTRL+code:38 CTRL+code:54 CTRL+code:55 CTRL+code:53 CTRL SHIFT+code:54 | 4" ]] ||
+  fail "clipboard shortcuts send US keycodes, looked up once each, when a non-Latin layout is configured" "$keys"
+keys=$(clipboard_keys ru,us ,dvorak)
+[[ $keys == "CTRL+code:38 CTRL+code:31 CTRL+code:60 CTRL+code:56 CTRL SHIFT+code:31 | 4" ]] ||
+  fail "clipboard shortcuts send the keycodes of the Latin layout's letters" "$keys"
+keys=$(clipboard_keys " ru , us " " , dvorak ")
+[[ $keys == "CTRL+code:38 CTRL+code:31 CTRL+code:60 CTRL+code:56 CTRL SHIFT+code:31 | 4" ]] ||
+  fail "clipboard shortcuts accept whitespace around layouts and variants" "$keys"
+keys=$(clipboard_keys us,fr ,)
+[[ $keys == "CTRL+A CTRL+C CTRL+V CTRL+X CTRL SHIFT+C | 0" ]] ||
+  fail "clipboard shortcuts send letter names without a lookup when every layout is Latin" "$keys"
+keys=$(clipboard_keys us,fr,ru ,,)
+[[ $keys == "CTRL+A CTRL+code:54 CTRL+code:55 CTRL+code:53 CTRL SHIFT+code:54 | 8" ]] ||
+  fail "clipboard shortcuts keep a letter's name where Latin layouts put it on different keys" "$keys"
+keys=$(clipboard_keys us,us ,rus)
+[[ $keys == "CTRL+code:38 CTRL+code:54 CTRL+code:55 CTRL+code:53 CTRL SHIFT+code:54 | 4" ]] ||
+  fail "clipboard shortcuts send keycodes when a non-Latin us variant is configured" "$keys"
+pass "clipboard shortcuts send keycodes that type their letters on the configured Latin layouts"

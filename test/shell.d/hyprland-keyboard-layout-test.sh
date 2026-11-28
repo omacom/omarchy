@@ -175,6 +175,11 @@ kmscon_layouts=$(sed -n '/^omarchy_keymap_xkb() {/,/^}/p' "$kmscon_sh" | awk -F'
   fail "kmscon non-latin layout list stays in sync" "$(diff <(echo "$hooks_layouts") <(echo "$kmscon_layouts"))"
 pass "kmscon non-latin layout list stays in sync with the initramfs hook"
 
+keyboard_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$ROOT/default/hypr/keyboard.lua" | grep -o '"[^"]*"' | tr -d '"' | tr ' ' '\n' | grep '^[a-z]\+$' | sort)
+[[ $hooks_layouts == "$keyboard_layouts" ]] ||
+  fail "clipboard non-latin layout list stays in sync" "$(diff <(echo "$hooks_layouts") <(echo "$keyboard_layouts"))"
+pass "clipboard non-latin layout list stays in sync with the initramfs hook"
+
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\n XKB_LAYOUT="kr" # desktop only\n' assert_input "Korean selection overrides its installer US layout" "[kr] [] [$base_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr:kr104\n' assert_input "Korean Right Alt selection maps 한/영 and 한자 to Right Alt and Right Ctrl" "[kr] [kr104] [$base_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=la\n' assert_input "Lao selection gets Lao behind US on the desktop" "[us,la] [,] [$toggle_options]" $'XKBLAYOUT=us\n'
