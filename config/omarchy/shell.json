@@ -80,11 +80,13 @@
       "folio",
       "omarchy-browser",
       "omarchy-terminal",
+      "omarchy-agent",
       "omacalc",
       "omawrite",
       "hype",
-      "monologue",
-      "cliamp"
+      "cliamp",
+      "Game Vibes",
+      "monologue"
     ]
   },
   "plugins": []
