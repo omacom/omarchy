@@ -2,8 +2,8 @@
 
 # omarchy:summary=Add a shell plugin from git
 # omarchy:group=plugin
-# omarchy:args=[git-url] [--enable] [--yes]
-# omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable
+# omarchy:args=[git-url] [--enable] [--yes] [--commit <sha>]
+# omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable | omarchy plugin add https://github.com/acme/omarchy-weather.git --commit 0000000000000000000000000000000000000000 --enable
 # omarchy:alias=omarchy plugin install
 
 set -euo pipefail
@@ -61,6 +61,7 @@ plugin_id_manifest() {
 
 url=""
 enable_after=""
+commit=""
 
 while (( $# > 0 )); do
   case "$1" in
@@ -72,8 +73,14 @@ while (( $# > 0 )); do
     ASSUME_YES=1
     shift
     ;;
+  --commit)
+    [[ $# -ge 2 && $2 =~ ^[0-9a-f]{40}$ ]] ||
+      fail "--commit requires a full 40-character commit SHA"
+    commit="$2"
+    shift 2
+    ;;
   -h | --help)
-    echo "Usage: omarchy plugin add [git-url] [--enable] [--yes]"
+    echo "Usage: omarchy plugin add [git-url] [--enable] [--yes] [--commit <sha>]"
     exit 0
     ;;
   -*)
@@ -111,6 +118,10 @@ if (( ! ASSUME_YES )); then
       URL: $url
 
 WARN
+  if [[ -n $commit ]]; then
+    echo "      Commit: $commit (pinned)" >&2
+    echo >&2
+  fi
   confirm "$(omarchy-i18n plugin.confirmAdd)" || fail "aborted"
 fi
 
@@ -121,6 +132,22 @@ rm -rf "$stage"
 if ! git clone -- "$url" "$stage"; then
   rm -rf "$stage"
   fail "failed to clone $url"
+fi
+
+# A pinned add checks out the exact reviewed commit instead of the default
+# branch HEAD. Full clones normally already contain it; the fetch fallback
+# covers commits outside the advertised refs.
+if [[ -n $commit ]]; then
+  if ! git -C "$stage" cat-file -e "$commit^{commit}" 2>/dev/null; then
+    if ! git -C "$stage" fetch --quiet --depth 1 origin "$commit"; then
+      rm -rf "$stage"
+      fail "commit $commit not found in $url"
+    fi
+  fi
+  if ! git -C "$stage" -c advice.detachedHead=false checkout --quiet --detach "$commit"; then
+    rm -rf "$stage"
+    fail "failed to check out commit $commit"
+  fi
 fi
 
 if ! omarchy-plugin-validate "$stage"; then
@@ -145,7 +172,11 @@ if [[ -e $target || -L $target ]]; then
 fi
 
 mv "$stage" "$target"
-echo "Added $id into $target"
+if [[ -n $commit ]]; then
+  echo "Added $id into $target at commit $commit (pinned)"
+else
+  echo "Added $id into $target"
+fi
 
 omarchy-shell shell rescanPlugins >/dev/null
 
