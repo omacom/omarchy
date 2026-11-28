@@ -82,7 +82,11 @@ placement=$(jq -cn \
     + (if $after == "" then {} else {after: $after} end)
   ')
 
-result=$(omarchy-shell shell enablePlugin "$id" "$placement")
+# Enabling loads the plugin into the shell, which can take longer than the
+# default IPC timeout on slow disks. A timed-out call may still have been
+# applied, so give it a wider window by default and respect an explicit one.
+result=$(OMARCHY_SHELL_IPC_TIMEOUT="${OMARCHY_SHELL_IPC_TIMEOUT:-10s}" \
+  omarchy-shell shell enablePlugin "$id" "$placement")
 if [[ $result == "unknown" ]]; then
   fail "plugin '$id' is not known; run: omarchy-shell shell rescanPlugins"
 elif [[ $result != "ok" ]]; then
