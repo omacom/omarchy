@@ -233,6 +233,9 @@ Item {
     }
     Hyprland.dispatch("hl.dsp.focus({ " + target + " })")
     Hyprland.dispatch("hl.dsp.window.alter_zorder({ mode = \"top\", " + target + " })")
+    // A maximized window on a floating workspace comes in front of the windows
+    // drawn over it, which focus alone misses when it has the focus already.
+    Util.execDetached("hyprctl eval " + Util.shellQuote("o.bring_forward(\"" + address + "\")"))
   }
 
   function quit(item) {
