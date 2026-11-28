@@ -313,208 +313,50 @@ assert(#check({ class = "foot", pid = plain_pid, floating = false, fullscreen = 
 LUA
 pass "native Linux Steam games fullscreen on open without affecting dialogs or other apps"
 
-# Game windows boost to performance on AC without overwriting the saved power
-# profile, track multiple open games across Hyprland reloads, and restore via
-# omarchy-powerprofiles-set autodetect once the last game is destroyed.
-game_power_dir="$tmpdir/game-power"
-game_power_bin="$game_power_dir/bin"
-game_power_run="$game_power_dir/run"
-game_power_state="$game_power_dir/state"
-mkdir -p "$game_power_bin" "$game_power_run/hypr/test-sig" "$game_power_state"
-
-cat >"$game_power_bin/busctl" <<'EOF'
-#!/bin/bash
-if [[ ${GAME_POWER_ON_BATTERY:-0} == "1" ]]; then
-  echo "b true"
-else
-  echo "b false"
-fi
-EOF
-cat >"$game_power_bin/powerprofilesctl" <<'EOF'
-#!/bin/bash
-if [[ $1 == "list" ]]; then
-  if [[ ${GAME_POWER_HAS_PERF:-1} == "1" ]]; then
-    printf '  power-saver:\n* balanced:\n  performance:\n'
-  else
-    printf '  power-saver:\n* balanced:\n'
-  fi
-elif [[ $1 == "set" ]]; then
-  if [[ $2 == "performance" && ${GAME_POWER_HAS_PERF:-1} != "1" ]]; then
-    exit 2
-  fi
-  printf 'set %s\n' "$2" >>"$GAME_POWER_LOG"
-fi
-EOF
-cat >"$game_power_bin/omarchy-shell" <<'EOF'
-#!/bin/bash
-printf 'shell %s\n' "$*" >>"$GAME_POWER_LOG"
-EOF
-chmod +x "$game_power_bin/busctl" "$game_power_bin/powerprofilesctl" "$game_power_bin/omarchy-shell"
-printf 'balanced\n' >"$game_power_state/ac"
-
-PATH="$game_power_bin:$ROOT/bin:$PATH" \
-  HOME="$fresh_home" \
-  OMARCHY_PATH="$ROOT" \
-  XDG_RUNTIME_DIR="$game_power_run" \
-  HYPRLAND_INSTANCE_SIGNATURE="test-sig" \
-  OMARCHY_POWERPROFILES_STATE_DIR="$game_power_state" \
-  GAME_POWER_LOG="$game_power_dir/calls.log" \
-  SteamGameId=239820 \
-  lua - <<'LUA' || fail "game-power boosts on AC for games, ignores non-games and battery, and restores after the last game exits"
+# Game windows call omarchy-powerprofiles-game boost on open and restore once
+# the last game window is destroyed, while ignoring non-games.
+HOME="$fresh_home" OMARCHY_PATH="$ROOT" SteamGameId=239820 lua - <<'LUA' || fail "game-power boosts when games open and restores only when the last game closes"
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
-
 local handlers, windows, execs = {}, {}, {}
-local function reset_handlers()
-  handlers = {}
-  execs = {}
-end
-
 hl = {
   window_rule = function() end,
   layer_rule = function() end,
-  on = function(event, fn)
-    handlers[event] = handlers[event] or {}
-    table.insert(handlers[event], fn)
-  end,
-  dispatch = function(cmd)
-    if cmd.kind == "tag" and cmd.tag:sub(1, 1) == "+" then
-      cmd.window.tags = cmd.window.tags or {}
-      table.insert(cmd.window.tags, cmd.tag:sub(2))
-    end
-  end,
-  dsp = {
-    window = {
-      tag = function(spec) return { kind = "tag", tag = spec.tag, window = spec.window } end,
-      fullscreen = function(spec) return { kind = "fullscreen", mode = spec.mode, action = spec.action, window = spec.window } end,
-    },
-  },
-  get_windows = function()
-    return windows
-  end,
-  exec_cmd = function(cmd)
-    table.insert(execs, cmd)
-  end,
+  on = function(event, fn) handlers[event] = handlers[event] or {}; table.insert(handlers[event], fn) end,
+  dispatch = function() end,
+  dsp = { window = { tag = function() return {} end, fullscreen = function() return {} end } },
+  get_windows = function() return windows end,
+  exec_cmd = function(cmd) table.insert(execs, cmd) end,
 }
-
-local function fire(event, ...)
-  for _, fn in ipairs(handlers[event] or {}) do
-    fn(...)
-  end
-end
-
-local function run_exec(cmd, env)
-  local prefix = ""
-  for k, v in pairs(env or {}) do
-    prefix = prefix .. k .. "=" .. tostring(v) .. " "
-  end
-  return os.execute(prefix .. "sh -c " .. o.shell_quote(cmd))
-end
-
-local function read_file(path)
-  local f = io.open(path, "r")
-  if not f then return "" end
-  local data = f:read("*a") or ""
-  f:close()
-  return data
-end
-
-local log_path = os.getenv("GAME_POWER_LOG")
-local state_ac = os.getenv("OMARCHY_POWERPROFILES_STATE_DIR") .. "/ac"
-local marker = os.getenv("XDG_RUNTIME_DIR") .. "/hypr/" .. os.getenv("HYPRLAND_INSTANCE_SIGNATURE") .. "/omarchy-game-power-boosted"
-
+local function fire(event, ...) for _, fn in ipairs(handlers[event] or {}) do fn(...) end end
 require("default.hypr.helpers")
 require("default.hypr.apps")
 
-assert(handlers["window.close"] == nil, "game-power must hook window.destroy, not window.close")
-
--- Non-games never trigger exec_cmd on open or destroy.
-for _, win in ipairs({
-  { class = "foot", tags = { "terminal*" } },
-  { class = "google-chrome", tags = { "chromium-based-browser*" } },
-  { class = "steam", tags = {} },
-  { class = "steam_app_battlenet", tags = {} },
-}) do
-  windows = { win }
-  fire("window.open", win)
-  windows = {}
-  fire("window.destroy")
-end
-assert(#execs == 0, "non-game windows should not spawn commands")
-
--- Native Linux Steam game gets tagged by steam.lua before game-power runs.
 local stat = assert(io.open("/proc/self/stat", "r"))
 local self_pid = tonumber(stat:read("*a"):match("^(%d+)"))
 stat:close()
 
-local native_game = { class = "Gamedevtycoon64-bin", pid = self_pid, floating = false, fullscreen = 0, tags = {} }
-local proton_game = { class = "steam_app_1091500", tags = {} }
-windows = { native_game }
-fire("window.open", native_game)
-assert(#execs == 1, "first native Steam game should trigger boost")
-assert(run_exec(execs[1], { GAME_POWER_ON_BATTERY = 0, GAME_POWER_HAS_PERF = 1 }), "boost command should succeed on AC")
-assert(read_file(log_path) == "set performance\nshell -q battery refreshPowerProfile\n", "boost should set performance and refresh shell on AC")
-assert(read_file(state_ac) == "balanced\n", "boost must not overwrite saved AC profile")
+for _, win in ipairs({
+  { address = "0x1", class = "foot", tags = { "terminal*" } },
+  { address = "0x2", class = "steam", tags = {} },
+  { address = "0x3", class = "steam_app_battlenet", tags = {} },
+}) do
+  windows = { win }; fire("window.open", win)
+  windows = {}; fire("window.destroy", win)
+end
+assert(#execs == 0, "non-game windows should not trigger power profile changes")
 
--- Opening a second game while boosted does not re-run boost; closing only one
--- keeps the boost active until the last game exits.
-windows = { native_game, proton_game }
-fire("window.open", proton_game)
-assert(#execs == 1, "second game should not re-run boost")
+local native = { address = "0x10", class = "Gamedevtycoon64-bin", pid = self_pid, floating = false, fullscreen = 0, tags = {} }
+local proton = { address = "0x20", class = "steam_app_1091500", tags = {} }
+windows = { native }; fire("window.open", native)
+assert(#execs == 1 and execs[1] == "omarchy-powerprofiles-game boost", "native Steam game should boost on open")
 
-windows = { proton_game }
-fire("window.destroy")
-assert(#execs == 1, "closing one of two games should not restore")
+windows = { native, proton }; fire("window.open", proton)
+assert(#execs == 2 and execs[2] == "omarchy-powerprofiles-game boost", "Proton game should boost on open")
 
--- Simulate a Hyprland reload while the second game is still open: fresh Lua
--- state sees the runtime marker + running game, skips re-boosting, and still
--- restores once that game exits.
-package.loaded["default.hypr.apps.game-power"] = nil
-reset_handlers()
-require("default.hypr.apps.game-power")
-assert(#execs == 0, "reload while game is running should neither re-boost nor restore")
+windows = { proton }; fire("window.destroy", native)
+assert(#execs == 2, "closing one of two games should not restore")
 
-windows = {}
-fire("window.destroy")
-assert(#execs == 1 and execs[1] == "omarchy-powerprofiles-set autodetect", "last game exiting after reload should restore saved profile")
-assert(run_exec(execs[1], { GAME_POWER_ON_BATTERY = 0, GAME_POWER_HAS_PERF = 1 }), "restore command should succeed")
-local expected_restore = "set balanced\nshell -q battery refreshPowerProfile\n"
-assert(read_file(log_path):sub(-#expected_restore) == expected_restore, "restore should return to saved AC profile")
-assert(io.open(marker, "r") == nil, "restore should clear runtime marker")
-
--- On battery: boost command refuses to set performance and clears the marker,
--- so closing the game skips calling omarchy-powerprofiles-set autodetect.
-execs = {}
-assert(io.open(log_path, "w")):close()
-local retro = { class = "com.libretro.RetroArch", tags = {} }
-windows = { retro }
-fire("window.open", retro)
-assert(#execs == 1, "RetroArch should check boost on open")
-run_exec(execs[1], { GAME_POWER_ON_BATTERY = 1, GAME_POWER_HAS_PERF = 1 })
-assert(read_file(log_path) == "", "battery mode must not switch to performance")
-assert(io.open(marker, "r") == nil, "declined boost on battery should clear marker")
-windows = {}
-fire("window.destroy")
-assert(#execs == 1, "closing a game that did not boost on battery should not restore")
-
--- On hardware without a performance profile: declined boost clears marker too.
-execs = {}
-local moonlight = { class = "com.moonlight_stream.Moonlight", tags = {} }
-windows = { moonlight }
-fire("window.open", moonlight)
-assert(#execs == 1, "Moonlight should check boost on open")
-run_exec(execs[1], { GAME_POWER_ON_BATTERY = 0, GAME_POWER_HAS_PERF = 0 })
-assert(read_file(log_path) == "", "missing performance profile must not call powerprofilesctl set")
-windows = {}
-fire("window.destroy")
-assert(#execs == 1, "closing a game when performance is unavailable should not restore")
-
--- Reload after a stale boost marker with no games open restores immediately.
-local stale = assert(io.open(marker, "w"))
-stale:close()
-package.loaded["default.hypr.apps.game-power"] = nil
-reset_handlers()
-windows = {}
-require("default.hypr.apps.game-power")
-assert(#execs == 1 and execs[1] == "omarchy-powerprofiles-set autodetect", "stale marker with no open games should restore on reload")
+windows = { proton }; fire("window.destroy", proton)
+assert(#execs == 3 and execs[3] == "omarchy-powerprofiles-game restore", "closing the last game should restore")
 LUA
-pass "game windows boost to performance on AC and restore the saved profile on exit"
+pass "game windows boost on open and restore only after the last game exits"

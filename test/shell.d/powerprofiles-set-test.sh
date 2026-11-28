@@ -34,11 +34,16 @@ else
   echo "b false"
 fi
 EOF
-chmod +x "$tmp_dir/bin/busctl"
+cat >"$tmp_dir/bin/omarchy-shell" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+chmod +x "$tmp_dir/bin/busctl" "$tmp_dir/bin/omarchy-shell"
 
 export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
 export POWERPROFILES_LOG="$tmp_dir/calls"
 export OMARCHY_POWERPROFILES_STATE_DIR="$tmp_dir/state"
+export OMARCHY_GAME_POWER_STATE="$tmp_dir/game-active"
 
 "$ROOT/bin/omarchy-powerprofiles-set" ac balanced
 [[ $(<"$tmp_dir/state/ac") == "balanced" ]] || fail "power profile stores AC preference"
@@ -76,6 +81,38 @@ pass "power profile retains performance as AC default"
 "$ROOT/bin/omarchy-powerprofiles-init"
 [[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "init restores the autodetected preference"
 pass "power profile init restores the autodetected preference"
+
+"$ROOT/bin/omarchy-powerprofiles-set" ac balanced
+ON_BATTERY=0 "$ROOT/bin/omarchy-powerprofiles-game" boost
+[[ -f $OMARCHY_GAME_POWER_STATE ]] || fail "game boost records active game marker"
+[[ $(tail -n 1 "$tmp_dir/calls") == "performance" ]] || fail "game boost sets performance on AC"
+[[ $(<"$tmp_dir/state/ac") == "balanced" ]] || fail "game boost leaves saved AC preference intact"
+pass "game boost applies performance on AC without overwriting saved preference"
+
+ON_BATTERY=0 "$ROOT/bin/omarchy-powerprofiles-game" restore
+[[ ! -f $OMARCHY_GAME_POWER_STATE ]] || fail "game restore clears active game marker"
+[[ $(tail -n 1 "$tmp_dir/calls") == "balanced" ]] || fail "game restore returns to saved AC preference"
+calls_before=$(wc -l <"$tmp_dir/calls")
+ON_BATTERY=0 "$ROOT/bin/omarchy-powerprofiles-game" restore
+(( $(wc -l <"$tmp_dir/calls") == calls_before )) || fail "game restore is a no-op without active marker"
+pass "game restore clears marker, restores saved preference, and no-ops when inactive"
+
+calls_before=$(wc -l <"$tmp_dir/calls")
+ON_BATTERY=1 "$ROOT/bin/omarchy-powerprofiles-game" boost
+[[ -f $OMARCHY_GAME_POWER_STATE ]] || fail "game boost on battery still records active marker"
+(( $(wc -l <"$tmp_dir/calls") == calls_before )) || fail "game boost on battery does not switch to performance"
+"$ROOT/bin/omarchy-powerprofiles-set" ac
+[[ $(tail -n 1 "$tmp_dir/calls") == "performance" ]] || fail "plugging in AC mid-game boosts to performance"
+[[ $(<"$tmp_dir/state/ac") == "balanced" ]] || fail "AC plug-in game boost leaves saved AC preference intact"
+pass "game started on battery boosts when AC is plugged in"
+
+"$ROOT/bin/omarchy-powerprofiles-set" ac power-saver
+[[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "manual profile choice overrides game boost"
+[[ $(<"$tmp_dir/state/ac") == "power-saver" ]] || fail "manual profile choice updates saved AC preference"
+ON_BATTERY=0 "$ROOT/bin/omarchy-powerprofiles-game" restore
+[[ ! -f $OMARCHY_GAME_POWER_STATE ]] || fail "game restore clears marker after manual override"
+[[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "game restore keeps updated saved preference"
+pass "manual profile selection overrides active game boost and persists"
 
 cat >"$tmp_dir/bin/loginctl" <<'EOF'
 #!/bin/bash

@@ -28,25 +28,33 @@ local function steam_game_id(pid)
   return id ~= "0" and id or nil
 end
 
-hl.on("window.open", function(window)
+function o.is_native_steam_game(window)
+  if not window then
+    return false
+  end
+
   local class = window.class or ""
   -- steam_app_* has its own rules above; skip the client without a /proc read.
   if class == "steam" or class:match("^steam_app_") then
-    return
+    return false
   end
 
   -- Ignore browsers and terminals cold-started from a game (they inherit SteamGameId).
   if o.has_tag(window, "chromium-based-browser") or o.has_tag(window, "firefox-based-browser") or o.has_tag(window, "terminal") then
-    return
+    return false
   end
 
   -- Leave dialogs and windows that floated on their own alone, while still
   -- catching normal windows that a floating workspace rule floated.
   if window.floating and not o.has_tag(window, "omarchy-mode-opened") then
-    return
+    return false
   end
 
-  if not steam_game_id(window.pid) then
+  return steam_game_id(window.pid) ~= nil
+end
+
+hl.on("window.open", function(window)
+  if not o.is_native_steam_game(window) then
     return
   end
 

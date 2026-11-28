@@ -35,6 +35,7 @@ profile_available() {
 
 state_dir="${OMARCHY_POWERPROFILES_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/powerprofiles}"
 state_file="$state_dir/$action"
+game_state="${OMARCHY_GAME_POWER_STATE:-${XDG_RUNTIME_DIR:-/tmp}/omarchy-game-power-active}"
 
 if [[ -n $requested_profile ]]; then
   profile_available "$requested_profile" || {
@@ -43,6 +44,8 @@ if [[ -n $requested_profile ]]; then
   }
 
   profile="$requested_profile"
+elif [[ $action == "ac" && -f $game_state ]] && profile_available performance; then
+  profile=performance
 elif [[ -r $state_file ]]; then
   profile=$(<"$state_file")
 fi
