@@ -64,6 +64,22 @@ pass "update succeeds when the requested collectors all pass"
   fail "update with agent arguments only runs the named collectors"
 pass "update with agent arguments only runs the named collectors"
 
+# A seeded record must not make a missing collector look refreshed.
+printf '%s\n' '{"id":"missing","totalPrompts":17}' >"$usage_dir/missing.json"
+cp "$usage_dir/missing.json" "$TEST_HOME/previous.json"
+rm "$usage_dir/good.json"
+if HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
+  "$ROOT/bin/omarchy-agent-usage-update" missing good 2>"$TEST_HOME/error"; then
+  fail "update fails when a requested collector is missing"
+fi
+[[ $(cat "$TEST_HOME/error") == "omarchy-agent-usage-update: missing collector not found or not executable" ]] ||
+  fail "update names the missing collector" "$(cat "$TEST_HOME/error")"
+cmp -s "$usage_dir/missing.json" "$TEST_HOME/previous.json" ||
+  fail "update keeps the last record of a missing collector"
+[[ $(jq -r '.totalPrompts' "$usage_dir/good.json") == "3" ]] ||
+  fail "update still runs the requested collectors that exist"
+pass "update reports a missing requested collector and still runs the others"
+
 rm -rf "$usage_dir"
 if output=$(HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
   "$ROOT/bin/omarchy-agent-usage-update" --except '' 2>&1); then
