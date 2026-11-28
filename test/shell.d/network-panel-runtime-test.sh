@@ -36,11 +36,15 @@ source = source.replace(/\bNetworking\./g, 'NetworkMock.')
 source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
       property alias testButton: portalAction
       property alias testTitle: heroSsid
+      property alias testBandRow: bandRow
+      property alias testNetworkList: networkList
 `)
 source = source.replace('  id: root', `  id: root
   function testEnsureContent() { return panel.ensureContent() }
   readonly property Item testContent: panel.loadedContent
   readonly property Item testButton: panel.loadedContent ? panel.loadedContent.testButton : null
+  readonly property Item testBandRow: panel.loadedContent ? panel.loadedContent.testBandRow : null
+  readonly property Item testNetworkList: panel.loadedContent ? panel.loadedContent.testNetworkList : null
   readonly property Item testKeys: panel.loadedContent
   readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
   readonly property Item testTitle: panel.loadedContent ? panel.loadedContent.testTitle : null
