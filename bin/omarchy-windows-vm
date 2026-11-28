@@ -753,9 +753,14 @@ EOF
 # Only these fixed keys are honored; image, container name, devices, caps, and
 # port bindings are hard-coded and never taken from input.
 __priv_write_compose() {
-  local ram cores disk username password tz key value
+  local ram cores disk username password tz line key value
 
-  while IFS='=' read -r key value; do
+  # Split at the first = by hand: read with IFS='=' would drop a password's
+  # one trailing =, and the guest would get a password RDP doesn't send.
+  while IFS= read -r line; do
+    [[ $line == *=* ]] || continue
+    key=${line%%=*}
+    value=${line#*=}
     case "$key" in
     RAM) ram="$value" ;;
     CORES) cores="$value" ;;
@@ -1084,14 +1089,14 @@ write_credentials() {
   umask "$old_umask"
 }
 
-# Read one field from the private credentials file; IFS on the first = keeps a
-# password that itself contains =.
+# Read one field from the private credentials file. Split at the first = by
+# hand: read with IFS='=' would drop a password's one trailing =.
 read_credential() {
-  local want="$1" key value
+  local want="$1" line
   [[ -f $CREDENTIALS_FILE ]] || return 1
-  while IFS='=' read -r key value; do
-    [[ $key == "$want" ]] && {
-      printf '%s' "$value"
+  while IFS= read -r line; do
+    [[ $line == "$want="* ]] && {
+      printf '%s' "${line#*=}"
       return 0
     }
   done <"$CREDENTIALS_FILE"

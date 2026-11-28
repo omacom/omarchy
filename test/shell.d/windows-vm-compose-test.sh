@@ -100,6 +100,15 @@ grep -q 'PASSWORD: ".*\$\$.*"' "$COMPOSE" || fail "dollar not escaped"
 [[ $(unescape "$(read_compose_value PASSWORD "$COMPOSE")") == "$tricky" ]] || fail "password did not round-trip"
 pass "password with quote, backslash, and dollar round-trips"
 
+# The guest gets its password from the compose, RDP from the credentials file:
+# both must keep a trailing =, or Windows and RDP disagree.
+for password in 'base64ish=' 'two=='; do
+  write 8G 4 64G bob "$password" UTC
+  [[ $(unescape "$(read_compose_value PASSWORD "$COMPOSE")") == "$password" ]] ||
+    fail "the guest got '$(unescape "$(read_compose_value PASSWORD "$COMPOSE")")', not '$password'"
+done
+pass "a password ending in = reaches the guest whole"
+
 for action in write_compose up up_wait down status remove; do
   valid_priv_action "$action" || fail "known action rejected: $action"
 done
@@ -488,6 +497,11 @@ write_credentials carol 'p=a$$w"x'
 [[ $(stat -c '%a' "$credentials_dir") == 700 && $(stat -c '%a' "$CREDENTIALS_FILE") == 600 ]] || fail "credentials path is not private"
 [[ $(cat "$credentials_victim") == victim ]] || fail "credentials write changed a symlink victim"
 [[ $(read_credential USERNAME) == carol && $(read_credential PASSWORD) == 'p=a$$w"x' ]] || fail "credentials did not round-trip"
+for password in 'base64ish=' 'two==' '='; do
+  write_credentials carol "$password"
+  [[ $(read_credential PASSWORD) == "$password" ]] || fail "a password ending in = came back as '$(read_credential PASSWORD)', not '$password'"
+done
+write_credentials carol 'p=a$$w"x'
 credentials_before=$(cat "$CREDENTIALS_FILE")
 mv() { return 1; }
 write_credentials changed replacement 2>/dev/null && fail "forced credentials rename failure succeeded"
