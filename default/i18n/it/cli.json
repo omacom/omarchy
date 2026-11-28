@@ -59,7 +59,7 @@
   "animations.disabled": "Animazioni disattivate",
   "animations.enabled": "Animazioni attivate",
   "animations.softwareRendering": "Animazioni disattivate senza GPU",
-  "animations.softwareRenderingBody": "Nessuna GPU in uso, quindi animazioni, sfocatura e ombre sono disattivate. Aspetto > Animazioni attivate le riattiva.",
+  "animations.softwareRenderingBody": "Nessuna GPU in uso, quindi animazioni, sfocatura e ombre sono disattivate. Aspetto > Attiva animazioni le riattiva.",
   "audio.micMuted": "Microfono silenziato",
   "audio.micOn": "Microfono attivo",
   "audio.noDevices": "Nessun dispositivo audio trovato",
@@ -289,7 +289,7 @@
   "ownerSetup.tip.themes": "Cambia tema da Aspetto > Tema nel menu Omarchy",
   "ownerSetup.tip.transparentBar": "Fai doppio clic sulla barra dei menu per renderla trasparente",
   "ownerSetup.tip.update": "Mantieni il sistema aggiornato con Aggiorna nel menu Omarchy",
-  "ownerSetup.tip.webApps": "Trasforma qualsiasi sito in un'app con Installa > App Web nel menu",
+  "ownerSetup.tip.webApps": "Trasforma qualsiasi sito in un'app con Installa > App web nel menu",
   "ownerSetup.tip.windows": "Avvia una VM Windows completa da Installa > Windows nel menu",
   "ownerSetup.tip.workspaces": "Super + da 1 a 0 cambia area di lavoro, con Shift porti anche la finestra",
   "ownerSetup.tipLine": "Suggerimento: %1",
@@ -334,9 +334,9 @@
   "reminder.inRemaining": "%1 tra %2 (%3)",
   "reminder.minuteLabel": "Promemoria tra %1 min",
   "reminder.minutesUp": {
-    "many": "I tuoi %1 minuti sono scaduti",
-    "one": "Il tuo %1 minuto è scaduto",
-    "other": "I tuoi %1 minuti sono scaduti"
+    "many": "Tempo scaduto (%1 min)",
+    "one": "Tempo scaduto (%1 min)",
+    "other": "Tempo scaduto (%1 min)"
   },
   "reminder.none": "Nessun promemoria in sospeso",
   "reminder.setForMinutes": {

@@ -96,7 +96,7 @@
     "label": "Barra opaca"
   },
   "appearance.top-bar.background.glassy": {
-    "label": "Barra vetro"
+    "label": "Barra effetto vetro"
   },
   "appearance.top-bar.background.clear": {
     "label": "Barra trasparente"
@@ -183,7 +183,7 @@
     "label": "Finestre trasparenti"
   },
   "appearance.windows.transparency.glassy": {
-    "label": "Finestre vetro"
+    "label": "Finestre effetto vetro"
   },
   "appearance.branding.screensaver": {
     "label": "Salvaschermo"
@@ -213,7 +213,7 @@
     "label": "Dock"
   },
   "appearance.dock.autohide": {
-    "label": "Nascondi dock"
+    "label": "Dock a scomparsa"
   },
   "appearance.dock.always-on": {
     "label": "Dock sempre visibile"
@@ -244,7 +244,7 @@
     "label": "Scorrimento"
   },
   "appearance.workspace-layout.floating": {
-    "label": "Flottanti"
+    "label": "Fluttuante"
   },
   "appearance.unlock": {
     "label": "Sblocca"
@@ -1016,7 +1016,7 @@
     "label": "Touchpad"
   },
   "trigger.toggle.crash-capture-off": {
-    "label": "Disattiva registrazione crash"
+    "label": "Disattiva cattura crash"
   },
   "trigger.hardware.laptop-display-on": {
     "label": "Attiva display portatile"
