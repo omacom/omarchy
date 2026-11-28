@@ -806,7 +806,9 @@ PanelWindow {
 
           visible: window.openSubmenu === "layout"
           text: modelData[1]
-          checked: !!window.dock && window.dock.defaultMode === modelData[0]
+          // The layout of the workspace being looked at, which picking one
+          // switches along with the default.
+          checked: !!window.dock && (window.dock.modes[window.workspaceId] || "dwindle") === modelData[0]
           onTriggered: {
             window.setLayout(modelData[0])
             window.closeMenu()
