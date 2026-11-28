@@ -38,8 +38,12 @@ chmod +x "$tmp_dir/bin/update-desktop-database"
 
 cat >"$tmp_dir/bin/pacman" <<'SCRIPT'
 #!/bin/bash
-if [[ $1 == "-Qqo" && $2 == */native.desktop ]]; then
-  printf 'native-pkg\n'
+if [[ $1 == "-Qqo" ]]; then
+  shift
+  [[ ${1:-} == "--" ]] && shift
+  if [[ ${1:-} == */native.desktop ]]; then
+    printf 'native-pkg\n'
+  fi
 fi
 SCRIPT
 chmod +x "$tmp_dir/bin/pacman"
@@ -107,3 +111,19 @@ pass "launcher remove deletes user-owned desktop files"
 
 (( ${#lines[@]} == 3 )) || fail "launcher remove does not notify for user-owned desktop files" "$(printf '%s\n' "${lines[@]}")"
 pass "launcher remove does not notify for user-owned desktop files"
+
+# Traversal or option-shaped desktop IDs must be rejected before resolving paths.
+cat >"$tmp_dir/data/escaped.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Escaped
+Exec=omarchy-launch-webapp https://example.com
+DESKTOP
+
+for bad_id in "../escaped.desktop" "/etc/passwd" "-rf.desktop" ".."; do
+  if "$ROOT/bin/omarchy-remove-launcher-entry" "$bad_id" Bad >/dev/null 2>&1; then
+    fail "launcher remove rejects unsafe desktop id: $bad_id"
+  fi
+done
+[[ -f $tmp_dir/data/escaped.desktop ]] || fail "launcher remove leaves files outside applications/ untouched"
+(( ${#lines[@]} == $(wc -l <"$TEST_LOG") )) || fail "rejected desktop IDs do not dispatch removal commands"
+pass "launcher remove rejects traversal and option-shaped desktop IDs"

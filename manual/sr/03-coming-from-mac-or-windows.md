@@ -1,61 +1,61 @@
-# Prelazak sa Mac-a ili Windows-a
+# Долазак са Mac-а или Windows-а
 
-Ako ste godinama bili na macOS-u ili Windows-u, vaši prsti znaju stotinu stvari za koje je vaš mozak zaboravio da ih je ikada naučio. Ovo poglavlje je sloj za prevođenje: gde ti instinkti idu u Omarchy-ju. Same funkcije su detaljno obrađene drugde — ovo je samo mapa.
+Ако сте године провели на macOS-у или Windows-у, ваши прсти знају стотину ствари за које је ваш мозак заборавио да их је икада научио. Ово поглавље је слој за превођење: где ти инстинкти одлазе у Omarchy-ју. Саме функције су детаљно обрађене на другим местима — ово је само мапа.
 
-### Super je centar svega
+### Super је центар свега
 
-Sva mišićna memorija koju ste izgradili oko Cmd ili Windows tastera prelazi na jedan taster: Super. To je Windows taster na PC tastaturi, i on je sidro za skoro svaku prečicu u Omarchy-ju.
+Сва мишићна меморија коју сте изградили око Cmd-а или Windows тастера прелази на један тастер: Super. То је Windows тастер на PC тастатури и он је сидро за готово сваку пречицу на тастатури у Omarchy-ју.
 
-Vaš refleks za Spotlight ili Raycast ili Start meni postaje `Super + Space`. Time se otvara Omarchy meni, koji pokreće aplikacije, menja podešavanja, instalira softver, hvata ekran — skoro sve. Počnite da kucate da biste filtrirali. `Super + Alt + Space` prikazuje sve aplikacije na jednoj mreži, onako kako to radi Launchpad. Pogledajte [navigaciju](04-navigation.md).
+Ваш рефлекс за Spotlight, Raycast или Start мени постаје `Super + Space`. То отвара Omarchy мени, који покреће апликације, мења подешавања, инсталира софтвер, снима екран — готово све. Почните да куцате да бисте филтрирали. `Super + Alt + Space` приказује сваку апликацију у једној мрежи, онако како Launchpad то ради. Погледајте [навигацију](04-navigation.md).
 
-### Nema ikona na desktopu, a dock se prikazuje samo kada plutate
+### Нема икона на радној површини, а dock се појављује само када плутате
 
-Nema ikona koje biste raspoređivali po desktopu, i nema dock-a na tiling radnom prostoru — dock se pojavljuje samo na plutajućem radnom prostoru (pogledajte [navigaciju](04-navigation.md)). Aplikacije se pokreću prečicom (`Super + Return` za terminal, `Super + Shift + Return` za pregledač, i `Super + K` za listu svega što je mapirano) ili iz menija. Jedini stalni deo korisničkog interfejsa je [gornja traka](05-the-top-bar.md), koja pokriva ono što su za vas ranije radili traka sa menijima, sistemska paleta i Notification Center — i skoro svaki vidžet na njoj radi nešto na levi, desni i srednji klik.
+Нема икона за распоређивање на радној површини и нема dock-а на радној површини са поплочавањем — dock се појављује само на плутајућој радној површини (погледајте [навигацију](04-navigation.md)). Апликације се покрећу пречицом на тастатури (`Super + Return` за терминал, `Super + Shift + Return` за прегледач и `Super + K` за листу свега што је мапирано) или из менија. Једини стални део корисничког интерфејса је [горња трака](05-the-top-bar.md), која покрива оно што су трака менија, системска палета и Notification Center раније радили за вас — и готово сваки виџет на њој ради нешто на леви, десни и средњи клик.
 
-### Prozori se sami raspoređuju
+### Прозори се сами постављају
 
-Najveća promena u načinu razmišljanja: ne prevlačite prozore unaokolo niti ih prilepljujete za polovine ekrana. Otvorite prozor i on zauzme ceo ekran. Otvorite drugi i oni podele ekran. Nikada ne vadite prozor ispod drugog, jer se prozori ne preklapaju.
+Највећа промена начина размишљања: не превлачите прозоре около нити их качите за половине екрана. Отворите прозор и он заузме цео екран. Отворите други и они га поделе. Никада не пецате прозор испод другог, јер се прозори не преклапају.
 
-Kada vam zaista treba plutajući prozor, `Super + T` prebacuje aktivni prozor iz tiling režima (i nazad). Ali prvo dajte tiling režimu pravu šansu — to je srce cele stvari. [Navigacija](04-navigation.md) vas vodi kroz to.
+Када вам заиста треба плутајући прозор, `Super + T` пребацује активни прозор ван поплочавања (и назад). Али прво дајте поплочавању праву шансу — то је срце целе ствари. [Навигација](04-navigation.md) вас води кроз то.
 
-Radni prostori će vam delovati poznato: to su macOS Spaces ili Windows virtuelni desktopi, samo što ćete ih zapravo koristiti, jer `Super + 1/2/3/4` skače pravo na jedan, a `Super + Shift + 1/2/3/4` tamo šalje aktivni prozor. Nema kašnjenja animacije, samo trenutni skokovi. To znači da vam možda neće ni trebati više monitora, ako ste na to bili navikli ranije.
+Радне површине ће вам деловати познато: оне су macOS Spaces или Windows виртуелне радне површине, само што ћете их заправо користити, јер `Super + 1/2/3/4` скаче директно на једну, а `Super + Shift + 1/2/3/4` тамо шаље активни прозор. Нема кашњења анимације, само тренутни скокови. То значи да вам можда неће требати ни више монитора, ако сте на то били навикли.
 
-### Kopiranje i lepljenje jednostavno rade
+### Копирање и лепљење једноставно раде
 
-Na Mac-u ste svuda imali Cmd + C. Na Windows-u ste svuda imali Ctrl + C — osim u terminalu, gde to ubija vaš program. Omarchy vam daje `Super + C`, `Super + X` i `Super + V`, i oni rade svuda, uključujući terminal. Nema posebnog refleksa koji treba da učite za shell.
+На Mac-у сте свуда имали Cmd + C. На Windows-у сте свуда имали Ctrl + C — осим терминала, где то убија ваш програм. Omarchy вам даје `Super + C`, `Super + X` и `Super + V`, и они раде свуда, укључујући терминал. Нема посебног рефлекса који треба учити за shell.
 
-Korisnici Windows-a: vaša Win + V istorija clipboard-a živi na `Super + Ctrl + V`, i čuva slike kao i tekst. Pogledajte [jedinstveni clipboard i istoriju](08-unified-clipboard-history.md).
+Људи са Windows-а: ваша Win + V историја clipboard-а живи на `Super + Ctrl + V` и чува слике као и текст. Погледајте [јединствени clipboard и историја](08-unified-clipboard-history.md).
 
-### Tabela za prevođenje
+### Табела превођења
 
-| Posežete za | U Omarchy-ju |
+| За чиме посежете | У Omarchy-ју |
 | ------------- | ---------- |
-| Spotlight / Raycast / Start meni | `Super + Space` — Omarchy meni |
-| AirDrop | LocalSend, preko `Super + Ctrl + S` — pogledajte [GUI-je](22-guis.md) |
-| Cmd + Shift + 4 / Win + Shift + S | `Super + Ctrl + Alt + C` ili `Print Screen` — pogledajte [snimke ekrana i snimanje](12-screenshots-recording.md) |
-| Notification Center | Istorija obaveštenja na `Super + Shift + Alt + ,` |
-| Time Machine (za sistem) | Automatski [sistemski snimci](47-system-snapshots.md) pri svakom ažuriranju |
-| App Store / preuzimanje instalera | _Install_ u meniju, ili `omarchy pkg add` — pogledajte [ostale pakete](29-other-packages.md) |
-| System Settings / Control Panel | _Setup_ u meniju, koji uređuje obične konfiguracione fajlove — pogledajte [dotfiles](31-dotfiles.md) |
-| Finder / File Explorer | Files, na `Super + Shift + F` — pogledajte [GUI-je](22-guis.md) |
-| Safari / Edge | Google Chrome na `Super + Shift + Return`; izaberite drugi pod _Setup > Defaults > Browser_ — pogledajte [pregledače](23-browsers.md) |
-| Preview / Photos | Omaview za slike, video i muziku, Document Viewer za PDF-ove — pogledajte [GUI-je](22-guis.md) |
-| TextEdit / Notepad | Plain, na `Super + Shift + N`; izaberite drugi pod _Setup > Defaults > Editor_ |
+| Spotlight / Raycast / Start мени | `Super + Space` — Omarchy мени |
+| AirDrop | LocalSend, преко `Super + Ctrl + S` — погледајте [GUIs](22-guis.md) |
+| Cmd + Shift + 4 / Win + Shift + S | `Super + Ctrl + Alt + C` или `Print Screen` — погледајте [снимци екрана и снимање](12-screenshots-recording.md) |
+| Notification Center | Историја обавештења на `Super + Shift + Alt + ,` |
+| Time Machine (за систем) | Аутоматски [снимци система](47-system-snapshots.md) при сваком ажурирању |
+| App Store / преузимање инсталера | _Install_ у менију, или `omarchy pkg add` — погледајте [остали пакети](29-other-packages.md) |
+| System Settings / Control Panel | _Setup_ у менију, који уређује обичне конфигурационе датотеке — погледајте [dotfiles](31-dotfiles.md) |
+| Finder / File Explorer | Files, на `Super + Shift + F` — погледајте [GUIs](22-guis.md) |
+| Safari / Edge | Google Chrome на `Super + Shift + Return`; изаберите други под _Setup > Defaults > Browser_ — погледајте [прегледачи](23-browsers.md) |
+| Preview / Photos | Omaview за слике, видео и музику, Document Viewer за PDF-ове — погледајте [GUIs](22-guis.md) |
+| TextEdit / Notepad | Plain, на `Super + Shift + N`; изаберите други под _Setup > Defaults > Editor_ |
 
-### Neke stvari zaista jesu drugačije
+### Неке ствари заиста јесу другачије
 
-Mnoga podešavanja žive u tekstualnim fajlovima koje uređujete, a ne u panelima kroz koje klikćete. To zvuči primitivno dok ne shvatite da to znači da se svako podešavanje može videti, kopirati na vašu sledeću mašinu i staviti pod kontrolu verzija. Meni _Setup_ vas baca pravo u pravi fajl i restartuje sve što treba da se restartuje kada završite.
+Многа подешавања живе у текстуалним датотекама које уређујете, а не у панелима кроз које кликћете. То звучи примитивно док не схватите да то значи да се свако подешавање може видети, копирати на вашу следећу машину и ставити под контролу верзија. _Setup_ мени вас баца директно у праву датотеку и поново покреће оно што треба поново покренути када завршите.
 
-Ažuriranja dolaze kroz jednu komandu — _Update > Omarchy_ — koja ažurira sam Omarchy i svaki paket na sistemu, praveći prvo snimak. Nema pojedinačnih programa za ažuriranje koji vas gnjave nasumice. Pogledajte [ažuriranja](30-updates.md).
+Ажурирања долазе кроз једну команду — _Update > Omarchy_ — која ажурира сам Omarchy и сваки пакет на систему, прво правећи снимак. Нема програма за ажурирање по апликацији који вас гњаве у насумичним тренуцима. Погледајте [ажурирања](30-updates.md).
 
-Softver dolazi iz menadžera paketa, a ne iz preuzetih instalera.
+Софтвер долази из менаџера пакета, а не из преузетих инсталера.
 
-A kada zatvorite prozor, aplikacija se zaista gasi. Nema macOS limba u kom program nastavlja da radi bez prozora. `Super + W` — ili `Super + Q`, ako je to mišićna memorija sa kojom ste došli — znači nestalo.
+И када затворите прозор, апликација се заиста затвара. Нема macOS лимба где програм наставља да ради без прозора. `Super + W` — или `Super + Q`, ако је то меморија прстију са којом сте стигли — значи нестало.
 
-### Na Mac hardveru
+### На Mac хардверу
 
-Omarchy dobro radi na Intel Mac-ovima — pogledajte [podršku za Mac](44-mac-support.md). A tastatura je ljubazna prema vama: Omarchy ništa ne remapira, a Linux tretira Command taster kao Super, tako da Super sedi tačno tamo gde je Cmd oduvek bio. Vaš palac neće primetiti prelazak.
+Omarchy добро ради на Intel Mac-овима и на M1, M2 и M3 Mac-овима са Omarchy-јем за Apple Silicon. Погледајте [подршка за Mac](44-mac-support.md). А тастатура је љубазна према вама: Omarchy ништа не премапира, а Linux тастер Command третира као Super, тако да Super седи тачно тамо где је Cmd увек био. Ваш палац неће приметити премештај.
 
-### Dajte mu dve nedelje
+### Дајте му две недеље
 
-Instinkti se prenose brže nego što mislite. Preletite jednom poglavlje o [prečicama](07-hotkeys.md), i kad god vam zablokira neka kombinacija, pritisnite `Super + K` — pokazuje vam ih sve. To je jedina prečica koju zapravo morate da zapamtite.
+Инстинкти се преносе брже него што мислите. Једном прелетите поглавље [пречице на тастатури](07-hotkeys.md), а кад год вам мозак стане око неке пречице, притисните `Super + K` — показује вам их све. То је једина пречица коју заиста морате да запамтите.

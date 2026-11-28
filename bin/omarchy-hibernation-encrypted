@@ -2,15 +2,22 @@
 
 # omarchy:summary=Check that every disk swap a hibernation image can go to is encrypted
 
-swaps=$(swapon --show=NAME --noheadings --raw | grep -v '^/dev/zram')
-[[ -n $swaps ]] || exit 1
+found=0
 
-while read -r swap; do
+while IFS= read -r swap; do
+  [[ -n $swap && $swap != /dev/zram* ]] || continue
+  found=1
+
   device=$swap
-  [[ -f $swap ]] && device=$(findmnt -no SOURCE -T "$swap" | sed 's/\[.*//')
+  if [[ -f $swap ]]; then
+    device=$(findmnt -no SOURCE -T "$swap")
+    device=${device%%\[*}
+  fi
 
   # Every path from the swap down to a disk has to pass through a crypt mapping.
   lsblk -J -s -p -o NAME,TYPE "$device" 2>/dev/null | jq -e '
     def encrypted: .type == "crypt" or ((.children // []) as $below | $below != [] and all($below[]; encrypted));
     .blockdevices != [] and all(.blockdevices[]; encrypted)' >/dev/null || exit 1
-done <<<"$swaps"
+done < <(swapon --show=NAME --noheadings --raw)
+
+((found))

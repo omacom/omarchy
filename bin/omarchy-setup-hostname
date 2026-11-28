@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Rename this computer, as it shows up on the network
+# omarchy:args=[<name>]
+# omarchy:examples=omarchy setup hostname | omarchy setup hostname workshop
+
+set -euo pipefail
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  echo "Usage: omarchy-setup-hostname [<name>]"
+  echo
+  echo "Without a name, asks for one, starting from the current hostname."
+  exit 0
+fi
+
+name=${1:-}
+while true; do
+  if [[ -z $name ]]; then
+    name=$(gum input --no-show-help --value "$(uname -n)" --prompt "$(omarchy-i18n setupForm.hostnamePrompt)")
+  fi
+
+  # The same rule the installer's setup form holds hostnames to.
+  [[ $name =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] && break
+  omarchy-i18n setupForm.hostnameInvalid >&2
+  (($#)) && exit 1
+  name=""
+done
+
+sudo hostnamectl set-hostname "$name"

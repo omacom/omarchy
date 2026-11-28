@@ -71,8 +71,9 @@ chmod +x "$stub_bin"/*
 export PATH="$stub_bin:$PATH"
 
 {
-  sed -n '/^keyboard_form() {/,/^}/p; /^keyboard_xkb_settings() {/,/^}/p; /^apply_keyboard() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner"
+  sed -n '/^keyboard_form() {/,/^}/p; /^apply_keyboard() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner"
   sed -n '/^omarchy_persist_input_selection() {/,/^}/p' "$ROOT/install/provisioning/setup-form.sh"
+  cat "$ROOT/install/provisioning/kmscon.sh"
 } | sed "s|/etc/|$root/etc/|g" >"$tmp/keyboard.sh"
 grep -q '^keyboard_form() {' "$tmp/keyboard.sh" && grep -q '^apply_keyboard() {' "$tmp/keyboard.sh" ||
   fail "omarchy-provision-owner defines the keyboard step"
@@ -88,6 +89,7 @@ source "$ROOT/install/provisioning/setup-form.sh"
 source "$tmp/keyboard.sh"
 language=en
 clear_logo() { echo "prompt" >>"$tmp/screen"; }
+step() { clear_logo; }
 notice() { echo "notice: \$1" >>"$tmp/screen"; }
 log_step() { echo "\$1" >>"\$LOG_FILE"; }
 confirm_reboot() { exit 5; }
@@ -193,17 +195,18 @@ grep -qx 'XKBLAYOUT=bg,us' "$conf" && grep -qx 'XKBVARIANT=phonetic,' "$conf" ||
 pass "a keymap systemd-firstboot has no XKB layout for gets one from setup"
 
 # Every layout the form offers must end with an XKB layout: kbd-model-map's, or
-# setup's own. A keymap in neither could never finish the keyboard step.
+# the form's own. The ISO reads the form's own from setup-form.sh alone, so look
+# it up there in a clean shell. A keymap in neither could never finish the
+# keyboard step, and an ISO install with it would type US on the desktop.
 model_map=/usr/share/systemd/kbd-model-map
 if [[ -r $model_map ]]; then
   source "$ROOT/install/provisioning/setup-form.sh"
-  source "$tmp/keyboard.sh"
   while IFS='|' read -r label keymap _; do
     awk -v k="$keymap" '$1 == k { found = 1 } END { exit !found }' "$model_map" ||
-      { declare -F keyboard_xkb_settings >/dev/null && keyboard_xkb_settings "$keymap" >/dev/null; } ||
-      fail "the $label layout ($keymap) gets an XKB layout"
+      bash -c 'source "$1" && omarchy_keymap_xkb_settings "$2"' bash "$ROOT/install/provisioning/setup-form.sh" "$keymap" >/dev/null ||
+      fail "the $label layout ($keymap) gets an XKB layout from setup-form.sh"
   done <<<"$OMARCHY_KEYBOARD_LAYOUTS"
-  pass "every layout the form offers gets an XKB layout"
+  pass "every layout the form offers gets an XKB layout from setup-form.sh"
 else
   echo "ok - # SKIP no $model_map to check the form's layouts against"
 fi
@@ -371,6 +374,74 @@ pass "off a virtual console the layout is persisted and checked without loadkeys
   ! grep -q '^sed$' "$tmp/started" && (( $(grep -c '^stty$' "$tmp/started") <= 2 )) ||
     fail "ten frames read the console size at most twice and run no sed" "$(sort "$tmp/started" | uniq -c)"
   pass "a frame starts no process except the console size check on every fifth"
+
+  # The ISO draws this screen in Chinese inside kmscon, where a CJK character
+  # takes two columns: lines center and cut by columns, not characters.
+  ICON_COLS=40 ICON_TEXT_WIDTH=12
+  line=$(LC_ALL=C.UTF-8 progress_icon_line "提示：中文")
+  [[ $line == *$'\e[2K'"$(printf '%15s' '')"'提示：中文'* ]] ||
+    fail "a ten-column Chinese line centers fifteen columns in" "$(cat -v <<<"$line")"
+  # An icon-font glyph from the private use area stays one column.
+  glyph=$(LC_ALL=C.UTF-8 printf '\ue900')
+  line=$(LC_ALL=C.UTF-8 progress_icon_line "${glyph}abc")
+  [[ $line == *$'\e[2K'"$(printf '%18s' '')$glyph"* ]] ||
+    fail "a four-column icon line centers eighteen columns in" "$(cat -v <<<"$line")"
+  LC_ALL=C.UTF-8 progress_icon_truncate cut "提示：中文宽度测试"
+  [[ $cut == "提示：中文…" ]] || fail "Chinese text is cut to twelve columns" "$cut"
+  ICON_TEXT_WIDTH=0
+  LC_ALL=C.UTF-8 progress_icon_truncate cut "提示"
+  [[ $cut == "…" ]] || fail "a console with no room for text shows only the ellipsis" "$cut"
+  pass "Chinese lines center and cut by the columns they take"
+
+  # Calling progress_icon_layout followed by progress_icon_static must not run
+  # layout (and its python3 cell-size probe) a second time, while a later resize
+  # still rebuilds at the new geometry.
+  : >"$tmp/layout-calls"
+  eval "$(declare -f progress_icon_term_size | command sed '1s/progress_icon_term_size/_orig_progress_icon_term_size/')"
+  cur_size="40 120"
+  progress_icon_term_size() { echo "$cur_size"; }
+  progress_icon_cell_size() { echo cell >>"$tmp/layout-calls"; echo "8 16"; }
+  ICON_STEPS=0 ICON_SIZE="" ICON_FRAMES=0 ICON_DISPLAY_PM=0 ICON_TARGET_PM=0
+  progress_icon_layout /dev/null 78
+  progress_icon_static >/dev/null
+  (( $(wc -l <"$tmp/layout-calls") == 1 )) ||
+    fail "progress_icon_static reuses the layout just computed" "$(wc -l <"$tmp/layout-calls") layout calls"
+  cur_size="50 140"
+  ICON_FRAMES=0
+  progress_icon_frame 200 "Working" "Tip" >/dev/null
+  (( $(wc -l <"$tmp/layout-calls") == 2 )) && [[ $ICON_SIZE == "50 140" ]] ||
+    fail "a terminal resize still rebuilds the icon layout" "calls=$(wc -l <"$tmp/layout-calls") size=$ICON_SIZE"
+  pass "progress_icon_static reuses a fresh layout and rebuilds on resize"
+
+  # progress_icon_finish sweeps the remaining trace smoothly in a bounded
+  # number of frames (<= 6 draws, <= 0.20s sleep) instead of crawling
+  # asymptotically 1/4 at a time down to 999, and starts no stty/sed processes.
+  eval "$(declare -f _orig_progress_icon_term_size | command sed '1s/_orig_progress_icon_term_size/progress_icon_term_size/')"
+  : >"$tmp/finish-sleeps"
+  : >"$tmp/finish-started"
+  : >"$tmp/finish-pms"
+  sleep() { echo "$1" >>"$tmp/finish-sleeps"; }
+  stty() { echo stty >>"$tmp/finish-started"; echo "50 140"; }
+  sed() { echo sed >>"$tmp/finish-started"; command sed "$@"; }
+  ICON_FRAMES=0 ICON_DISPLAY_PM=500 ICON_TARGET_PM=500
+  # Wrap progress_icon_render to record each pm rendered during finish.
+  eval "$(declare -f progress_icon_render | command sed '1s/progress_icon_render/_orig_progress_icon_render/')"
+  progress_icon_render() { echo "$1" >>"$tmp/finish-pms"; _orig_progress_icon_render "$@"; }
+  progress_icon_finish "" "Tip: done" >"$tmp/finish-out"
+  out=$(cat "$tmp/finish-out")
+  unset -f sleep
+  draws=$(wc -l <"$tmp/finish-pms")
+  total_sleep=$(awk '{s+=$1} END {printf "%.3f", s+0}' "$tmp/finish-sleeps")
+  last_pm=$(tail -n1 "$tmp/finish-pms")
+  (( draws >= 2 && draws <= 6 )) ||
+    fail "progress_icon_finish finishes in 2-6 frames from 50%" "draws=$draws pms=$(tr '\n' ' ' <"$tmp/finish-pms")"
+  awk -v s="$total_sleep" 'BEGIN { exit !(s <= 0.201) }' ||
+    fail "progress_icon_finish sleeps at most 0.20s total" "sleep=${total_sleep}s"
+  [[ $last_pm == "1000" && $ICON_DISPLAY_PM == "1000" && $out == *"100%"* ]] ||
+    fail "progress_icon_finish ends solid at 100%" "last_pm=$last_pm display=$ICON_DISPLAY_PM"
+  [[ ! -s "$tmp/finish-started" ]] ||
+    fail "progress_icon_finish spawns no stty or sed" "$(cat "$tmp/finish-started")"
+  pass "progress_icon_finish completes swiftly in bounded frames without spawning helpers"
 )
 
 # The steps around the keyboard: the language first boot opens in and applies,
@@ -380,6 +451,8 @@ lang=$tmp/language
 mkdir -p "$lang"
 export OMARCHY_FORM_DEFAULTS=$lang/no-defaults
 source "$ROOT/install/provisioning/setup-form.sh"
+# No kmscon here: setup is on the console, with no relaunch to carry on from.
+KMSCON_RESUME=$tmp/no-kmscon-resume
 source <(sed -n '/^fit_console_font() {/,/^}/p; /^initial_language() {/,/^}/p; /^configure_language() {/,/^}/p; /^keyboard_form() {/,/^}/p; /^user_form() {/,/^}/p; /^clear_logo() {/,/^}/p; /^brand_logo() {/,/^}/p; /^brand_console_font() {/,/^}/p; /^confirm_shutdown() {/,/^}/p; /^eula_form() {/,/^}/p; /^run_setup() {/,/^}/p' \
   "$ROOT/bin/omarchy-provision-owner")
 
@@ -447,6 +520,7 @@ pass "language configuration generates before it persists, forgets an earlier at
 
 (
   clear_logo() { :; }
+  step() { :; }
   say() { printf '%s\n' "$*" >>"$lang/screen"; }
   log_step() { :; }
   notice() { fail "keyboard prompt unexpectedly failed" "$*"; }
@@ -481,7 +555,7 @@ pass "keyboard Esc returns to the language picker and only undrawn languages get
   omarchy_prompt_timezone() { echo timezone >>"$lang/questions"; }
   omarchy_prompt_username() { echo username >>"$lang/questions"; username=chosen; }
   omarchy_prompt_password() { echo password >>"$lang/questions"; }
-  omarchy_prompt_hostname() { echo hostname >>"$lang/questions"; }
+  omarchy_generate_hostname() { echo hostname >>"$lang/questions"; }
   user_form >"$lang/output"
   [[ $(<"$lang/questions") == $'timezone\nusername\npassword\nhostname' ]] || fail "account questions follow the installer's order" "$(cat "$lang/questions")"
   : >"$lang/questions"
@@ -540,8 +614,8 @@ pass "setup is translated only on a console set in the font that draws the trans
   load_tips() { exit 0; }
   run_setup
 )
-[[ $(<"$lang/setup-order") == $'font\ninitial\nlanguage\nkeyboard\naccount\nreview\nkeyboard\naccount\nreview\nagreement\nkeyboard\naccount\nreview\nagreement' ]] ||
-  fail "declining review, or Esc on the agreement that follows it, returns to the keyboard and account steps" "$(cat "$lang/setup-order")"
+[[ $(<"$lang/setup-order") == $'font\ninitial\nlanguage\nkeyboard\naccount\nreview\nlanguage\nkeyboard\naccount\nreview\nagreement\nkeyboard\naccount\nreview\nagreement' ]] ||
+  fail "declining review returns to the language, and Esc on the agreement that follows it to the keyboard" "$(cat "$lang/setup-order")"
 (
   platform_ready() { :; }
   fit_console_font() { :; }
@@ -692,6 +766,7 @@ agreement_form() {
   agreement_form
   fit_console_font() { :; }
   clear_logo() { :; }
+  step() { :; }
   say() { :; }
   answers=("$OMARCHY_OEM_DECLINED" "$OMARCHY_OEM_DECLINED" 0)
   omarchy_oem_eula() {
@@ -720,6 +795,7 @@ agreement_form() {
   agreement_form
   fit_console_font() { :; }
   clear_logo() { :; }
+  step() { :; }
   say() { :; }
   omarchy_oem_eula() { return "$OMARCHY_OEM_DECLINED"; }
   gum() { return 0; }
@@ -858,6 +934,103 @@ status=0
 omarchy_console_font /dev/pts/3 || status=$?
 (( status == 1 )) || fail "a pseudoterminal cannot have its console font changed"
 pass "console font rejects non-VT paths"
+
+# First-boot setup is drawn in kmscon (install/provisioning/kmscon.sh), which
+# takes its keyboard layout and font once, at its start. The password is typed
+# at boot in the layout of the console keymap, so kmscon must type that layout,
+# and setup must have kmscon started again when the keyboard step changes it.
+
+kms=$tmp/kmscon
+mkdir -p "$kms/bin"
+source "$ROOT/install/provisioning/setup-form.sh"
+source "$ROOT/install/provisioning/kmscon.sh"
+
+[[ $(omarchy_keymap_xkb us) == "us pc105+inet - terminate:ctrl_alt_bksp" ]] || fail "a US keymap types US in kmscon" "$(omarchy_keymap_xkb us)"
+[[ $(omarchy_keymap_xkb de-latin1-nodeadkeys) == "de pc105 nodeadkeys terminate:ctrl_alt_bksp" ]] ||
+  fail "kmscon types the layout systemd pairs with a keymap" "$(omarchy_keymap_xkb de-latin1-nodeadkeys)"
+[[ $(omarchy_keymap_xkb ua) == "ua,us - - grp:shifts_toggle,grp_led:scroll" && $(omarchy_keymap_xkb cz) == "cz,us - qwerty, grp:shifts_toggle,grp_led:scroll" ]] ||
+  fail "kmscon types the form's own layout for a keymap systemd lacks" "$(omarchy_keymap_xkb ua) / $(omarchy_keymap_xkb cz)"
+[[ $(bash -c 'source "$1" && omarchy_keymap_xkb de_CH-latin1' bash "$ROOT/install/provisioning/kmscon.sh") == "ch - - -" ]] ||
+  fail "kmscon.sh resolves extra keymaps when sourced on its own"
+[[ $(omarchy_keymap_xkb no-such-keymap) == "us - - -" ]] || fail "an unknown keymap types US" "$(omarchy_keymap_xkb no-such-keymap)"
+[[ $(omarchy_kmscon_face ja) == "Noto Sans Mono CJK JP" && $(omarchy_kmscon_face ko) == "Noto Sans Mono CJK KR" &&
+  $(omarchy_kmscon_face zh-TW) == "Noto Sans Mono CJK TC" && $(omarchy_kmscon_face da) == "Noto Sans Mono CJK SC" ]] ||
+  fail "Han characters are drawn in the language's forms"
+pass "kmscon types the XKB layout of the console keymap and draws the language's Han forms"
+
+# Every layout the form offers has a layout to type in kmscon, the one the
+# installed system's own table or the form gives it.
+while IFS='|' read -r _ keymap _; do
+  [[ -n $keymap ]] || continue
+  omarchy_keymap_xkb_extra "$keymap" >/dev/null || awk -v k="$keymap" '$1 == k { found = 1 } END { exit !found }' /usr/share/systemd/kbd-model-map ||
+    fail "the form's keymap $keymap has an XKB layout"
+done <<<"$OMARCHY_KEYBOARD_LAYOUTS"
+pass "every keyboard layout of the form has an XKB layout for kmscon"
+
+cat >"$kms/bin/kmscon" <<SH
+#!/bin/bash
+printf '%s\n' "\$@" >"$kms/args"
+env >"$kms/env"
+echo "kmscon said this"
+SH
+chmod +x "$kms/bin/kmscon"
+PATH="$kms/bin:$PATH" omarchy_kmscon "$kms/log" de-latin1-nodeadkeys ja "#00ff80" /usr/bin/setup --attempt
+grep -qx -- '--xkb-layout=de' "$kms/args" && grep -qx -- '--xkb-variant=nodeadkeys' "$kms/args" && grep -qx -- '--xkb-model=pc105' "$kms/args" ||
+  fail "kmscon is started with the keymap's layout" "$(cat "$kms/args")"
+grep -qx -- '--font-name=JetBrainsMono Nerd Font,Noto Sans Mono CJK JP,monospace' "$kms/args" || fail "kmscon is started with the language's font" "$(cat "$kms/args")"
+grep -qx -- '--palette-light-red=0, 255, 128' "$kms/args" || fail "an OEM's colour is the palette's bright red" "$(cat "$kms/args")"
+[[ $(tail -n2 "$kms/args") == $'/usr/bin/setup\n--attempt' ]] || fail "kmscon runs the command it was given" "$(cat "$kms/args")"
+grep -qx 'OMARCHY_KMSCON=1' "$kms/env" && grep -qx 'OMARCHY_KMSCON_XKB=de pc105 nodeadkeys terminate:ctrl_alt_bksp' "$kms/env" &&
+  grep -qx 'OMARCHY_KMSCON_FACE=Noto Sans Mono CJK JP' "$kms/env" ||
+  fail "the command learns it is in kmscon, under which layout and in which font" "$(grep KMSCON "$kms/env")"
+[[ $(<"$kms/log") == "kmscon said this" ]] || fail "what kmscon says goes to its log"
+[[ -z ${OMARCHY_KMSCON:-} ]] || fail "starting kmscon leaves the caller's environment alone"
+
+PATH="$kms/bin:$PATH" omarchy_kmscon "$kms/log" us en "" /usr/bin/setup
+grep -qx -- '--palette-light-red=247, 118, 142' "$kms/args" || fail "without an OEM colour bright red is Tokyo Night's" "$(cat "$kms/args")"
+pass "kmscon is started under the keymap's layout, in the language's font and an OEM's colour"
+
+sed -n '/^keyboard_form() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" >"$kms/keyboard.sh"
+cat >"$kms/form.sh" <<SH
+set -euo pipefail
+source "$ROOT/install/provisioning/setup-form.sh"
+source "$ROOT/install/provisioning/kmscon.sh"
+source "$kms/keyboard.sh"
+KMSCON_RESUME=$kms/resume
+KMSCON_RELAUNCH=75
+language=\$1 chosen=\$2 keyboard_label=German keyboard_input_method=none keyboard_xkb_layout=""
+clear_logo() { :; }
+step() { :; }
+omarchy_form_text() { :; }
+omarchy_form_language_drawn() { :; }
+omarchy_persist_input_selection() { :; }
+omarchy_prompt_keyboard() { keyboard=\$chosen; }
+apply_keyboard() { :; }
+keyboard_form
+echo "password form"
+SH
+
+kmscon_form() {
+  local status=0
+  rm -f "$kms/resume"
+  out=$(OMARCHY_KMSCON=1 OMARCHY_KMSCON_XKB="$(omarchy_keymap_xkb us)" OMARCHY_KMSCON_FACE="Noto Sans Mono CJK SC" bash "$kms/form.sh" "$1" "$2") || status=$?
+  return "$status"
+}
+
+kmscon_form en us || fail "the layout kmscon started with needs no relaunch"
+[[ $out == *"password form" && ! -e $kms/resume ]] || fail "an unchanged layout goes straight to the password form" "$out"
+
+status=0
+kmscon_form en de-latin1 || status=$?
+[[ $status == 75 && $out != *"password form"* ]] || fail "another layout stops the attempt before the password form" "status $status: $out"
+(source "$kms/resume" && [[ $language == en && $keyboard == de-latin1 && $keyboard_label == German ]]) ||
+  fail "the answers so far are saved for the relaunch" "$(cat "$kms/resume" 2>&1)"
+[[ $(stat -c %a "$kms/resume") == 600 ]] || fail "the saved answers are root's alone"
+
+status=0
+kmscon_form ja us || status=$?
+[[ $status == 75 ]] || fail "a language with other Han forms has kmscon started again" "status $status"
+pass "the keyboard step has kmscon started again for a new layout or other Han forms, with the answers saved"
 
 # Opening a readable VT supplies only the redirect; every console command is fake.
 font_tty=""

@@ -43,6 +43,9 @@ BorderSurface {
   property bool focusable: false
   property bool hasCursor: false
   property bool bordered: false
+  // Lit by an accent outline and glyph instead of a fill, as the agents
+  // panel's buttons are.
+  property bool outlined: false
 
   signal clicked()
   signal hovered(bool isHovered)
@@ -60,13 +63,15 @@ BorderSurface {
   readonly property bool _hot: (mouse.containsMouse || root.hasCursor) && root.enabled
   readonly property var _borderSpec: _showFocusRing
     ? Border.controlSpec("focus", hoverColor, hoverColor)
-    : (_hot && bordered
+    : (_hot && outlined
+      ? Border.controlSpec("hover-cursor", Commons.Color.accent, Commons.Color.accent)
+    : _hot && bordered
       ? Border.controlSpec("hover-cursor", hoverColor, hoverColor)
       : (bordered ? Border.controlSpec("normal", foreground, Commons.Color.accent) : Border.none()))
 
   color: _showFocusRing
     ? Style.focusFillFor(hoverColor, hoverColor)
-    : (_hot
+    : (_hot && !outlined
       ? Style.hoverFillFor(hoverColor, hoverColor)
       : "transparent")
   borderSpec: _borderSpec
@@ -93,7 +98,7 @@ BorderSurface {
     y: Math.round((root.height - height) / 2)
     text: root.iconText
     color: root.enabled
-      ? (root._hot ? root.hoverColor : root.foreground)
+      ? (root._hot ? (root.outlined ? Commons.Color.accent : root.hoverColor) : root.foreground)
       : Qt.darker(root.foreground, 2.0)
     font.family: root.fontFamily
     font.pixelSize: root.fontSize

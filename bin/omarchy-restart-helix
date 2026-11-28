@@ -2,6 +2,6 @@
 
 # omarchy:summary=Reload Helix configuration
 
-if pgrep -x helix >/dev/null; then
-  pkill -USR1 helix
-fi
+# pkill exits 1 when no helix is running: nothing to reload, not a failure.
+pkill -USR1 -x helix
+(( $? <= 1 ))

@@ -702,6 +702,25 @@ def signed_in_identity(codex_home, primary=True):
   return f"{workspace}\n{user}" if workspace and user else ""
 
 
+def signed_in_email(codex_home, primary=True):
+  if primary and ENV.get("CODEX_ACCESS_TOKEN"):
+    return ""
+  try:
+    with (codex_home / "config.toml").open("rb") as handle:
+      config = tomllib.load(handle)
+  except FileNotFoundError:
+    config = {}
+  except Exception:
+    return ""
+  if str(config.get("cli_auth_credentials_store") or "file") != "file":
+    return ""
+  try:
+    tokens = json.loads((codex_home / "auth.json").read_text(encoding="utf-8"))["tokens"]
+    return str(jwt_claims(tokens["id_token"]).get("email") or "")
+  except Exception:
+    return ""
+
+
 # Keyed by the home and the account it is signed in to, so a home signed in to
 # someone else never falls back on the last one's numbers. None when the
 # account can't be told, since then no numbers can be vouched for.
@@ -784,8 +803,12 @@ def collect_limits(home=None, force=False, primary=True):
 def account_limits(account, force):
   # The primary is ~/.codex by definition, not whatever CODEX_HOME this run
   # happened to inherit — that would report another account's limits as Main's.
-  rpc = collect_limits(account.get("home") or (Path.home() / ".codex"), force, primary=bool(account.get("primary")))
-  return account_entry(account, rpc, rpc["tierLabel"], resetCredits=rpc.get("resetCredits"))
+  home = Path(account.get("home") or (Path.home() / ".codex"))
+  primary = bool(account.get("primary"))
+  rpc = collect_limits(home, force, primary=primary)
+  email = signed_in_email(home, primary=primary)
+  extra = {"email": email} if email else {}
+  return account_entry(account, rpc, rpc["tierLabel"], resetCredits=rpc.get("resetCredits"), **extra)
 
 
 # Codex is in use here once its CLI or a launcher for it is on PATH, its home
@@ -826,14 +849,17 @@ def main():
     }
     if current.get("resetCredits"):
       rpc["resetCredits"] = current["resetCredits"]
+    account_name = str(current.get("email") or "")
     stale, fetched_at, retry = current["stale"], current["fetchedAt"], current["retryAdvised"]
   elif codex_in_use(stats):
     rpc = collect_limits(force=args.force)
+    account_name = signed_in_email(codex_home(), primary=True)
     stale, fetched_at, retry = not rpc.pop("live"), rpc.pop("fetchedAtMs"), rpc.pop("retryAdvised", False)
   else:
     # Nothing here has ever run Codex, so there is no sign-in to ask for and
     # no binary to miss: the unused record, which the panel skips.
     rpc = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": ""}
+    account_name = ""
     stale, fetched_at, retry = False, 0, False
 
   record = base_record(
@@ -847,6 +873,8 @@ def main():
   )
   record.update(stats)
   record.update(rpc)
+  if account_name:
+    record["accountName"] = account_name
   # Numbers kept past a failed probe, and when they were measured, so the
   # panel can tell them apart from ones checked just now.
   record["limitsStale"] = stale

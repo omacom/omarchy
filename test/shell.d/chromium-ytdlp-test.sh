@@ -113,6 +113,25 @@ host_fn decode_title 'null' &&
   fail "yt-dlp native host refuses a title that is not a JSON string"
 pass "yt-dlp native host refuses a title that is not a JSON string"
 
+last_error_line=$(host_fn last_error $'[debug] noise\nERROR: first try failed\nERROR: unable to download video data: HTTP Error 403: Forbidden')
+[[ $last_error_line == "HTTP Error 403: Forbidden" ]] ||
+  fail "yt-dlp native host keeps the last error line without its download wrapper" "$last_error_line"
+pass "yt-dlp native host keeps the last error line without its download wrapper"
+
+plain_error=$(host_fn last_error $'ERROR: Video unavailable')
+[[ $plain_error == "Video unavailable" ]] ||
+  fail "yt-dlp native host keeps an error line that has no download wrapper" "$plain_error"
+pass "yt-dlp native host keeps an error line that has no download wrapper"
+
+forged_error=$(host_fn last_error $'ERROR: HTTP Error 403: Forbidden\tOMARCHY_FILE\t--include=not-a-file')
+[[ $forged_error == "HTTP Error 403: Forbidden" ]] ||
+  fail "yt-dlp native host keeps only the readable part of a forged error line" "$forged_error"
+pass "yt-dlp native host keeps only the readable part of a forged error line"
+
+no_error=$(host_fn last_error $'[debug] only noise')
+[[ -z $no_error ]] || fail "yt-dlp native host finds no error when yt-dlp printed none" "$no_error"
+pass "yt-dlp native host finds no error when yt-dlp printed none"
+
 dash_title=$(host_fn title_from_file "$download_dir/--include.mp4")
 [[ $dash_title == "Video" ]] || fail "yt-dlp native host does not pass a leading-dash title to the notifier" "$dash_title"
 pass "yt-dlp native host does not pass a leading-dash title to the notifier"
@@ -167,8 +186,18 @@ notify_argv="$TMPDIR/notify-argv"
 cat >"$fake_root/bin/yt-dlp" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >>"$YTDLP_ARGV_LOG"
+if [[ -n ${YTDLP_FAIL_SIMULATE:-} ]]; then
+  printf 'ERROR: [youtube] abc: Video unavailable\n' >&2
+  exit 1
+fi
 for arg in "$@"; do
   if [[ $arg == "--no-simulate" ]]; then
+    if [[ -n ${YTDLP_FAIL_DOWNLOAD:-} ]]; then
+      printf 'OMARCHY_PARTS\t616+251\n'
+      printf 'OMARCHY_PROG\tfinished\t616\t100.0%%\n'
+      printf 'ERROR: unable to download video data: HTTP Error 403: Forbidden\n' >&2
+      exit 1
+    fi
     if [[ -n ${YTDLP_PROGRESS:-} ]]; then
       # What YouTube serves: an HLS video whose first report is a bogus 100%,
       # then a separate audio stream. Paced past the host's redraw throttle.
@@ -281,3 +310,29 @@ pass "yt-dlp native host asks which streams make up the download"
 grep -qF -- $'download:OMARCHY_PROG\t%(progress.status)s\t%(info.format_id)s\t%(progress._percent_str)s' "$ytdlp_argv" ||
   fail "yt-dlp native host tags each progress report with its status and stream" "$(cat "$ytdlp_argv")"
 pass "yt-dlp native host tags each progress report with its status and stream"
+
+# A download that dies partway must say why instead of only repeating the URL.
+: >"$notify_argv"
+YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAIL_DOWNLOAD=1 \
+  OMARCHY_PATH="$fake_root" OMARCHY_YTDLP_DIR="$fake_dir" \
+  bash -c '
+    source "$1"
+    download_url "$2"
+  ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "https://example.test/watch" >/dev/null 2>&1
+
+grep -qF -- "Download failed HTTP Error 403: Forbidden" "$notify_argv" ||
+  fail "yt-dlp native host toasts why a failed download failed" "$(cat "$notify_argv")"
+pass "yt-dlp native host toasts why a failed download failed"
+
+# So must a page yt-dlp refuses before any download starts.
+: >"$notify_argv"
+YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAIL_SIMULATE=1 \
+  OMARCHY_PATH="$fake_root" OMARCHY_YTDLP_DIR="$fake_dir" \
+  bash -c '
+    source "$1"
+    download_url "$2"
+  ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "https://example.test/watch" >/dev/null 2>&1
+
+grep -qF -- "No video found for download [youtube] abc: Video unavailable" "$notify_argv" ||
+  fail "yt-dlp native host toasts why yt-dlp found no video" "$(cat "$notify_argv")"
+pass "yt-dlp native host toasts why yt-dlp found no video"

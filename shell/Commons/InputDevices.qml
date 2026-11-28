@@ -34,10 +34,26 @@ Singleton {
   // again after it went away with the last device, when the watch on the old
   // directory is gone and has to be set up on the new one. udev's records for
   // input devices are the c13: entries, character major 13.
+  //
+  // Quickshell does not always stop Process children on exit, and a crashed or
+  // killed shell cannot clean up its children. setpriv asks the kernel to stop
+  // the watch on parent death; the startup reap still clears any matching
+  // watcher left behind by an in-place crash re-exec or older build.
   Process {
     id: watcher
-    command: ["bash", "-c",
-      "dirs=(\"$2\"); for dir in \"$1\" \"$3\"; do [[ -d $dir ]] && dirs+=(\"$dir\"); done; "
+    command: ["setpriv", "--pdeathsig", "TERM", "bash", "-c",
+      "for p in /proc/[0-9]*; do "
+        + "pid=${p#/proc/}; "
+        + "[[ -r $p/cmdline && -r $p/stat ]] || continue; "
+        + "mapfile -d '' args < \"$p/cmdline\" 2>/dev/null || continue; "
+        + "[[ ${args[0]##*/} == \"inotifywait\" && ${args[4]:-} == \"create,delete,delete_self,moved_to\" && ${args[7]:-} == \"$2\" ]] || continue; "
+        + "read -r stat < \"$p/stat\" 2>/dev/null || continue; "
+        + "rest=${stat##*\\) }; read -r _ ppid _ <<< \"$rest\"; "
+        + "[[ $ppid =~ ^[0-9]+$ ]] || continue; "
+        + "read -r comm < \"/proc/$ppid/comm\" 2>/dev/null || comm=\"\"; "
+        + "[[ $comm == \"quickshell\" || $comm == \"qs\" ]] || kill \"$pid\" 2>/dev/null || true; "
+        + "done; "
+        + "dirs=(\"$2\"); for dir in \"$1\" \"$3\"; do [[ -d $dir ]] && dirs+=(\"$dir\"); done; "
         + "exec inotifywait -m -q -e create,delete,delete_self,moved_to --format '%w|%e|%f' \"${dirs[@]}\"",
       "input-devices", root.inputDir, root.devDir, root.udevDir]
     running: true
@@ -108,5 +124,13 @@ Singleton {
     id: restart
     interval: 1000
     onTriggered: watcher.running = true
+  }
+
+  Component.onDestruction: {
+    settle.stop()
+    followUp.stop()
+    recovered.stop()
+    restart.stop()
+    watcher.running = false
   }
 }

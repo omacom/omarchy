@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # omarchy:summary=Set and show lightweight desktop notification reminders
-# omarchy:args=[-i|--interactive] | <minutes> [message] | show [-j|--json] | clear
+# omarchy:subcommand=<minutes> [message] — Remind after the given number of minutes
+# omarchy:subcommand=-i|--interactive — Ask for the minutes and message
+# omarchy:subcommand=show [-j|--json] — Show the pending reminders
+# omarchy:subcommand=clear — Cancel all pending reminders
 # omarchy:examples=omarchy reminder -i | omarchy reminder 5 | omarchy reminder 30 "Check the oven" | omarchy reminder show | omarchy reminder show --json | omarchy reminder clear
 
 set -euo pipefail

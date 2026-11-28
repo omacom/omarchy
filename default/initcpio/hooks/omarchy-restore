@@ -1,0 +1,261 @@
+#!/usr/bin/ash
+# shellcheck shell=dash
+
+# Applies a snapshot restore staged by `omarchy-snapshot restore`, in the
+# maintenance boot that omarchy.restore=<tx> on the command line marks, with
+# nothing running from the root it replaces:
+#
+#   @            -> @backup-<tx>      the root being replaced
+#   @restore-<tx> -> @                a writable copy of the snapshot
+#   nested subvolumes (.snapshots, swap, var/lib/machines, ...) move from the
+#   old root into the new one, onto the empty directories the snapshot holds
+#
+# Every step records itself in the journal in the boot store and checks what
+# is already done, so power loss in the middle resumes on the next maintenance
+# boot. A failure puts everything back and reboots into the old default. On
+# success, a restored root on the same kernel and initramfs boots right here;
+# one on another boot image gets its own entry for the next boot and a reboot.
+
+# A power loss during a restore leaves its journal mid-way, and the boot after
+# it is an ordinary one: the maintenance entry was armed for one boot only.
+# That boot finishes or undoes the restore where the root is mounted: after
+# the resume hook, so a hibernated system's filesystem is never touched before
+# it resumes, and only on a machine systemd-boot started, the only one a
+# restore runs on.
+run_hook() {
+  case " $(cat /proc/cmdline) " in *" omarchy.restore="*) return 0 ;; esac
+  omarchy_restore_mount_handler=$mount_handler
+  mount_handler=omarchy_restore_recover_and_mount
+}
+
+omarchy_restore_recover_and_mount() {
+  omarchy_restore_recover
+  "$omarchy_restore_mount_handler" "$@"
+}
+
+# The entry systemd-boot started this boot with, or nothing on another loader.
+omarchy_restore_booted_entry() {
+  local vars=/sys/firmware/efi/efivars
+  mountpoint -q "$vars" 2>/dev/null || mount -t efivarfs efivarfs "$vars" 2>/dev/null
+  [ -e "$vars/LoaderInfo-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f" ] || return 1
+  tail -c +5 "$vars/LoaderEntrySelected-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f" 2>/dev/null | tr -d '\000'
+  return 0
+}
+
+omarchy_restore_recover() {
+  [ -n "$root" ] || return 0
+  local booted device top=/run/omarchy-restore/top oneshot same tries
+  booted=$(omarchy_restore_booted_entry) || return 0
+  device=$(resolve_device "$root") || return 0
+  mkdir -p "$top"
+  mount -t btrfs -o subvolid=5 "$device" "$top" 2>/dev/null || return 0
+
+  OMARCHY_RESTORE_JOURNAL=$top/@omarchy-boot/restore/journal
+  if [ -f "$OMARCHY_RESTORE_JOURNAL" ]; then
+    oneshot=$(omarchy_restore_get ONESHOT)
+    same=$(omarchy_restore_get SAME_IMAGE)
+    case $(omarchy_restore_get STATE) in
+    swapping)
+      # Booted on the restored root's own image, the swap can finish here;
+      # on another, the root it replaced goes back.
+      if { [ "$same" = 1 ] || [ "$booted" = "$oneshot" ]; } && omarchy_restore_apply "$top"; then
+        omarchy_restore_set STATE swapped
+      else
+        omarchy_restore_message "Undoing an interrupted snapshot restore..."
+        omarchy_restore_rollback "$top"
+        omarchy_restore_set ERROR "the restore was interrupted, so the system as it was before was put back"
+        omarchy_restore_set STATE failed
+      fi
+      ;;
+    swapped)
+      # The restored root is in place but needs its own kernel, whose entry
+      # the interrupted boot never armed. Twice at most, then boot on.
+      tries=$(omarchy_restore_get RECOVER_TRIES)
+      if [ "$same" != 1 ] && [ -n "$oneshot" ] && [ "$booted" != "$oneshot" ] && [ "${tries:-0}" -lt 2 ]; then
+        omarchy_restore_set RECOVER_TRIES $((${tries:-0} + 1))
+        sync
+        umount "$top"
+        omarchy_restore_oneshot "$oneshot"
+        omarchy_restore_reboot
+      fi
+      ;;
+    esac
+  fi
+  sync
+  umount "$top"
+}
+
+run_latehook() {
+  local tx
+  tx=$(sed -n 's/.*omarchy\.restore=\([0-9]*\).*/\1/p' /proc/cmdline)
+  [ -n "$tx" ] || return 0
+
+  local root_mnt=/sysroot
+  # mkinitcpio before 41 mounted the root on /new_root, with no /sysroot.
+  if [ ! -d "$root_mnt" ] || [ "$(stat -c %D "$root_mnt")" = "$(stat -c %D /)" ]; then
+    root_mnt=/new_root
+  fi
+
+  omarchy_restore_message "Restoring a snapshot, don't power off..."
+  umount "$root_mnt" 2>/dev/null
+
+  local top=/run/omarchy-restore/top
+  mkdir -p "$top"
+  if ! mount -t btrfs -o subvolid=5 "$root" "$top"; then
+    err "omarchy-restore: could not mount the btrfs top level"
+    omarchy_restore_reboot
+  fi
+
+  OMARCHY_RESTORE_JOURNAL=$top/@omarchy-boot/restore/journal
+  if [ ! -f "$OMARCHY_RESTORE_JOURNAL" ] || [ "$(omarchy_restore_get TX)" != "$tx" ]; then
+    err "omarchy-restore: no journal for restore $tx"
+    umount "$top"
+    omarchy_restore_reboot
+  fi
+
+  local continue_boot=0
+  case $(omarchy_restore_get STATE) in
+  pending | swapping)
+    if omarchy_restore_apply "$top"; then
+      omarchy_restore_set STATE swapped
+      if [ "$(omarchy_restore_get SAME_IMAGE)" = 1 ]; then
+        continue_boot=1
+      else
+        omarchy_restore_oneshot "$(omarchy_restore_get ONESHOT)"
+      fi
+    else
+      omarchy_restore_rollback "$top"
+      omarchy_restore_set STATE failed
+    fi
+    ;;
+  esac
+
+  sync
+  umount "$top"
+
+  # The restored root runs the kernel and initramfs booting now: mount it and
+  # carry on, so the restore costs no second boot (and no second passphrase).
+  if [ "$continue_boot" = 1 ] && "$mount_handler" "$root_mnt"; then
+    return 0
+  fi
+  omarchy_restore_reboot
+}
+
+omarchy_restore_get() {
+  sed -n "s/^$1=//p" "$OMARCHY_RESTORE_JOURNAL" | tail -1
+}
+
+omarchy_restore_set() {
+  sed "/^$1=/d" "$OMARCHY_RESTORE_JOURNAL" >"$OMARCHY_RESTORE_JOURNAL.new" &&
+    echo "$1=$2" >>"$OMARCHY_RESTORE_JOURNAL.new" &&
+    mv -f "$OMARCHY_RESTORE_JOURNAL.new" "$OMARCHY_RESTORE_JOURNAL"
+  sync
+}
+
+omarchy_restore_fail() {
+  err "omarchy-restore: $1"
+  omarchy_restore_set ERROR "$1"
+  return 1
+}
+
+omarchy_restore_uuid() {
+  btrfs subvolume show "$1" 2>/dev/null | sed -n 's/^[[:space:]]*UUID:[[:space:]]*//p' | head -1
+}
+
+# A subvolume's root directory has inode 256.
+omarchy_restore_is_subvol() {
+  [ -d "$1" ] && [ "$(stat -c %i "$1")" = 256 ]
+}
+
+omarchy_restore_apply() {
+  local top=$1 staged backup staged_uuid root_uuid child children
+  staged=$(omarchy_restore_get STAGED)
+  backup=$(omarchy_restore_get BACKUP)
+  staged_uuid=$(omarchy_restore_get STAGED_UUID)
+  root_uuid=$(omarchy_restore_get ROOT_UUID)
+  children=$(omarchy_restore_get CHILDREN | sed 's/:/ /g')
+  omarchy_restore_set STATE swapping
+
+  # 1. The old root steps aside, unless an interrupted run already moved it.
+  if [ "$(omarchy_restore_uuid "$top/@")" = "$root_uuid" ]; then
+    [ ! -e "$top/$backup" ] || omarchy_restore_fail "$backup already exists" || return 1
+    mv "$top/@" "$top/$backup" || omarchy_restore_fail "could not rename @" || return 1
+    sync
+  fi
+  [ "$(omarchy_restore_uuid "$top/$backup")" = "$root_uuid" ] || omarchy_restore_fail "$backup is not the old root" || return 1
+
+  # 2. The staged copy becomes @.
+  if [ ! -e "$top/@" ]; then
+    [ "$(omarchy_restore_uuid "$top/$staged")" = "$staged_uuid" ] || omarchy_restore_fail "$staged is not the staged root" || return 1
+    mv "$top/$staged" "$top/@" || omarchy_restore_fail "could not rename $staged" || return 1
+    sync
+  fi
+  [ "$(omarchy_restore_uuid "$top/@")" = "$staged_uuid" ] || omarchy_restore_fail "@ is not the staged root" || return 1
+
+  # 3. Nested subvolumes move over, each onto an empty placeholder.
+  for child in $children; do
+    if omarchy_restore_is_subvol "$top/@/$child"; then
+      continue
+    fi
+    omarchy_restore_is_subvol "$top/$backup/$child" || omarchy_restore_fail "$child is missing from the old root" || return 1
+    if [ -d "$top/@/$child" ]; then
+      rmdir "$top/@/$child" || omarchy_restore_fail "$child in the snapshot is not empty" || return 1
+    fi
+    mkdir -p "$(dirname "$top/@/$child")"
+    mv "$top/$backup/$child" "$top/@/$child" || omarchy_restore_fail "could not move $child" || return 1
+    sync
+  done
+  return 0
+}
+
+# Undoes whatever apply got through, in reverse.
+omarchy_restore_rollback() {
+  local top=$1 staged backup staged_uuid root_uuid child children
+  staged=$(omarchy_restore_get STAGED)
+  backup=$(omarchy_restore_get BACKUP)
+  staged_uuid=$(omarchy_restore_get STAGED_UUID)
+  root_uuid=$(omarchy_restore_get ROOT_UUID)
+  children=$(omarchy_restore_get CHILDREN | sed 's/:/ /g')
+
+  if [ "$(omarchy_restore_uuid "$top/@")" = "$staged_uuid" ]; then
+    for child in $children; do
+      if omarchy_restore_is_subvol "$top/@/$child" && [ ! -e "$top/$backup/$child" ]; then
+        mv "$top/@/$child" "$top/$backup/$child"
+        mkdir -p "$top/@/$child"
+      fi
+    done
+    mv "$top/@" "$top/$staged"
+  fi
+  if [ ! -e "$top/@" ] && [ "$(omarchy_restore_uuid "$top/$backup")" = "$root_uuid" ]; then
+    mv "$top/$backup" "$top/@"
+  fi
+  sync
+}
+
+# systemd-boot's LoaderEntryOneShot: attributes, then the entry id in UTF-16LE.
+omarchy_restore_oneshot() {
+  local id=$1 vars=/sys/firmware/efi/efivars
+  [ -n "$id" ] || return 0
+  mountpoint -q "$vars" 2>/dev/null || mount -t efivarfs efivarfs "$vars" 2>/dev/null
+  {
+    printf '\007\000\000\000'
+    printf '%s' "$id" | sed 's/./&\n/g' | while IFS= read -r c; do
+      [ -n "$c" ] && printf '%s\000' "$c"
+    done
+    printf '\000\000'
+  } >/run/omarchy-restore/oneshot
+  cat /run/omarchy-restore/oneshot >"$vars/LoaderEntryOneShot-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f" 2>/dev/null ||
+    err "omarchy-restore: could not select the restored entry for the next boot"
+}
+
+omarchy_restore_message() {
+  if command -v plymouth >/dev/null 2>&1 && plymouth --ping 2>/dev/null; then
+    plymouth display-message --text="$1"
+  fi
+  msg "$1"
+}
+
+omarchy_restore_reboot() {
+  sync
+  reboot -f
+}

@@ -310,24 +310,47 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
 
 // --------------------------------------------------- Service.qml functions
 const source = fs.readFileSync(load.dir + '/Service.qml', 'utf8')
-// One function from Service.qml by name: its own line when that balances,
+// One QML function by name: its own line when that balances,
 // else up to the closing brace at its indent. QML return types are dropped.
-function fn(name) {
-  const m = source.match(new RegExp('^( *)function ' + name + '\\(.*$', 'm'))
-  if (!m) throw new Error('Service.qml has no function ' + name)
+function fn(name, code = source) {
+  const m = code.match(new RegExp('^( *)function ' + name + '\\(.*$', 'm'))
+  if (!m) throw new Error('QML has no function ' + name)
   let text = m[0]
   const opens = text.split('{').length - 1
   if (!opens || opens > text.split('}').length - 1) {
-    const end = source.indexOf('\n' + m[1] + '}', m.index)
-    if (end < 0) throw new Error('Service.qml function ' + name + ' never closes')
-    text = source.slice(m.index, end + m[1].length + 2)
+    const end = code.indexOf('\n' + m[1] + '}', m.index)
+    if (end < 0) throw new Error('QML function ' + name + ' never closes')
+    text = code.slice(m.index, end + m[1].length + 2)
   }
   return text.replace(/^( *function \w+\([^)]*\))\s*:\s*\w+/, '$1')
 }
 function runIn(scope, ...names) {
   vm.createContext(scope)
-  vm.runInContext(names.map(fn).join('\n'), scope)
+  vm.runInContext(names.map(name => fn(name)).join('\n'), scope)
   return scope
+}
+
+{ // A cached themed miss must not hide an installed icon, or invent a generic one.
+  const toast = fs.readFileSync(load.dir + '/Toast.qml', 'utf8')
+  const library = { iconIndex: {}, themeRevision: 0, userIconsPath: '/user/icons/' }
+  const scope = { card: { scene: { shell: { appLibrary: library } } }, root: library,
+    Quickshell: { iconPath: name => ['existing', 'application-x-executable'].includes(name) ? 'image://icon/' + name : '' },
+    Util: { fileUrl: name => 'file://' + name } }
+  vm.createContext(scope)
+  vm.runInContext(fn('entryIcon', toast) + '\n' + fn('iconSource', fs.readFileSync(load.dir + '/../../services/AppLibrary.qml', 'utf8')), scope)
+  library.iconSource = scope.iconSource
+  assert.equal(scope.entryIcon('late'), '')
+  library.iconIndex = { late: '/icons/late.png', existing: '/icons/other.png' }
+  assert.equal(scope.entryIcon('late'), 'file:///icons/late.png')
+  assert.equal(scope.entryIcon('existing'), 'image://icon/existing', 'the active theme still wins')
+  assert.equal(scope.entryIcon('missing'), '', 'missing icons retain the letter/glyph fallback')
+  for (const name of ['constructor', 'toString', '__proto__']) assert.equal(scope.entryIcon(name), '', name)
+  assert.equal(scope.entryIcon('/icons/absolute.png'), 'file:///icons/absolute.png')
+  assert.equal(scope.entryIcon(''), '')
+  scope.card.scene.shell.appLibrary = {}
+  assert.equal(scope.entryIcon('late'), '')
+  scope.card.scene = null
+  assert.equal(scope.entryIcon('late'), '')
 }
 
 { // Hostile compositor metadata must not become Lua; only a hex address dispatches.
@@ -547,6 +570,25 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.equal(s.toasts.count, 2, 'the card rises out before it goes')
   s.finishDeparted(Date.now() + 1000)
   assert.deepEqual(s.toasts.rows.map(row => row.key), [back], 'its deadline removes it without the scene settling')
+}
+
+{ // IPC invokeAction(n) must skip a leaving front toast and act on the newest live card.
+  const s = newCapacityScope()
+  const first = s.fakeNotification(1, 'Older'), second = s.fakeNotification(2, 'Newer')
+  let invoked = ''
+  first.actions = [{ identifier: 'reply', text: 'Reply', invoke: () => { invoked = 'older' } }]
+  second.actions = [{ identifier: 'reply', text: 'Reply', invoke: () => { invoked = 'newer' } }]
+  s.admit(first, second)
+  const [front, back] = s.toasts.rows.map(row => row.key)
+  const at = { y: 0, scale: 1, opacity: 1, height: 58 }
+  s.snapshot = () => ({ [front]: at, [back]: at })
+  s.closeToast(front, 'dismissed')
+  const ipcBlock = source.slice(source.indexOf('target: "notifications"'))
+  const ipcInvokeAction = fn('invokeAction', ipcBlock)
+    .replace(/function invokeAction\([^)]*\)/, 'function ipcInvokeAction(n)')
+  vm.runInContext(ipcInvokeAction, s)
+  assert.equal(s.ipcInvokeAction(1), 'ok')
+  assert.equal(invoked, 'older', 'invokeAction IPC skips a leaving toast and invokes the newest live card')
 }
 
 { // A sender replacing a card during its exit brings it back instead of losing the update.

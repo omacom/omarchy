@@ -1,21 +1,21 @@
 # Kulala kwa mfumo
 
-Omarchy huwasha kusitisha kwa chaguo-msingi, na kulala kwa kina pindi kinapowekwa, lakini ukipata matatizo na mojawapo kwenye mashine yako, unaweza kuyazima.
+Omarchy huwasha kusitisha kwa muda kwa chaguo-msingi, na hibernation mara tu inapokuwa imesanidiwa, lakini ukipata matatizo na mojawapo kati ya hizo kwenye mashine yako, unaweza kuizima.
 
-Kwenye mashine za NVIDIA GB10, kama vile DGX Spark na ASUS Ascent GX10, kusitisha na kulala kwa kina vimezimwa, kama ilivyo katika DGX OS ya NVIDIA, kwa sababu kulala bado hakujathibitishwa kufanya kazi kwenye maunzi hayo. Vivyo hivyo kwa ASUS Zenbook A16 (UX3607OA), ambapo kusitisha bado hakuiweki chipu kabisa katika usingizi na inaweza kukwama usiku kucha. Kipengele cha kuwasha/kuzima kusitisha na usanidi wa kulala kwa kina havitumiki hapo. Ili kuwasha kulala tena, ondoa `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` kwa `sudo rm`; Kusitisha kisha hurejea kwenye menyu, na kulala kwa kina kunaweza kuwekwa kama kwenye mashine nyingine. Kuendesha `sudo omarchy apply hardware --install-user "$USER"` huweka faili tena.
+Kwenye mashine za NVIDIA GB10, kama vile DGX Spark na ASUS Ascent GX10, kusitisha kwa muda na hibernation vimezimwa, kama vilivyo katika DGX OS ya NVIDIA, kwa sababu kulala bado hakijaonyeshwa kufanya kazi kwenye maunzi hayo. Kigeuzi cha kusitisha kwa muda na usanidi wa hibernation havihusiki huko. Ili kuwasha kulala tena, ondoa `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` kwa `sudo rm`; Kusitisha kwa muda kitarudi kwenye menyu, na hibernation inaweza kusanidiwa kama kwenye mashine nyingine. Kuendesha `sudo omarchy apply hardware --install-user "$USER"` kitarudisha faili hilo.
 
 ### Profaili za nishati
 
-Kwenye laptopu, Omarchy hukumbuka profaili yako ya nishati kando kwa ikiwa imechomekwa na ikiwa inatumia betri, na hubadilisha kati ya hizo mbili unapochomeka na kuchomoa. Kama ilivyo kutoka kiwandani, hiyo ina maana ya performance kwenye AC na balanced kwenye betri.
+Kwenye laptop, Omarchy hukumbuka profaili yako ya nishati tofauti ukiwa umechomekwa na ukiwa unatumia betri, na hubadilisha kati ya hizo mbili unapochomeka na kuchomoa. Kwa chaguo-msingi, hilo linamaanisha performance ukiwa kwenye AC na balanced ukiwa kwenye betri.
 
-Unaweza kuona kile mashine yako inatoa kwa `omarchy powerprofiles list`, na kuweka unayoitaka kwa hali uliyonayo sasa kwa `omarchy powerprofiles set autodetect power-saver`. Ili kuweka hali nyingine bila kuchomoa chochote, itaje moja kwa moja: `omarchy powerprofiles set battery power-saver`. Chochote utakachochagua ndicho utakachopata tena wakati ujao ukiwa katika hali hiyo.
+Unaweza kuona kile mashine yako inachotoa kwa `omarchy powerprofiles list`, na kuweka unayoitaka kwa hali uliyonayo sasa hivi kwa `omarchy powerprofiles set autodetect power-saver`. Kuweka hali nyingine bila kuchomoa chochote, itaje moja kwa moja: `omarchy powerprofiles set battery power-saver`. Chochote utakachochagua ndicho utakachopata tena utakapokuwa katika hali hiyo.
 
-### Washa/zima kusitisha
+### Washa/zima kusitisha kwa muda
 
-Unawasha/kuzima kusitisha kwa kuendesha `omarchy toggle suspend` kutoka kwenye terminali. Hiyo hufunua/huficha tu chaguo chini ya _Mfumo_ (au `Super + Esc`), na kisha unaweza kuona kama inafanya kazi kwa uthabiti kwenye mfumo wako. Ikiwa sivyo, unaweza kuificha tena kwa amri hiyo hiyo.
+Unawasha/kuzima kusitisha kwa muda kwa kuendesha `omarchy toggle suspend` kutoka kwenye terminal. Hiyo huonyesha/kuficha tu chaguo chini ya _Mfumo_ (au `Super + Esc`), na kisha unaweza kuona kama linafanya kazi kwa uthabiti kwenye mfumo wako. La sivyo, unaweza kulificha tena kwa amri hiyo hiyo.
 
-### Washa/zima kulala kwa kina
+### Washa/zima hibernation
 
-Unaweka kulala kwa kina kwa kuendesha `omarchy hibernation setup` kutoka kwenye terminali (haipatikani kwenye Mac za Apple Silicon). Kulala kwa kina huunda subvolume ya /swap kwenye kiendeshi chako cha kuwasha yenye ukubwa wa mgao wako wa RAM halisi, kwa hivyo hakikisha una nafasi nyingi iliyobaki. Kwenye mashine ya 32GB, utahitaji daima 32GB+ ya nafasi wazi kwa volume hii. Kulala kwa kina pia kunahitaji bootloader chaguo-msingi ya Limine.
+Unasanidi hibernation kwa kuendesha `omarchy hibernation setup` kutoka kwenye terminal (haipatikani kwenye Apple Silicon Macs). Hibernation huunda subvolume ya /swap kwenye hifadhi yako ya kuwasha yenye ukubwa wa mgao wako wa RAM halisi, kwa hivyo hakikisha una nafasi kubwa ya ziada. Kwenye mashine ya 32GB, utahitaji daima nafasi ya bure ya 32GB+ kwa volume hii. Hibernation pia inahitaji bootloader chaguo-msingi ya Limine.
 
-Ukishaweka, utaona chaguo la kulala kwa kina chini ya _Mfumo_ (au `Super + Esc`), na kisha unaweza kuona kama inafanya kazi kwa uthabiti kwenye mfumo wako. Ikiwa sivyo, unaweza kuiondoa tena kwa kuendesha `omarchy hibernation remove`.
+Ikishasanidiwa, utaona chaguo la hibernate chini ya _Mfumo_ (au `Super + Esc`), na kisha unaweza kuona kama linafanya kazi kwa uthabiti kwenye mfumo wako. La sivyo, unaweza kuiondoa tena kwa kuendesha `omarchy hibernation remove`.

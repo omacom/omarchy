@@ -3,19 +3,21 @@ function batteryPercentage(device) {
   return Math.round(Number(device.percentage || 0) * 100)
 }
 
-function isDischarging(device, onBattery, dischargingState) {
-  return !!(device && device.isPresent && onBattery && device.state === dischargingState)
+// Read the battery's own state, not UPower.onBattery: a dock or charger that supplies less than
+// the machine draws keeps onBattery false while the battery drains.
+function isDischarging(device, dischargingState) {
+  return !!(device && device.isPresent && device.state === dischargingState)
 }
 
-function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, alreadyNotified) {
+function shouldWarnLowBattery(device, dischargingState, threshold, alreadyNotified) {
   var level = batteryPercentage(device)
-  if (level < 0) return { level: level, notify: false, notifiedLowBattery: false }
+  if (level < 0) return { level: level, notify: false, notifiedLowBattery: !!alreadyNotified }
 
-  var low = isDischarging(device, onBattery, dischargingState) && level <= threshold
+  var low = isDischarging(device, dischargingState) && level <= threshold
   return {
     level: level,
     notify: low && !alreadyNotified,
-    notifiedLowBattery: low
+    notifiedLowBattery: level <= threshold && !!(alreadyNotified || low)
   }
 }
 
@@ -34,12 +36,22 @@ function profileAfterRead(current, replyText, signalsAtStart, signalsNow) {
   return signalsAtStart === signalsNow ? parseActiveProfile(replyText) : current
 }
 
+// Re-arm the hardware charge limit after a one-time top-up to 100% once the
+// battery finishes charging or external power is unplugged.
+function shouldRearmChargeLimit(topUpOnce, device, onBattery, wasOnBattery, fullyChargedState) {
+  if (!topUpOnce) return false
+  if (wasOnBattery === false && onBattery === true) return true
+  if (onBattery || !device || !device.isPresent) return false
+  return device.state === fullyChargedState || batteryPercentage(device) >= 100
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     batteryPercentage: batteryPercentage,
     isDischarging: isDischarging,
     shouldWarnLowBattery: shouldWarnLowBattery,
     parseActiveProfile: parseActiveProfile,
-    profileAfterRead: profileAfterRead
+    profileAfterRead: profileAfterRead,
+    shouldRearmChargeLimit: shouldRearmChargeLimit
   }
 }

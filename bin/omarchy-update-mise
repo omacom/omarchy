@@ -3,7 +3,7 @@
 # omarchy:summary=Update mise-managed tools
 
 if omarchy-cmd-present mise; then
-  echo -e "\e[32m\nUpdate mise tools\e[0m"
+  echo -e "\e[32m\n$(omarchy-i18n update.mise)\e[0m"
 
   # mise withholds releases younger than its cooldown, so tools stay behind for
   # days after they ship. Running omarchy update is the user asking for current

@@ -1,43 +1,47 @@
-# Komercinės programos/paslaugos
+# Komercinės programos ir paslaugos
 
-Omarchy daugiausia orientuota į nemokamą, atvirojo kodo programinę įrangą, bet nėra dėl to religinga. Kartais geriausias sprendimas yra komercinis pasiūlymas, ir tai visiškai gerai. Štai keletas galimybių, kurias lengva įdiegti.
+Omarchy daugiausia dėmesio skiria nemokamai, atvirojo kodo programinei įrangai, bet nėra dėl to religinga. Kartais geriausias sprendimas yra komercinis pasiūlymas, ir tai visiškai normalu. Štai keletas variantų, kuriuos galite lengvai įdiegti.
 
 ## 1Password
 
-Slaptažodžius saugoti slaptažodžių tvarkytuvėje yra geriausia praktika. Dar svarbiau, jei dirbate su komanda. O [1password](https://1password.com/) yra puikus sprendimas, taip pat turintis komandinės eilutės įrankį, leidžiantį integruoti raktų paiešką į scenarijus.
+Slaptažodžius laikyti slaptažodžių tvarkyklėje yra geriausia praktika. Dar svarbiau, jei dirbate su komanda. O [1password](https://1password.com/) yra puikus sprendimas, kuris taip pat turi komandų eilutės įrankį, skirtą raktų paieškai scenarijuose integruoti.
 
-1Password paleisite paspaudę `Super + Shift + /`. Jei ji dar neįdiegta, šis spartusis klavišas pirmiausia pradės diegimą (taip pat galite naudoti _Install > Service > 1Password_ iš Omarchy meniu). Diegimo programa taip pat įdiegia 1Password komandinės eilutės įrankį ir nustato 1Password plėtinį, skirtą Chrome ir Chromium; iš naujo paleiskite naršyklę, kad jį įkeltumėte.
+1Password paleisite paspaudę `Super + Shift + /`. Jei ji dar neįdiegta, šis spartusis klavišas pirmiausia pradės diegimą (taip pat galite naudoti _Įdiegti > Paslauga > 1Password_ iš Omarchy meniu). Diegimo programa taip pat įdiegia 1Password komandų eilutės įrankį ir nustato 1Password plėtinį, skirtą Chrome ir Chromium; iš naujo paleiskite naršyklę, kad jį įkeltumėte.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) yra atvirojo kodo alternatyva slaptažodžių tvarkytuvų srityje, su nemokamu planu, kuris apima didžiąją dalį asmeninio naudojimo. Įdiekite ją naudodami _Install > Service > Bitwarden_ iš Omarchy meniu, kuris kartu įdiegia ir Bitwarden komandinės eilutės įrankį.
+[Bitwarden](https://bitwarden.com/) yra atvirojo kodo alternatyva slaptažodžių tvarkyklių srityje, turinti nemokamą planą, kuris patenkina daugumą asmeninių poreikių. Įdiekite ją Omarchy meniu pasirinkę _Įdiegti > Paslauga > Bitwarden_ — kartu bus įdiegtas ir Bitwarden komandų eilutės įrankis.
 
 ## Spotify
 
-[Spotify](https://spotify.com/) yra populiariausia pasaulyje muzikos srautinio perdavimo paslauga. Omarchy ją pateikia kaip žiniatinklio programą, kuri suteikia visavertį grotuvą, medijos klavišus ir Spotify Connect, bet ne atsisiuntimus neprisijungus. Paleiskite ją paspaudę `Super + Shift + M`.
+[Spotify](https://spotify.com/) yra populiariausia muzikos transliavimo paslauga pasaulyje. Omarchy ją pateikia kaip žiniatinklio programą, kuri suteikia visavertį grotuvą, medijos klavišus ir Spotify Connect, bet ne atsisiuntimus neprisijungus. Paleiskite ją paspaudę `Super + Shift + M`.
 
 ## Slack
 
-[Slack](https://slack.com/) yra vieta, kur daugelis komandų bendrauja pokalbiais — tiek įmonės viduje, tiek su išoriniais bendradarbiais. Įdiekite ją naudodami _Install > Service > Slack_ iš Omarchy meniu, ir ji atsidarys, kai tik bus paruošta.
+[Slack](https://slack.com/) yra vieta, kurioje daug komandų bendrauja tiek įmonės viduje, tiek su išoriniais bendradarbiais. Įdiekite ją Omarchy meniu pasirinkę _Įdiegti > Paslauga > Slack_, ir ji atsidarys, kai tik bus paruošta.
 
 ## Notion
 
-[Notion](https://www.notion.com/) yra darbo erdvė užrašams, dokumentams ir projektams. Įdiekite jos darbalaukio programą naudodami _Install > Service > Notion_ iš Omarchy meniu.
+[Notion](https://www.notion.com/) yra darbo erdvė užrašams, dokumentams ir projektams. Įdiekite jos darbalaukio programą Omarchy meniu pasirinkę _Įdiegti > Paslauga > Notion_.
+
+## WeChat
+
+[WeChat](https://www.wechat.com/) yra susirašinėjimo programa, kuria naudojasi didžioji dalis Kinijos — pokalbiams, skambučiams ir ryšiui su visais ten gyvenančiais palaikyti. Įdiekite oficialų Tencent Linux klientą Omarchy meniu pasirinkę _Įdiegti > Paslauga > WeChat_, ir jis atsidarys, kai tik bus paruoštas. Jis pasiekiamas tik x86 kompiuteriuose.
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) yra puikus būdas sinchronizuoti failus tarp kompiuterių ir kartu saugoti atsarginę kopiją debesyje. Norėdami ją nustatyti, pasirinkite _Install > Service > Dropbox_ iš Omarchy meniu. Ji prideda Dropbox piktogramą į juostą: spustelėkite ją, kad prisijungtumėte, tada naudokite tą patį skydelį, kad patikrintumėte savo saugyklą ir atidarytumėte neseniai sinchronizuotus failus.
+[Dropbox](https://www.dropbox.com/) yra puikus būdas sinchronizuoti failus tarp įrenginių ir kartu turėti atsarginę kopiją debesyje. Norėdami jį nustatyti, Omarchy meniu pasirinkite _Įdiegti > Paslauga > Dropbox_. Juostoje atsiras Dropbox piktograma: spustelėkite ją, kad prisijungtumėte, o tada tame pačiame skydelyje patikrinkite saugyklos vietą ir atidarykite neseniai sinchronizuotus failus.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) yra mesh VPN, dėl kurio saugiai pasiekti visus savo kompiuterius ir serverius internetu tampa itin paprasta. Norėdami ją nustatyti, pasirinkite _Install > Service > Tailscale_ iš Omarchy meniu.
+[Tailscale](https://tailscale.com/) yra mesh VPN, kuris leidžia itin paprastai ir saugiai per internetą pasiekti visus jūsų kompiuterius ir serverius. Norėdami jį nustatyti, Omarchy meniu pasirinkite _Įdiegti > Paslauga > Tailscale_.
 
-Ji gauna skydelį juostoje, žiniatinklio programą administratoriaus konsolei ir Taildrop failams siųsti tarp jūsų kompiuterių — žr. [tinklas](35-networking.md).
+Jis gauna skydelį juostoje, žiniatinklio programą administratoriaus konsolei ir Taildrop, skirtą failams tarp jūsų įrenginių siųsti — žr. [tinklo nustatymai](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/) yra 37signals programinės įrangos linija, kurią perkate vieną kartą ir paleidžiate savo serveryje, pavyzdžiui, Campfire pokalbių sistema. Norėdami ją įdiegti, pasirinkite _Install > Service > ONCE_ iš Omarchy meniu — tai įjungs jos foninę paslaugą ir perkels jus į ONCE terminalo sąsają, iš kurios galėsite tęsti.
+[ONCE](https://once.com/) yra 37signals programinės įrangos linija, kurią perkate vieną kartą ir paleidžiate savo serveryje, pavyzdžiui, Campfire pokalbių sistema. Omarchy meniu pasirinkite _Įdiegti > Paslauga > ONCE_, kad ją įdiegtumėte — tai įjungs jos foninę paslaugą ir nuves jus į ONCE terminalo sąsają, kad galėtumėte tęsti nuo ten.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) yra standartinė VPN paslauga, leidžianti nukreipti savo srautą iš daugumos pasaulio regionų. Norėdami ją nustatyti, pasirinkite _Install > Service > NordVPN_ iš Omarchy meniu. Po perkrovimo, kurio ji prašo, paleiskite `nordvpn login`, kad autentifikuotumėtės.
+[NordVPN](https://nordvpn.com/) yra standartinė VPN paslauga, leidžianti jūsų srautą nukreipti per daugumą pasaulio regionų. Norėdami ją nustatyti, Omarchy meniu pasirinkite _Įdiegti > Paslauga > NordVPN_. Po jos prašomo perkrovimo paleiskite `nordvpn login`, kad prisijungtumėte.

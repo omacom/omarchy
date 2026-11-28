@@ -1,0 +1,37 @@
+#!/usr/bin/ash
+# shellcheck shell=dash
+
+# Boots a read-only snapper snapshot writable: a tmpfs overlay goes on top, so
+# a snapshot boots like the live system and its changes vanish on reboot.
+# `omarchy-snapshot restore` is what makes a snapshot the system again.
+
+run_latehook() {
+  local root_mnt=/sysroot
+
+  # mkinitcpio before 41 mounted the root on /new_root, with no /sysroot.
+  if [ ! -d "$root_mnt" ] || [ "$(stat -c %D "$root_mnt")" = "$(stat -c %D /)" ]; then
+    root_mnt=/new_root
+  fi
+
+  case ",${rootflags}," in
+  *,subvol=*/.snapshots/[0-9]*/snapshot,*) ;;
+  *) return 0 ;;
+  esac
+
+  [ "$(btrfs property get -ts "$root_mnt" ro 2>/dev/null)" = "ro=true" ] || return 0
+
+  local work=/run/omarchy-snapshot
+  mkdir -p "$work/lower" "$work/rw"
+  if ! mount -t tmpfs -o mode=0755 omarchy-snapshot "$work/rw" ||
+    ! mkdir -p "$work/rw/upper" "$work/rw/work" ||
+    ! mount --move "$root_mnt" "$work/lower"; then
+    err "omarchy-snapshot-overlay: could not prepare the overlay; booting the snapshot read-only"
+    return 0
+  fi
+
+  if ! mount -t overlay omarchy-snapshot \
+    -o "lowerdir=$work/lower,upperdir=$work/rw/upper,workdir=$work/rw/work" "$root_mnt"; then
+    err "omarchy-snapshot-overlay: overlay mount failed; booting the snapshot read-only"
+    mount --move "$work/lower" "$root_mnt"
+  fi
+}

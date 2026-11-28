@@ -270,7 +270,15 @@ Item {
 
         function entryIcon(icon) {
           var value = String(icon || "")
-          return value.charAt(0) === "/" ? Util.fileUrl(value) : value ? Quickshell.iconPath(value, true) : ""
+          if (value.charAt(0) === "/") return Util.fileUrl(value)
+          if (!value) return ""
+          var themed = Quickshell.iconPath(value, true)
+          if (themed) return themed
+          // Qt can keep missing an installed icon; the app library's index
+          // refreshes on app changes and keeps these icons available live.
+          var library = card.scene && card.scene.shell ? card.scene.shell.appLibrary : null
+          if (!library || !library.iconIndex || !Object.prototype.hasOwnProperty.call(library.iconIndex, value)) return ""
+          return library.iconSource(value)
         }
 
         // Only what the sender handed over and what is installed for its source:
@@ -292,7 +300,7 @@ Item {
           var appsRevision = DesktopEntries.applications.values.length
           var want = Icons.candidates(card.row)
           var found = [sent,
-            firstOf(want.themed, function(name) { return Quickshell.iconPath(name, true) }),
+            firstOf(want.themed, function(name) { return thumb.entryIcon(name) }),
             firstOf(want.entries, function(name) {
               var entry = DesktopEntries.heuristicLookup(name)
               return entry ? thumb.entryIcon(entry.icon) : ""
