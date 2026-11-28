@@ -103,6 +103,8 @@ Press `F` for fullscreen, `E` to edit a picture in Omasnap or trim a video in Om
 
 You start Omaview as _Media Viewer_ via the application launcher (`Super + Space`), or just double-click a picture, video, or song in the file manager.
 
+Omarchy's controls and menus follow your desktop theme while the player stays open, including when playback is paused.
+
 ## Omacut
 
 [Omacut](https://github.com/omacom-io/omacut) is Omarchy's own dead-simple video trimmer. When all you need is to cut the start and end off a clip, it beats firing up a full video editor.
