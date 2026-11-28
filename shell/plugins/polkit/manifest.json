@@ -8,6 +8,9 @@
   "omarchy": {
     "capabilities": [
       "authentication"
+    ],
+    "clonePaths": [
+      { "source": "../agents/assets", "target": "agents/assets" }
     ]
   },
   "kinds": [

@@ -18,12 +18,16 @@ copy_plugin() {
   local manifest="$2"
   local target_dir="$3"
 
+  # A manifest.json plugin owns its directory, so entry points are already
+  # copied; only clonePaths can reach outside it. Flat *.manifest.json plugins
+  # share a directory, so their entry points are copied one by one.
+  local with_entry_points=1
   if [[ ${manifest##*/} == "manifest.json" ]]; then
     cp -aL "$source_dir/." "$target_dir/"
-    return
+    with_entry_points=0
+  else
+    cp -aL "$manifest" "$target_dir/manifest.json"
   fi
-
-  cp -aL "$manifest" "$target_dir/manifest.json"
 
   local source target source_pattern file
   while IFS=$'\t' read -r source target; do
@@ -42,9 +46,9 @@ copy_plugin() {
         sed -i "s|$source_pattern|$target|g" "$file"
       done < <(rg --files-with-matches --null --fixed-strings "$source" "$target_dir")
     fi
-  done < <(jq -r '
+  done < <(jq -r --argjson entryPoints "$with_entry_points" '
     [
-      (.entryPoints[] | {source: ., target: .}),
+      (if $entryPoints == 1 then .entryPoints[] | {source: ., target: .} else empty end),
       (.omarchy.clonePaths[]? | {source: .source, target: .target})
     ] | unique_by(.target)[] | [.source, .target] | @tsv
   ' "$manifest")

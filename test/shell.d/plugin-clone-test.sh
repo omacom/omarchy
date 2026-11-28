@@ -200,3 +200,27 @@ fi
 [[ ! -e $TMPDIR/home/.config/omarchy/plugins/tester.osd ]] ||
   fail "failed clone discovery leaves a partial clone behind"
 pass "clone removes a partial clone when switching fails"
+
+clone_plugin omarchy.agents >/dev/null
+agents="$TMPDIR/home/.config/omarchy/plugins/tester.agents"
+for file in Panel.qml elsewhen/Model.js; do
+  [[ -f $agents/$file ]] || fail "agents clone is missing $file"
+done
+if rg -q '"\.\./' "$agents" -g '*.qml' -g '*.js'; then
+  fail "agents clone still imports paths outside its directory"
+fi
+pass "manifest.json plugins copy their clonePaths and rewrite imports"
+
+# Every relative import that leaves a first-party plugin directory must be
+# covered by that plugin's clonePaths, or its clone cannot load. Directories
+# that hold flat *.manifest.json plugins are checked by their own manifests.
+for manifest in "$ROOT"/shell/plugins/*/manifest.json "$ROOT"/shell/plugins/*/*/manifest.json; do
+  [[ -f $manifest ]] || continue
+  dir=${manifest%/manifest.json}
+  [[ -z $(find "$dir" -mindepth 2 -name '*manifest.json' -print -quit) ]] || continue
+  while IFS= read -r path; do
+    jq -e --arg path "$path" 'any(.omarchy.clonePaths[]?; . as $c | $path == $c.source or ($path | startswith($c.source + "/")))' "$manifest" >/dev/null ||
+      fail "${dir#"$ROOT"/} imports $path outside its directory without clonePaths"
+  done < <(rg -o --no-filename -g '*.qml' -g '*.js' '"(\.\./[^"]*)"' -r '$1' "$dir" | sort -u)
+done
+pass "first-party manifest.json plugins cover out-of-directory imports with clonePaths"
