@@ -170,6 +170,8 @@ def selection():
   variant = vconsole.get("XKBVARIANT", "").split(",")[0]
   if preference.get("XKB_LAYOUT") in ("kr", "kr:kr104", "la") and vconsole.get("XKBLAYOUT", "us") == "us" and not variant:
     layout, _, variant = preference["XKB_LAYOUT"].partition(":")
+  elif preference.get("XKB_LAYOUT") in ("es:cat",) and preference["XKB_LAYOUT"].partition(":")[0] == vconsole.get("XKBLAYOUT") and not vconsole.get("XKBVARIANT", ""):
+    variant = preference["XKB_LAYOUT"].partition(":")[2]
   method = preference.get("INPUT_METHOD", "mozc" if layout == "jp" else "none")
   if method not in PRESETS:
     raise ValueError(f"Unknown installed input method: {method}")

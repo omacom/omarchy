@@ -42,6 +42,10 @@ end
 -- plain kr is what earlier installs saved.
 local desktop_overrides = { kr = true, ["kr:kr104"] = true, la = true }
 
+-- Choices that keep their console keymap but type an XKB variant of it on the
+-- desktop: Catalan uses the Spanish keymap with the middle-dot L (l·l).
+local variant_overrides = { ["es:cat"] = true }
+
 function keyboard.installed()
   local values = keyboard.vconsole()
   local override = read_values("/etc/omarchy/input-method").XKB_LAYOUT
@@ -49,6 +53,10 @@ function keyboard.installed()
     and (values.XKBLAYOUT or "us") == "us"
     and (values.XKBVARIANT or "") == "" then
     values.XKBLAYOUT, values.XKBVARIANT = override:match("^([^:]*):?(.*)$")
+  elseif variant_overrides[override]
+    and values.XKBLAYOUT == override:match("^[^:]*")
+    and (values.XKBVARIANT or "") == "" then
+    values.XKBVARIANT = override:match(":(.*)$")
   end
   return values
 end
