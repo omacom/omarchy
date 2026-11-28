@@ -1438,5 +1438,14 @@
   },
   "setup.security.passwordless-login": {
     "label": "Inici de sessió sense contrasenya"
+  },
+  "setup.default.browser.ladybird": {
+    "label": "Ladybird"
+  },
+  "install.browser.ladybird": {
+    "label": "Ladybird"
+  },
+  "remove.browser.ladybird": {
+    "label": "Ladybird"
   }
 }

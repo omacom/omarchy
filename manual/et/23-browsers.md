@@ -1,12 +1,12 @@
 # Brauserid
 
-Omarchy-ga tuleb vaikebrauserina kaasa [Google Chrome](https://www.google.com/chrome/). See on kujundatud nii, et sobituks ülejäänud süsteemiga, ja just selle avab `Super + Shift + Return` (või `Super + Shift + B`), privaatse akna jaoks `Super + Shift + Alt + B`, ning selle sees töötavad kõik [veebirakendused](25-web-apps.md). See avaneb otse brauseriaknasse: ei mingit tervituskuva ega sisselogimisviipa, kasutusstatistikat ja kokkujooksmisraporteid Google'ile ei saadeta ning reklaamide privaatsusviibad on välja lülitatud. Sa saad siiski profiilinupust igal ajal oma Google'i kontole sisse logida, kui soovid sünkroonimist.
+Omarchyga on vaikebrauserina kaasas [Google Chrome](https://www.google.com/chrome/). See on kujundatud nii, et sobituda ülejäänud süsteemiga, ja just selle avab `Super + Shift + Return` (või `Super + Shift + B`), privaatakna puhul `Super + Shift + Alt + B`, ning selle sees töötab iga [veebirakendus](25-web-apps.md). See avaneb otse brauseriaknasse: pole tervituskuva ega sisselogimisviipa, kasutusstatistikat ja krahhiaruandeid Google'ile ei saadeta ning reklaamide privaatsusviibad on välja lülitatud. Kui tahad sünkroonimist, saad profiilinupust siiski igal ajal oma Google'i kontole sisse logida.
 
-Kui Chrome ei ole sinu maitse, ei pea sa sellega leppima. Omarchy menüüs _Install > Browser_ alt leiad [Chromium](https://www.chromium.org/) (lihtne avatud lähtekoodiga versioon, millest Chrome on tehtud), Edge, Brave, Brave Origin, Firefox ja [Zen](https://zen-browser.app/) (Edge ainult x86 masinatel). Vali üks ja Omarchy installib selle, seadistab selle poliitikakataloogi ja rakendab sellele sinu praeguse teema.
+Kui Chrome pole sinu maitse, ei pea sa selle juurde jääma. Omarchy menüü jaotisest _Paigalda > Brauser_ leiad [Chromium](https://www.chromium.org/) (lihtne avatud lähtekoodiga versioon, millest Chrome on tehtud), Edge'i, Brave'i, Brave Origini, Firefoxi, [Zen](https://zen-browser.app/) ja [Ladybird](https://ladybird.org/) (Edge ainult x86 masinatel). Vali üks ja Omarchy paigaldab selle, seab üles selle poliitikakataloogi ning rakendab sellele sinu praeguse teema.
 
 ## Ühe vaikebrauseriks määramine
 
-Brauseri installimine ei tee veel sellest vaikebrauserit. Vahetamiseks mine _Setup > Defaults > Browser_ ja vali üks. Praegune vaikebrauser on tähistatud linnukesega ja kui valid brauseri, mida sul veel ei ole, installitakse see esmalt.
+Brauseri paigaldamine ei tee sellest vaikebrauserit. Vahetamiseks mine _Seadista > Vaikevalikud > Brauser_ ja vali üks. Praegune vaikebrauser on märgitud linnukesega ja kui valid brauseri, mida sul veel pole, paigaldatakse see kõigepealt.
 
 Terminalist käib see nii:
 
@@ -14,28 +14,32 @@ Terminalist käib see nii:
 omarchy default browser firefox
 ```
 
-Käivita see argumendita ja see ütleb sulle praeguse vaikebrauseri. See määrab XDG handleri, nii et sellega ei lähe kaasa mitte ainult Omarchy kiirklahvid — kõik, mis avab lingi, alates vestlusrakendusest kuni terminalikäsuni, läheb sinu valitud brauserisse.
+Käivita see ilma argumendita ja see ütleb sulle praeguse vaikebrauseri. See määrab XDG käsitleja, nii et kaasa ei tule ainult Omarchy kiirklahvid — kõik, mis avab lingi, alates vestlusrakendusest kuni terminalikäsuni, läheb sinu valitud brauserisse.
 
 ## Copy URL ja Download Video
 
-Chromium-perekonna brauseritega (Chromium ise, Chrome, Edge, Brave ja Brave Origin) tulevad kaasa kolm Omarchy laiendust: kaks, mis sirutuvad brauserist välja ülejäänud süsteemi, ja üks, mis korrastab WhatsAppi.
+Chromiumi perekonna brauseritega (Chromium ise, Chrome, Edge, Brave ja Brave Origin) on kaasas kolm Omarchy laiendust: kaks, mis ulatuvad brauserist välja ülejäänud süsteemi, ja üks, mis korrastab WhatsAppi.
 
-**Copy URL** paneb praeguse vahekaardi aadressi kombinatsiooniga `Alt + Shift + L` sinu lõikelauale. See on kiirem kui aadressiribale klõpsamine ja kopeerimine, ja kuna see läheb brauseri oma asemel läbi süsteemi lõikelaua, saad kinnituseks Omarchy teavituse ning URL on kohe saadaval [lõikelaua ajaloos](08-unified-clipboard-history.md) ja igas teises rakenduses. Ka tööriistaribal on nupp, kui eelistad klõpsata.
+**Copy URL** paneb praeguse vahekaardi aadressi `Alt + Shift + L`-iga sinu lõikelauale. See on kiirem kui aadressiribale klõpsamine ja sealt kopeerimine ning kuna see käib brauseri asemel läbi süsteemi lõikelaua, saad kinnituseks Omarchy teavituse ja URL on kohe saadaval [lõikelaua ajaloos](08-unified-clipboard-history.md) ja igas teises rakenduses. Kui eelistad klõpsamist, on olemas ka tööriistariba nupp.
 
-**Download Video** haarab kombinatsiooniga `Alt + Shift + D` video, mis mängib lehel, mida parajasti vaatad. See annab URL-i [yt-dlp](https://github.com/yt-dlp/yt-dlp)-le, nii et see töötab palju enamaga kui ainult YouTube'iga, ja allalaadimine jõuab kausta `~/Videos`. Edenemist näidatakse samas ekraanil kuvatavas indikaatoris, mida kasutavad helitugevus ja heledus, ning see uueneb samas kohas, selle asemel et teavitusi kuhjata. Määra `OMARCHY_YTDLP_DIR`, kui eelistad, et failid läheksid mujale — vaata [FAQ](46-faq.md), et teada saada, kuhu keskkonnamuutujad panna.
+**Download Video** haarab `Alt + Shift + D`-ga video, mis mängib sinu vaadataval lehel. See annab URL-i edasi [yt-dlp](https://github.com/yt-dlp/yt-dlp)-le, nii et see töötab palju enamaga kui ainult YouTube'iga, ja allalaadimine jõuab kausta `~/Videos`. Edenemine kuvatakse samal ekraanikuval, mida kasutavad helitugevus ja heledus, ning see uueneb kohapeal, selle asemel et teavitusi üksteise otsa kuhjata. Määra `OMARCHY_YTDLP_DIR`, kui eelistad, et failid läheksid kuhugi mujale — vaata [KKK](46-faq.md), et teada saada, kuhu keskkonnamuutujad panna.
 
-Mõlemad laiendused suhtlevad Omarchyga väikese native messaging hosti vahendusel, mis installitakse sulle koos brauseriga. See on see tükk, mis laseb veebilehe videol jõuda sinu kodukataloogi ja URL-il sinu lõikelauahaldurisse, mida tavaline laiendus üksinda teha ei suuda.
+Mõlemad laiendused suhtlevad Omarchyga läbi väikese natiivse sõnumside hosti, mis paigaldatakse sinu eest koos brauseriga. Just see tükk laseb veebilehe videol jõuda sinu kodukataloogi ja URL-il sinu lõikelauahaldurisse, mida tavaline laiendus üksinda teha ei saa.
 
-**WhatsApp Slim** paneb WhatsApp Webi järgima sinu süsteemi teemat ja ahendab selle vestluste loendi, kui aken on kitsas.
+**WhatsApp Slim** paneb WhatsApp Webi järgima sinu süsteemi teemat ja tõmbab selle vestlusloendi kokku, kui aken on kitsas.
 
-Need on ainult Chromium-perekonnale. Firefox ja Zen neid ei saa.
+Need on ainult Chromiumi perekonnale. Firefox ja Zen neid ei saa.
 
 ## Firefox ja Zen
 
-Firefox ja Zen on teine perekond, nii et neisse suhtutakse teisiti: Omarchy installib mõistlike vaikeseadetega poliitikafaili ja lülitab need natiivsesse Wayland-režiimi, mida sa tahad murdosalise skaleerimise ja sujuva puuteplaadiga kerimise jaoks.
+Firefox ja Zen on teine perekond, nii et nendega käitutakse teisiti: Omarchy paigaldab mõistlike vaikesätetega poliitikafaili ja lülitab need natiivsesse Waylandi režiimi, mida sa tahad murdosa skaleerimise ja sujuva puuteplaadi kerimise jaoks.
 
-Nad ei saa ülaltoodud Chromium-laiendusi ja Omarchy ei rakenda neile teemat, nii et need kogemuse osad tuleb sul endal seadistada.
+Neile ei anta ülaltoodud Chromiumi laiendusi ja Omarchy ei teemasta neid, nii et need kogemuse osad jäävad sinu enda seadistada.
+
+## Ladybird
+
+Ladybird on nullist kirjutatud brauser, millel on Chromiumi või Firefoxi asemel oma mootor. See on endiselt alfafaasis, nii et oota saite, mis veel ei tööta, ja Omarchy paigaldab selle nii, nagu see on: ei laiendusi, ei teemat, ei poliitikaid. Sellel pole ka privaatakent, nii et `Super + Shift + Alt + B` avab selle ajutise profiiliga, mis selle sulgemisel kustutatakse. [Veebirakendused](25-web-apps.md) töötavad edasi Chrome'is või Chromiumis.
 
 ## Ühe uuesti eemaldamine
 
-Kõiki neid brausereid, Chrome kaasa arvatud, saab _Remove > Browser_ alt uuesti maha võtta. Lingid lähevad siis Chrome'i või Chromiumisse, kui teine neist on endiselt installitud.
+Kõiki neid brausereid, Chrome kaasa arvatud, saab jaotise _Eemalda > Brauser_ alt uuesti maha võtta. Lingid lähevad siis Chrome'i või Chromiumi, kui teine on endiselt paigaldatud.
