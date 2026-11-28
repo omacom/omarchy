@@ -13,7 +13,7 @@ if ! grep -qxF qwen <<<"$tools"; then
 fi
 
 # A user who removed the preinstalls skips Omarchy's declarations, so there is
-# nothing to build for them.
-if omarchy-mise-default-tools declares qwen; then
+# nothing to build for them. Without mise there is nothing to build either.
+if omarchy-cmd-present mise && omarchy-mise-default-tools declares qwen; then
   mise reshim --system
 fi
