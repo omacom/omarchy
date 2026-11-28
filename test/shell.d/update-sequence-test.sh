@@ -229,3 +229,48 @@ HOME="$restart_home" \
 grep -q "update.hyprlandReboot" "$test_tmp/restart-prompts" ||
   fail "omarchy-update-restart offers a reboot when a later Hyprland PID runs a deleted binary" "$(cat "$test_tmp/restart-prompts")"
 pass "omarchy-update-restart checks every Hyprland PID for a deleted executable"
+
+# A loaded NVIDIA module older than the installed driver needs a reboot; the
+# proprietary and open module banners both name the running version.
+cat >"$restart_bin/pacman" <<'SH'
+#!/bin/bash
+[[ $1 == "-Q" && -n ${NVIDIA_PKG_VERSION:-} ]] && printf 'nvidia-utils %s\n' "$NVIDIA_PKG_VERSION"
+[[ $1 == "-Q" && -z ${NVIDIA_PKG_VERSION:-} ]] && exit 1
+exit 0
+SH
+cat >"$restart_bin/pgrep" <<'SH'
+#!/bin/bash
+exit 1
+SH
+# --services-only restarts the shell; the real one would restart this desktop's.
+printf '#!/bin/bash\nexit 0\n' >"$restart_bin/omarchy-restart-shell"
+chmod +x "$restart_bin/omarchy-restart-shell"
+nvidia_prompts() {
+  : >"$test_tmp/restart-prompts"
+  HOME="$restart_home" \
+    OMARCHY_KERNEL_MODULES_PATH="$test_tmp/modules" \
+    OMARCHY_NVIDIA_PROC_VERSION="$test_tmp/nvidia-proc" \
+    OMARCHY_NVIDIA_SYS_VERSION="$test_tmp/nvidia-sys" \
+    RESTART_PROMPTS="$test_tmp/restart-prompts" \
+    PATH="$restart_bin:$ROOT/bin:$PATH" \
+    "$ROOT/bin/omarchy-update-restart" "${1:---reboot-only}" >/dev/null || true
+  cat "$test_tmp/restart-prompts"
+}
+
+printf 'NVRM version: NVIDIA UNIX x86_64 Kernel Module  615.71.09  Wed Jan 28 17:15:20 UTC 2026\n' >"$test_tmp/nvidia-proc"
+[[ $(NVIDIA_PKG_VERSION=615.78.08-1 nvidia_prompts) == *update.nvidiaReboot* ]] ||
+  fail "a newer installed NVIDIA driver than the loaded one offers a reboot"
+[[ $(NVIDIA_PKG_VERSION=615.71.09-1 nvidia_prompts) != *update.nvidiaReboot* ]] ||
+  fail "the loaded NVIDIA driver matching the installed one offers a reboot"
+[[ $(NVIDIA_PKG_VERSION=615.78.08-1 nvidia_prompts --services-only) != *update.nvidiaReboot* ]] ||
+  fail "--services-only offers a reboot for an NVIDIA driver update"
+printf 'NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@archlinux)\n' >"$test_tmp/nvidia-proc"
+[[ $(NVIDIA_PKG_VERSION=615.78.08-1 nvidia_prompts) == *update.nvidiaReboot* ]] ||
+  fail "the open NVIDIA module's version banner is not read"
+rm "$test_tmp/nvidia-proc"
+[[ $(NVIDIA_PKG_VERSION=615.78.08-1 nvidia_prompts) != *update.nvidiaReboot* ]] ||
+  fail "a system without a loaded NVIDIA driver offers a reboot"
+printf '615.71.09\n' >"$test_tmp/nvidia-sys"
+[[ $(NVIDIA_PKG_VERSION=615.78.08-1 nvidia_prompts) == *update.nvidiaReboot* ]] ||
+  fail "the sysfs NVIDIA module version is not used when /proc has none"
+pass "omarchy-update-restart offers a reboot only when the loaded NVIDIA driver is older than the installed one"
