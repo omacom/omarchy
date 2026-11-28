@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle automatic unattended-task screensavers in new terminal sessions
+# omarchy:group=toggle
+# omarchy:name=screensaver task
+
+if ! omarchy-toggle-enabled screensaver-task-on; then
+  omarchy-pkg-add python-pyte || exit 1
+fi
+
+omarchy-toggle screensaver-task-on
+
+if omarchy-toggle-enabled screensaver-task-on; then
+  omarchy-notification-send -g 󱄄 "Automatic task screensaver enabled (new terminals)"
+else
+  omarchy-notification-send -g 󱄄 "Task screensaver disabled"
+fi
