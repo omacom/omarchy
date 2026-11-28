@@ -186,11 +186,15 @@ Rules:
 3. Settings are inline on the entry. No `config:` sub-object, no
    merge layers.
 4. Built-in bar widget ids are namespaced (`omarchy.clock`, `omarchy.audio`, …).
-5. Third-party enabled ⇔ present; for full bar options that means `bar.id`.
+5. Third-party enabled ⇔ present in `bar.layout` or `plugins`; for full bar options that means `bar.id`.
    First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`.
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
 8. `version: 1` is required.
+
+When drag removal or disable removes a widget's layout entry, it keeps the complete entry in `bar.removedWidgets`, an array of inactive entries. Re-adding an absent widget with `omarchy bar put` or `omarchy plugin enable` consumes the most recently removed entry with that id, preserving its inline settings while using the requested or default placement. Repeated instances are retained separately; these commands still add only an absent id. Clone disable still replaces the clone with its source, while drag removal leaves the source absent. A clone replacing an active source continues to inherit that source's current settings, superseding its retained entry.
+
+Retained entries do not activate plugins and survive uninstall/reinstall. Remove a widget's entries from `bar.removedWidgets` to forget them, or use `omarchy bar defaults` to reset the entire bar, including retained entries.
 
 The bar's sections run along it in the order `left`, `centerBegin`, `center`, `centerEnd`, `right`. `center` is a box in the middle of the bar whose widgets are centered as one group; `centerBegin` and `centerEnd` hang off its two edges and move out as it grows. An empty box takes no room, so the two meet in the middle of the bar. While a widget is dragged, the other widgets make room for it where it would land, and it gives up its own room unless it would land back there; the box shows as an outline, or a line across the bar when empty, that it can be dropped into or beside, and grows to take in a widget that would land in it. A drop within the bar's thickness of an empty box's middle lands in it. The tray's drawer, which opens while a widget is dragged, holds the tray section the same way: it shows as an outline, or a line when empty, and a drop over it, or within half the bar's thickness of it, lands in it. A layout written from elsewhere during a drag (`omarchy bar move`, a hand edit) that moves widgets about makes the drag let go, and the layout stays as written.
 

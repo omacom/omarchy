@@ -416,6 +416,21 @@ QtObject {
     if (!Array.isArray(config.plugins)) config.plugins = []
   }
 
+  // Removed entries are inactive, not another settings layer. Consume one
+  // only when inserting a widget; an array keeps repeated instances apart.
+  function takeRemovedBarWidget(config, id) {
+    var entries = config.bar.removedWidgets
+    if (Array.isArray(entries)) {
+      for (var i = entries.length - 1; i >= 0; i--) {
+        if (barEntryId(entries[i]) !== id) continue
+        var entry = Util.normalizeLayoutEntry(entries.splice(i, 1)[0])
+        if (entries.length === 0) delete config.bar.removedWidgets
+        return entry || { id: id }
+      }
+    }
+    return { id: id }
+  }
+
   // Bar widgets use the default section declared in their manifest, falling
   // back to centerEnd, beside the center box rather than in it.
   // Panels/overlays/menus/services go into the plugins[] array.
@@ -562,10 +577,11 @@ QtObject {
         var entry = { id: key }
         var insertedWithPlacement = false
         if (!onBar && isBarWidget) {
+          entry = takeRemovedBarWidget(config, key)
           var sourceLocation = clonedFrom ? findEntryLocation(config, clonedFrom) : { found: false }
           if (sourceLocation.kind === "bar") {
             var sourceEntry = config.bar.layout[sourceLocation.section][sourceLocation.index]
-            var replacement = Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : entry
+            var replacement = Util.normalizeLayoutEntry(sourceEntry) || { id: key }
             replacement.id = key
             config.bar.layout[sourceLocation.section][sourceLocation.index] = replacement
           } else {
@@ -589,11 +605,13 @@ QtObject {
       }
 
       if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
-      else if (location.kind === "bar") config.bar.layout[location.section].splice(location.index, 1)
-      else if (location.kind === "plugin") config.plugins.splice(location.index, 1)
+      else if (location.kind === "bar") {
+        if (!Array.isArray(config.bar.removedWidgets)) config.bar.removedWidgets = []
+        config.bar.removedWidgets.push(config.bar.layout[location.section].splice(location.index, 1)[0])
+      } else if (location.kind === "plugin") config.plugins.splice(location.index, 1)
 
-      // Dropping the layout entry is the whole story for a widget. Anything
-      // else built-in loads by default, so switching it off has to be stated.
+      // Layout presence is the on/off switch for a widget. Anything else
+      // built-in loads by default, so switching it off has to be stated.
       if (isFirstParty && !isBarWidget) addDisabled(config, key)
     })
     if (lastEnableError) return false

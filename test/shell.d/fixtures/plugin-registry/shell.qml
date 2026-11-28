@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import "services"
+import "plugins/bar/BarModel.js" as BarModel
 
 ShellRoot {
   id: root
@@ -465,6 +466,56 @@ ShellRoot {
     root.assertTrue(registry.isEnabled("third.widget"), "existing layout entries enable bar widgets")
     registry.setEnabled("third.widget", false)
     root.assertDeepEqual(root.config.bar.layout.center, [], "disabling existing bar widgets removes the original layout entry")
+    root.assertTrue(!registry.isEnabled("third.widget"), "retained widget settings do not keep a third-party widget enabled")
+    root.config = JSON.parse(JSON.stringify(root.config))
+    root.assertTrue(!registry.setEnabled("third.widget", true, { before: "missing.widget" }), "a missing placement anchor still refuses enable")
+    registry.setEnabled("third.widget", true)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget", size: 4 }], "disable and enable retain inline settings across a JSON round trip and a rejected placement")
+    root.assertTrue(root.config.bar.removedWidgets === undefined, "restoring the last removed widget consumes its retained entry")
+
+    // Drag removal uses the same retained entries as enable/put, without
+    // restoring a clone's source. Repeated ids retain independent settings.
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [{ id: "third.widget", pinned: ["one.desktop"] }, { id: "third.widget", pinned: ["two.desktop"] }] } },
+      plugins: []
+    }
+    BarModel.removeEntry(root.config, { region: "left", index: 0, id: "third.widget" })
+    BarModel.removeEntry(root.config, { region: "left", index: 0, id: "third.widget" })
+    root.config = JSON.parse(JSON.stringify(root.config))
+    root.assertEqual(registry.putBarWidget("third.widget", { section: "right" }), "", "put accepts a dragged-off widget")
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "third.widget", pinned: ["two.desktop"] }], "put restores the newest removed instance with its nested settings at the requested placement")
+    registry.putBarWidget("third.widget", {})
+    registry.setEnabled("third.widget", true)
+    root.assertDeepEqual(root.config.bar.removedWidgets, [{ id: "third.widget", pinned: ["one.desktop"] }], "restoring one instance and enabling it again leaves the other retained instance alone")
+
+    // A bare entry removed after a hand reset must supersede old settings,
+    // and must still support setting options when restored.
+    root.config.bar.layout.right = ["third.widget"]
+    registry.setEnabled("third.widget", false)
+    registry.setEnabled("third.widget", true)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "a bare entry restores without resurrecting older settings")
+    root.assertEqual(registry.setBarWidget("third.widget", "size", 9, {}), "", "a restored string entry can still be configured")
+
+    root.config = {
+      version: 1,
+      bar: { layout: { center: [{ id: "local.first-widget", size: 3 }] } },
+      plugins: []
+    }
+    BarModel.removeEntry(root.config, { region: "center", index: 0, id: "local.first-widget" })
+    root.assertTrue(!registry.inBar("omarchy.first-widget"), "dragging a clone off still does not restore its source")
+    registry.setEnabled("omarchy.first-widget", true)
+    registry.setBarWidget("omarchy.first-widget", "size", 7, {})
+    registry.setEnabled("local.first-widget", true)
+    root.assertDeepEqual(root.config.bar.layout.centerEnd, [{ id: "local.first-widget", size: 7 }], "a clone replacing its active source inherits the source's current settings")
+    root.assertTrue(root.config.bar.removedWidgets === undefined, "source replacement consumes the clone's obsolete retained settings")
+    registry.setEnabled("local.first-widget", false)
+    root.assertDeepEqual(root.config.bar.layout.centerEnd, [{ id: "omarchy.first-widget", size: 7 }], "disabling a clone still restores its source with the clone's settings")
+    registry.setEnabled("local.first-widget", true)
+    BarModel.removeEntry(root.config, { region: "centerEnd", index: 0, id: "local.first-widget" })
+    root.config.bar.layout.centerEnd = ["omarchy.first-widget"]
+    registry.setEnabled("local.first-widget", true)
+    root.assertDeepEqual(root.config.bar.layout.centerEnd, [{ id: "local.first-widget" }], "a clone replacing a string source inherits its empty settings instead of retained clone settings")
 
     root.config = { version: 1 }
     registry.setEnabled("third.panel", true)
@@ -487,17 +538,17 @@ ShellRoot {
     // would be locked out of the shell by taking its button off the bar.
     root.config = {
       version: 1,
-      bar: { layout: { left: [], center: [], right: [{ id: "omarchy.first-widget" }] } },
+      bar: { layout: { left: [], center: [], right: [{ id: "omarchy.first-widget", format: "HH:mm:ss" }] } },
       plugins: []
     }
     root.assertTrue(registry.inBar("omarchy.first-widget"), "inBar sees a widget in the layout")
     registry.setEnabled("omarchy.first-widget", false)
     root.assertDeepEqual(root.config.bar.layout.right, [], "disabling a first-party widget removes its layout entry")
-    root.assertTrue(root.config.disabledPlugins === undefined, "disabling a first-party widget records nothing else")
+    root.assertTrue(root.config.disabledPlugins === undefined, "disabling a first-party widget adds no disabled plugin flag")
     root.assertTrue(!registry.inBar("omarchy.first-widget"), "inBar follows the widget out of the layout")
     root.assertTrue(registry.isEnabled("omarchy.first-widget"), "a first-party widget stays loadable off the bar")
     registry.setEnabled("omarchy.first-widget", true)
-    root.assertDeepEqual(root.config.bar.layout.centerEnd, [{ id: "omarchy.first-widget" }], "a widget without a default section falls back to centerEnd")
+    root.assertDeepEqual(root.config.bar.layout.centerEnd, [{ id: "omarchy.first-widget", format: "HH:mm:ss" }], "a first-party widget restores its settings in the default section")
 
     root.config = {
       version: 1,
@@ -506,7 +557,7 @@ ShellRoot {
     }
     registry.setEnabled("omarchy.hybrid", false)
     root.assertDeepEqual(root.config.bar.layout.left, [], "disabling a multi-kind built-in removes its widget")
-    root.assertTrue(root.config.disabledPlugins === undefined, "disabling a multi-kind widget records nothing else")
+    root.assertTrue(root.config.disabledPlugins === undefined, "disabling a multi-kind widget adds no disabled plugin flag")
     root.assertTrue(registry.isEnabled("omarchy.hybrid"), "a multi-kind built-in remains loadable without its widget")
 
     var cloneBase = registry.pluginsDir + "/dhh.clock"
@@ -528,19 +579,19 @@ ShellRoot {
     // the residual plugins[] record satisfies findEntryLocation.
     root.config = {
       version: 1,
-      bar: { layout: { left: [{ id: "third.hybrid-widget" }], center: [], right: [] } },
-      plugins: [{ id: "third.hybrid-widget" }]
+      bar: { layout: { left: [{ id: "third.hybrid-widget", size: 4 }], center: [], right: [] } },
+      plugins: [{ id: "third.hybrid-widget", panelOption: true }]
     }
     registry.setEnabled("third.hybrid-widget", false)
     root.assertDeepEqual(root.config.bar.layout.left, [], "disabling a hybrid widget removes only its bar entry")
-    root.assertDeepEqual(root.config.plugins, [{ id: "third.hybrid-widget" }], "the panel side of a hybrid widget survives disable")
+    root.assertDeepEqual(root.config.plugins, [{ id: "third.hybrid-widget", panelOption: true }], "the panel side of a hybrid widget survives disable")
     registry.setEnabled("third.hybrid-widget", true)
     root.assertDeepEqual(
       root.config.bar.layout.left,
-      [{ id: "third.hybrid-widget" }],
+      [{ id: "third.hybrid-widget", size: 4 }],
       "re-enabling a hybrid widget restores its bar entry despite a residual plugins[] record"
     )
-    root.assertDeepEqual(root.config.plugins, [{ id: "third.hybrid-widget" }], "re-enabling a hybrid widget keeps the panel record")
+    root.assertDeepEqual(root.config.plugins, [{ id: "third.hybrid-widget", panelOption: true }], "re-enabling a hybrid widget keeps the panel record")
 
     root.config = {
       version: 1,
