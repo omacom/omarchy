@@ -15,6 +15,7 @@ run_logged "$OMARCHY_INSTALL/user/hardware/qualcomm/camera.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/fix-nouveau-cursor.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/vm-no-animations.sh"
 
+run_logged "$OMARCHY_INSTALL/user/wireplumber.sh"
 run_logged "$OMARCHY_INSTALL/user/default-keyring.sh"
 
 run_logged "$OMARCHY_INSTALL/user/platform-setup.sh"
