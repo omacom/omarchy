@@ -923,6 +923,9 @@
   "install.ai.cli.ori": {
     "label": "Ori"
   },
+  "install.ai.cli.qoder": {
+    "label": "Qoder"
+  },
   "install.ai.cli.qwen": {
     "label": "Qwen Code"
   },
@@ -1252,6 +1255,9 @@
   },
   "remove.ai.cli.ori": {
     "label": "Ori"
+  },
+  "remove.ai.cli.qoder": {
+    "label": "Qoder"
   },
   "remove.ai.cli.qwen": {
     "label": "Qwen Code"

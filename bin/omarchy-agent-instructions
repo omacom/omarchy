@@ -48,6 +48,7 @@ declare -A links=(
   [qwen]="${QWEN_HOME:-$HOME/.qwen}/AGENTS.md"
   [mcode]="${MINIMAX_DATA_DIR:-$HOME/.minimax}/AGENTS.md"
   [kilo]="$config/kilo/AGENTS.md"
+  [qodercli]="${QODER_CONFIG_DIR:-$HOME/.qoder}/AGENTS.md"
   [freebuff]="$HOME/.AGENTS.md"
 )
 

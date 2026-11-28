@@ -325,6 +325,18 @@ amp)
     command=(amp --dangerously-allow-all)
   fi
   ;;
+qodercli)
+  # Qoder CLI is built on Qwen Code and keeps its --prompt-interactive. Bind
+  # the prompt so one starting with a dash stays literal.
+  resume_supported=true
+  command=(qodercli --dangerously-skip-permissions)
+  if [[ -n $session ]]; then
+    command+=(--resume "$session")
+  elif [[ $continue_last == "true" ]]; then
+    command+=(--continue)
+  fi
+  [[ -n ${prompt:-} ]] && command+=("--prompt-interactive=$prompt")
+  ;;
 *)
   echo "Unsupported default agent: $agent" >&2
   exit 1

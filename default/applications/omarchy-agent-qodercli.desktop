@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Qoder
+Comment=Start Qoder in a terminal
+Exec=omarchy-agent --agent qodercli --app-id=org.omarchy.qodercli
+Icon=omarchy-agent-qodercli
+StartupWMClass=org.omarchy.qodercli
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new
