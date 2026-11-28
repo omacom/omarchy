@@ -189,6 +189,12 @@
   "appearance.windows.gaps-off": {
     "label": "Window Gaps Off"
   },
+  "appearance.windows.titlebars-on": {
+    "label": "Floating Titlebars On"
+  },
+  "appearance.windows.titlebars-off": {
+    "label": "Floating Titlebars Off"
+  },
   "appearance.windows.corners": {
     "label": "Window Corners"
   },

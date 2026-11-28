@@ -757,6 +757,26 @@ assert(bar and bar.bar_color == "rgb(223344)", "titlebars missed the theme with 
 fi
 pass "titlebars follow the theme when XDG_STATE_HOME points elsewhere"
 
+# Turned off, the plugin still loads, so nothing has to bring it in later, but
+# it is never given its options: no bar, no buttons, no tag.
+mkdir -p "$state_home/omarchy/toggles/hypr"
+printf -- '-- Titlebars are off.\n' >"$state_home/omarchy/toggles/hypr/window-no-titlebars.lua"
+if ! run_lua '
+window("0x1", 1, { floating = true })
+require("default.hypr.workspace-layouts")
+local s = state()
+assert(s.plugin_loads == 1, "the titlebar plugin was not loaded with titlebars turned off")
+assert(s.titlebar_config == nil, "the titlebars were configured with titlebars turned off")
+assert(#s.buttons == 0, "titlebar buttons were added with titlebars turned off")
+for _, rule in ipairs(s.rules) do
+  assert(rule.tag ~= "+omarchy-titlebar", "a window was tagged for a titlebar with titlebars turned off")
+end
+' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1; then
+  fail "turning the titlebars off leaves every floating window bare"
+fi
+pass "turning the titlebars off leaves every floating window bare"
+rm -f "$state_home/omarchy/toggles/hypr/window-no-titlebars.lua"
+
 run_node_test <<'JS'
 const source = require('fs').readFileSync(path.join(root, 'shell/plugins/bar/widgets/Workspaces.qml'), 'utf8')
 

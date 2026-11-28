@@ -72,6 +72,7 @@ Common appearance changes have commands, which save the choice so `looknfeel.lua
 omarchy hyprland corners [theme|sharp|rounded]                 # Window corners
 omarchy hyprland window transparency [opaque|transparent|glassy]
 omarchy hyprland window gaps toggle                            # No gaps <-> default gaps
+omarchy hyprland window titlebars [on|off]                     # Titlebars on floating windows
 omarchy hyprland workspace layout default [dwindle|scrolling|floating]
 omarchy toggle fullscreen-desktop                              # Hide the bar and remove gaps together
 omarchy toggle animations                                      # Animations, blur and shadows off (slow GPUs)

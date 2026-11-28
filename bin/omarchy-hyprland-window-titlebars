@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set titlebars on floating windows: on or off
+# omarchy:args=[on|off|toggle]
+# omarchy:examples=omarchy hyprland window titlebars | omarchy hyprland window titlebars off
+
+set -euo pipefail
+
+FLAG=window-no-titlebars
+FLAG_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr/$FLAG.lua"
+FLAG_SOURCE="$OMARCHY_PATH/default/hypr/toggles/$FLAG.lua"
+
+# The flag is the negative, so a missing file means titlebars are on.
+if (( $# == 0 )); then
+  if [[ -f $FLAG_FILE ]]; then
+    echo "off"
+  else
+    echo "on"
+  fi
+  exit 0
+fi
+
+titlebars_on() {
+  rm -f "$FLAG_FILE"
+}
+
+titlebars_off() {
+  mkdir -p "$(dirname "$FLAG_FILE")" && cp "$FLAG_SOURCE" "$FLAG_FILE"
+}
+
+case $1 in
+  on) titlebars_on ;;
+  off) titlebars_off ;;
+  toggle)
+    if [[ -f $FLAG_FILE ]]; then
+      titlebars_on
+    else
+      titlebars_off
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy-hyprland-window-titlebars [on|off|toggle]" >&2
+    exit 1
+    ;;
+esac
+
+omarchy-restart-hyprctl
