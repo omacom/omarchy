@@ -8,9 +8,14 @@ MODELESS_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-modeless.lock"
 
 sync_clamshell() {
   (
-    flock -n 9 || exit 0
-    omarchy-hyprland-monitor-clamshell
-    omarchy-system-lid-inhibit
+    local status=0
+
+    # Another sync is running and may yet fail, so this one resolved nothing:
+    # report it unhandled rather than letting a caller record it as done.
+    flock -n 9 || exit 1
+    omarchy-hyprland-monitor-clamshell || status=1
+    omarchy-system-lid-inhibit || status=1
+    exit "$status"
   ) 9>"$LOCK"
 }
 
@@ -61,10 +66,38 @@ recover_modeless() {
   ) 9>"$MODELESS_LOCK" &
 }
 
+# The lid is the only clamshell input with no event on hardware whose switch
+# Hyprland cannot read, so it is what the poll compares; monitors arrive on the
+# socket. The ACPI button file costs a builtin read, and the helper is only for
+# a machine with no ACPI lid (Apple Silicon), where it reads the switch bitmap.
+poll_lid() {
+  local state word
+  local lid_path="${OMARCHY_ACPI_LID_PATH:-/proc/acpi/button/lid}"
+
+  LID=open
+  for state in "$lid_path"/*/state; do
+    [[ -r $state ]] || continue
+    read -r word LID <"$state"
+    return
+  done
+  omarchy-hw-laptop-closed && LID=closed
+}
+
 poll_clamshell_state() {
+  local last="" idle=0
+
   while true; do
     sleep 2
-    sync_clamshell
+    poll_lid
+    if [[ $LID == "$last" ]] && (( ++idle < 30 )); then
+      continue
+    fi
+    idle=0
+    # A sync that failed leaves the state unresolved, so keep asking for it
+    # rather than recording a lid that would never be retried.
+    if sync_clamshell; then
+      last=$LID
+    fi
   done
 }
 
@@ -73,7 +106,10 @@ poll_clamshell_state() {
 # to reconcile in that window. Run it while docked, stop it when undocked, and
 # never on a machine without a lid. Lid open/close itself is handled by the
 # Hyprland "switch:*:Lid Switch" binds; this poll is the recovery backstop for
-# drift those binds can miss (e.g. across suspend/resume).
+# drift those binds can miss (e.g. across suspend/resume), so it compares the lid
+# and runs a sync on a change, plus one a minute for the inputs no fingerprint
+# can see (the logind lid policy omarchy-system-lid-inhibit reads, and drift that
+# leaves both the lid and the monitor list untouched).
 poll_pid=""
 sync_poll_state() {
   if omarchy-hw-laptop && omarchy-hyprland-monitor-external-active; then
