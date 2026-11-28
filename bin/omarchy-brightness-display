@@ -110,7 +110,7 @@ fi
 # Drop overlapping brightness key events so concurrent invocations do not race.
 # Hardware key repeat present on some devices can otherwise glitch OSD rendering.
 exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
-flock -n "$lock_fd" || exit 0
+flock -n "$lock_fd" || exit 1
 
 if use_apple_display; then
   if (( no_osd )); then
@@ -154,7 +154,7 @@ else
 
   # Set brightness of the display device and parse the new percentage directly
   # from `-m` output rather than calling brightnessctl a second time.
-  set_out=$(brightnessctl -d "$device" -m set "$step" 2>/dev/null)
+  set_out=$(brightnessctl -d "$device" -m set "$step" 2>/dev/null) || exit 1
 
   # Show the new brightness in OSD
   if (( !no_osd )); then
