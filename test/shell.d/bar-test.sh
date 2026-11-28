@@ -1,4 +1,6 @@
 #!/bin/bash
+# omarchy:exclusive
+# The full shell below needs the compositor without competing scratch shells.
 
 set -euo pipefail
 
@@ -665,3 +667,104 @@ put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" \
   fail "put places a widget through a ready shell" "$put_output"
 [[ $put_output == "omarchy.keyboard-layout is on the bar" ]] || fail "put reports the placed widget" "$put_output"
 pass "put places a widget through a ready shell"
+
+# The scratch shell owns the exit trap from here.
+rm -rf "$put_tmp"
+trap - EXIT
+require_quickshell "bar fallback test"
+setup_scratch_shell
+
+fail_with_log() {
+  sed -n '1,240p' "$SCRATCH_LOG" >&2
+  fail "$1"
+}
+
+# A bar that fails to compile must give way to the built-in bar, every time.
+broken_bar_id="acme.broken-bar"
+broken_bar_dir="$SCRATCH_HOME/.config/omarchy/plugins/$broken_bar_id"
+mkdir -p "$broken_bar_dir"
+cat >"$broken_bar_dir/manifest.json" <<JSON
+{
+  "schemaVersion": 1,
+  "id": "$broken_bar_id",
+  "name": "Broken Bar",
+  "version": "1.0.0",
+  "kinds": ["bar"],
+  "entryPoints": {"bar": "Bar.qml"}
+}
+JSON
+cat >"$broken_bar_dir/Bar.qml" <<'QML'
+import QtQuick
+
+Item {
+  property int broken:
+}
+QML
+
+start_scratch_shell
+wait_scratch_shell
+
+broken_bar_failures() {
+  grep -cF "bar option $broken_bar_id failed to load, falling back to omarchy.bar" "$SCRATCH_LOG" || true
+}
+
+built_in_bar_registered() {
+  local geometry
+  for _ in {1..80}; do
+    geometry=$(scratch_ipc shell debugBarGeometry 2>/dev/null || true)
+    jq -e 'any(.[]; .id == "omarchy.clock")' <<<"$geometry" >/dev/null 2>&1 && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+plugins=""
+for _ in {1..80}; do
+  plugins=$(scratch_ipc shell listPlugins 2>/dev/null || true)
+  jq -e --arg id "$broken_bar_id" 'any(.[]; .id == $id)' <<<"$plugins" >/dev/null 2>&1 && break
+  sleep 0.1
+done
+jq -e --arg id "$broken_bar_id" 'any(.[]; .id == $id)' <<<"$plugins" >/dev/null 2>&1 ||
+  fail_with_log "the broken bar fixture is discovered before selection"
+
+[[ $(scratch_ipc shell enablePlugin "$broken_bar_id" '{}') == "ok" ]] ||
+  fail_with_log "broken bar plugin could not be selected"
+for _ in {1..80}; do
+  (( $(broken_bar_failures) > 0 )) && break
+  sleep 0.1
+done
+(( $(broken_bar_failures) > 0 )) || fail_with_log "a bar that fails to load is reported"
+built_in_bar_registered || fail_with_log "a bar that fails to load falls back to the built-in bar"
+
+# A config change retries the bar from its cached component, which fails
+# synchronously rather than on a later tick.
+bar_failures=$(broken_bar_failures)
+[[ $(scratch_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') == "ok" ]] ||
+  fail_with_log "host bar configuration could not be updated with a broken bar selected"
+for _ in {1..80}; do
+  (( $(broken_bar_failures) > bar_failures )) && break
+  sleep 0.1
+done
+(( $(broken_bar_failures) > bar_failures )) || fail_with_log "a config change retries the selected bar"
+built_in_bar_registered || fail_with_log "a bar that fails to load again falls back to the built-in bar"
+pass "a bar that fails to load falls back to the built-in bar"
+
+if grep -qE 'Binding loop detected.*activeBarId' "$SCRATCH_LOG"; then
+  fail_with_log "retrying a broken bar leaves no activeBarId binding loop"
+fi
+pass "retrying a broken bar leaves no activeBarId binding loop"
+
+# Restart with the failed bar already selected, as at the next login.
+stop_scratch_shell
+start_scratch_shell
+wait_scratch_shell
+for _ in {1..80}; do
+  (( $(broken_bar_failures) > 0 )) && break
+  sleep 0.1
+done
+(( $(broken_bar_failures) > 0 )) || fail_with_log "the selected broken bar fails to load at startup"
+built_in_bar_registered || fail_with_log "a bar selected at startup falls back to the built-in bar"
+if grep -qE 'Binding loop detected.*activeBarId' "$SCRATCH_LOG"; then
+  fail_with_log "a broken bar selected at startup leaves no activeBarId binding loop"
+fi
+pass "a bar selected at startup falls back to a registered built-in bar without a binding loop"
