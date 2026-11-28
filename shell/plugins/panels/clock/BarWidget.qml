@@ -33,7 +33,47 @@ BarWidget {
   // repaint a second is a price only the formats that print seconds pay.
   readonly property bool showsSeconds: Model.clockNeedsSeconds(activeFormat)
   readonly property string displayText: formatted(displayDate)
-  readonly property var verticalLines: displayText.split("\n")
+
+  // A running countdown from the calendar panel rides along beside the time,
+  // so it can be watched without opening the popup.
+  // The panel this bar built, for the other monitors' clocks to share timers
+  // through (see timerOwner in Panel.qml).
+  readonly property var timerPanel: panelLoader.item
+  readonly property string timerText: panelLoader.item && panelLoader.item.barTimerText ? panelLoader.item.barTimerText : ""
+  readonly property string timerGlyph: panelLoader.item && panelLoader.item.barTimerKind === "stopwatch" ? "󰔛" : "󰔟"
+  readonly property string timerSegment: timerText !== "" ? timerGlyph + " " + timerText : ""
+  readonly property bool showsTimer: !vertical && timerSegment !== ""
+  readonly property var verticalLines: timerText !== ""
+    ? displayText.split("\n").concat([timerGlyph], Model.verticalTimerLines(panelLoader.item.barTimerTime))
+    : displayText.split("\n")
+
+  // ---- Scrolling over the label steps through the timers. The segment
+  //      slides like a list: scrolling down brings the next one up from
+  //      below, scrolling up brings the previous one down from above.
+  //      Touchpads report many small deltas, so they are summed to a full
+  //      wheel notch before a step, and one step plays out before the next.
+  property int timerSlideDirection: 1
+  property string outgoingTimerSegment: ""
+  property int wheelAccumulator: 0
+
+  function stepTimer(step) {
+    if (!panelLoader.item || typeof panelLoader.item.cycleBarTimer !== "function") return
+    var before = root.timerSegment
+    if (!panelLoader.item.cycleBarTimer(step)) return
+    root.outgoingTimerSegment = before
+    root.timerSlideDirection = step
+    timerSlide.restart()
+  }
+
+  function handleWheel(delta) {
+    if (delta === 0 || timerSlide.running) return
+    if ((delta > 0) !== (root.wheelAccumulator > 0)) root.wheelAccumulator = 0
+    root.wheelAccumulator += delta
+    if (Math.abs(root.wheelAccumulator) < 120) return
+    var step = root.wheelAccumulator < 0 ? 1 : -1
+    root.wheelAccumulator = 0
+    root.stepTimer(step)
+  }
 
   function refresh() {
     displayDate = new Date()
@@ -104,7 +144,7 @@ BarWidget {
   // dot takes the label width; vertically it is a stack of icon-sized lines,
   // so the dot takes one line — the same mark every icon widget gets, rather
   // than a rule running the height of the whole stack.
-  readonly property real openPanelIndicatorWidth: button.labelWidth
+  readonly property real openPanelIndicatorWidth: showsTimer ? labelRow.implicitWidth : button.labelWidth
   readonly property real openPanelIndicatorHeight: Math.max(Style.space(10), Math.round(Style.bar.iconSlot * 0.55))
 
   // Forwarded so this widget can stand in for the panel as the bar's popout
@@ -166,9 +206,10 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.vertical ? "" : root.displayText
-    labelVisible: !root.vertical
-    hasVisualContent: root.vertical ? root.verticalLines.length > 0 : text !== ""
+    text: root.vertical || root.showsTimer ? "" : root.displayText
+    labelVisible: !root.vertical && !root.showsTimer
+    fixedWidth: root.showsTimer ? Math.max(12, labelRow.implicitWidth + button.scaledHorizontalMargin * 2) : -1
+    hasVisualContent: root.vertical ? root.verticalLines.length > 0 : (root.showsTimer || text !== "")
     fixedHeight: root.vertical ? root.verticalLines.length * Style.bar.iconSlot : -1
     horizontalMargin: 8.75
     verticalPadding: 8.75
@@ -177,10 +218,83 @@ BarWidget {
     // shrinks it; the format it cycles to, or the panel it opens, is feedback.
     pressFeedbackButtons: Qt.NoButton
 
+    onWheelMoved: function(delta) { root.handleWheel(delta) }
+
     onPressed: function(b) {
       if (b === Qt.RightButton) root.cycleFormat()
       else if (b === Qt.MiddleButton) { if (root.bar) root.bar.run("omarchy-menu-timezone") }
       else root.togglePanel()
+    }
+
+    // The time and the timer segment drawn apart, so only the segment moves
+    // when the wheel steps it.
+    Row {
+      id: labelRow
+      visible: root.showsTimer
+      anchors.centerIn: parent
+      height: parent.height
+      spacing: Style.spaceReal(10)
+
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: root.displayText
+        color: button.foreground
+        font.family: button.fontFamily
+        font.pixelSize: button.fontSize
+        renderType: Text.NativeRendering
+      }
+
+      Item {
+        id: timerWindow
+        height: parent.height
+        width: incomingTimer.implicitWidth
+        clip: true
+
+        Behavior on width {
+          NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+        }
+
+        property real progress: 1
+
+        Text {
+          id: outgoingTimer
+          visible: timerSlide.running
+          anchors.verticalCenter: parent.verticalCenter
+          anchors.verticalCenterOffset: -root.timerSlideDirection * timerWindow.height * timerWindow.progress
+          textFormat: Text.PlainText
+          text: root.outgoingTimerSegment
+          color: button.foreground
+          opacity: 1 - timerWindow.progress
+          font.family: button.fontFamily
+          font.pixelSize: button.fontSize
+          renderType: Text.NativeRendering
+        }
+
+        Text {
+          id: incomingTimer
+          anchors.verticalCenter: parent.verticalCenter
+          anchors.verticalCenterOffset: root.timerSlideDirection * timerWindow.height * (1 - timerWindow.progress)
+          textFormat: Text.PlainText
+          text: root.timerSegment
+          color: button.foreground
+          opacity: timerWindow.progress
+          font.family: button.fontFamily
+          font.pixelSize: button.fontSize
+          renderType: Text.NativeRendering
+        }
+
+        NumberAnimation {
+          id: timerSlide
+          target: timerWindow
+          property: "progress"
+          from: 0
+          to: 1
+          duration: Style.duration(220)
+          easing.type: Easing.Bezier
+          easing.bezierCurve: Style.easeOut
+        }
+      }
     }
 
     Column {

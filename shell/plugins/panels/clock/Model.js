@@ -294,6 +294,187 @@ function stepMonth(year, month, delta) {
   return { year: target.getUTCFullYear(), month: target.getUTCMonth() }
 }
 
+// ---- countdown timer
+// Longest countdown the panel accepts: a day. Anything past that is a
+// reminder or a calendar entry, not a kitchen timer.
+var TIMER_MAX_SECONDS = 86400
+
+// Reads a timer duration typed into the panel and returns whole seconds, or 0
+// when it does not parse. A bare number is minutes ("5"), colon forms read
+// right to left as seconds, minutes, hours ("1:30", "1:00:00"), and unit forms
+// take h/m/s in any combination ("90s", "25m", "1h30m", "1h 5m 10s").
+function parseTimerDuration(value) {
+  var text = String(value === undefined || value === null ? "" : value).trim().toLowerCase()
+  if (text === "") return 0
+  var seconds = 0
+
+  if (/^\d+$/.test(text)) {
+    seconds = Number(text) * 60
+  } else if (/^\d+(:\d{1,2}){1,2}$/.test(text)) {
+    var parts = text.split(":").map(Number)
+    for (var i = 1; i < parts.length; i++) if (parts[i] >= 60) return 0
+    seconds = parts.length === 2
+      ? parts[0] * 60 + parts[1]
+      : parts[0] * 3600 + parts[1] * 60 + parts[2]
+  } else {
+    var match = /^(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?\s*(?:(\d+)\s*s)?$/.exec(text)
+    if (!match || (!match[1] && !match[2] && !match[3])) return 0
+    seconds = Number(match[1] || 0) * 3600 + Number(match[2] || 0) * 60 + Number(match[3] || 0)
+  }
+
+  if (!(seconds > 0) || seconds > TIMER_MAX_SECONDS) return 0
+  return seconds
+}
+
+// "4:05" under an hour, "1:02:03" past it; never negative.
+function formatTimer(seconds) {
+  var total = Math.max(0, Math.ceil(Number(seconds) || 0))
+  var h = Math.floor(total / 3600)
+  var m = Math.floor((total % 3600) / 60)
+  var s = total % 60
+  return h > 0 ? h + ":" + pad2(m) + ":" + pad2(s) : m + ":" + pad2(s)
+}
+
+// Human label for the finished notification: "5 minutes", "1 hour 30 minutes".
+// tn(key, count, english) translates one unit, number included; without it
+// the English is used.
+function describeTimer(seconds, tn) {
+  if (!tn) tn = function(key, count, english) { return english.replace("%1", count) }
+  var total = Math.max(0, Math.round(Number(seconds) || 0))
+  var h = Math.floor(total / 3600)
+  var m = Math.floor((total % 3600) / 60)
+  var s = total % 60
+  var parts = []
+  if (h > 0) parts.push(tn("clock.hours", h, h === 1 ? "%1 hour" : "%1 hours"))
+  if (m > 0) parts.push(tn("clock.minutes", m, m === 1 ? "%1 minute" : "%1 minutes"))
+  if (s > 0 || parts.length === 0) parts.push(tn("clock.seconds", s, s === 1 ? "%1 second" : "%1 seconds"))
+  return parts.join(" ")
+}
+
+// Compact label for a timer with no name of its own: "5m", "1m30s", "1h5m".
+// t(key, english) translates one unit's "%1h"-style template; without it the
+// English is used.
+function shortTimerLabel(seconds, t) {
+  if (!t) t = function(key, english) { return english }
+  var total = Math.max(0, Math.round(Number(seconds) || 0))
+  var h = Math.floor(total / 3600)
+  var m = Math.floor((total % 3600) / 60)
+  var s = total % 60
+  var label = (h ? t("clock.shortHours", "%1h").replace("%1", h) : "")
+    + (m ? t("clock.shortMinutes", "%1m").replace("%1", m) : "")
+    + (s || !(h || m) ? t("clock.shortSeconds", "%1s").replace("%1", s) : "")
+  return label
+}
+
+// Seconds left on a timer record ({ total, endsAt, pausedRemaining, running })
+// at `now` (ms since the epoch).
+function timerRemaining(timer, now) {
+  if (!timer) return 0
+  return timer.running
+    ? Math.max(0, (Number(timer.endsAt) - Number(now)) / 1000)
+    : Math.max(0, Number(timer.pausedRemaining) || 0)
+}
+
+// The countdown the bar should show: the running one closest to done, else
+// the paused one closest to done. Stopwatches are skipped. Null when there
+// are none.
+function soonestTimer(timers, now) {
+  var best = null
+  var bestRemaining = 0
+  for (var i = 0; i < (timers || []).length; i++) {
+    var timer = timers[i]
+    if (timer.kind === "stopwatch") continue
+    var remaining = timerRemaining(timer, now)
+    var better = !best
+      || (timer.running && !best.running)
+      || (timer.running === best.running && remaining < bestRemaining)
+    if (better) {
+      best = timer
+      bestRemaining = remaining
+    }
+  }
+  return best ? { timer: best, remaining: bestRemaining } : null
+}
+
+// Settings arrive from JSON as booleans, but a hand-edited shell.json may
+// carry "true"/"false" strings; anything else is off.
+function parseBool(value) {
+  return value === true || String(value).toLowerCase() === "true"
+}
+
+// Seconds a stopwatch record ({ elapsedBefore, startedAt, running }) has
+// counted at `now` (ms since the epoch).
+function stopwatchElapsed(watch, now) {
+  if (!watch) return 0
+  var before = Math.max(0, Number(watch.elapsedBefore) || 0)
+  return watch.running ? before + Math.max(0, (Number(now) - Number(watch.startedAt)) / 1000) : before
+}
+
+// A vertical bar is one icon slot wide, so a reading stacks one unit per
+// line ("1:00:00" becomes "1", "00", "00"), the way the clock stacks HH over mm.
+function verticalTimerLines(reading) {
+  var text = String(reading || "")
+  return text === "" ? [] : text.split(":")
+}
+
+// Like formatTimer, but rounding down: a stopwatch reads "0:00" for its first
+// second, where a countdown reads "0:01" until it is actually done.
+function formatElapsed(seconds) {
+  return formatTimer(Math.floor(Math.max(0, Number(seconds) || 0)))
+}
+
+// Rebuilds the timer list from the state file. Anything malformed is dropped
+// rather than trusted: the file outlives the shell, and a hand edit or a
+// half-written save must not take the panel down with it.
+function restoreTimers(value) {
+  var list = Array.isArray(value) ? value : []
+  var restored = []
+  var seen = {}
+  for (var i = 0; i < list.length && restored.length < 5; i++) {
+    var t = list[i]
+    if (!t || typeof t !== "object") continue
+    var id = Math.floor(Number(t.id))
+    if (!(id > 0) || seen[id]) continue
+    var name = String(t.name === undefined || t.name === null ? "" : t.name).trim().slice(0, 40)
+    var running = t.running === true
+
+    if (t.kind === "stopwatch") {
+      var startedAt = Number(t.startedAt)
+      var elapsedBefore = Number(t.elapsedBefore)
+      if (!isFinite(startedAt) || !isFinite(elapsedBefore) || elapsedBefore < 0) continue
+      restored.push({ kind: "stopwatch", id: id, name: name, startedAt: startedAt, elapsedBefore: elapsedBefore, running: running })
+    } else {
+      var total = Number(t.total)
+      var endsAt = Number(t.endsAt)
+      var pausedRemaining = Number(t.pausedRemaining)
+      if (!(total > 0) || total > TIMER_MAX_SECONDS) continue
+      if (running ? !isFinite(endsAt) : !(pausedRemaining >= 0 && pausedRemaining <= total)) continue
+      restored.push({
+        kind: "timer", id: id, name: name, total: total,
+        endsAt: running ? endsAt : 0,
+        pausedRemaining: running ? 0 : pausedRemaining,
+        running: running
+      })
+    }
+    seen[id] = true
+  }
+  return restored
+}
+
+// The bar's read-out for one timer or stopwatch: its name, cut short so the
+// bar does not grow without bound, then the time on it.
+var BAR_NAME_MAX = 12
+
+function barTimerLabel(timer, now) {
+  if (!timer) return ""
+  var time = timer.kind === "stopwatch"
+    ? formatElapsed(stopwatchElapsed(timer, now))
+    : formatTimer(timerRemaining(timer, now))
+  var name = String(timer.name || "").trim()
+  if (name.length > BAR_NAME_MAX) name = name.slice(0, BAR_NAME_MAX - 1) + "\u2026"
+  return name !== "" ? name + " " + time : time
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     msUntilNextTick: msUntilNextTick,
@@ -320,6 +501,18 @@ if (typeof module !== "undefined") {
     clockNeedsSeconds: clockNeedsSeconds,
     clockFormatRing: clockFormatRing,
     nextClockFormat: nextClockFormat,
-    isoWeekLiteral: isoWeekLiteral
+    isoWeekLiteral: isoWeekLiteral,
+    parseTimerDuration: parseTimerDuration,
+    formatTimer: formatTimer,
+    describeTimer: describeTimer,
+    shortTimerLabel: shortTimerLabel,
+    timerRemaining: timerRemaining,
+    soonestTimer: soonestTimer,
+    parseBool: parseBool,
+    stopwatchElapsed: stopwatchElapsed,
+    formatElapsed: formatElapsed,
+    verticalTimerLines: verticalTimerLines,
+    restoreTimers: restoreTimers,
+    barTimerLabel: barTimerLabel
   }
 }

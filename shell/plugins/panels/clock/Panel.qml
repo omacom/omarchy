@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -80,6 +81,115 @@ Panel {
   readonly property var weekdays: Model.weekdayOrder(weekStart)
   readonly property var weeks: Model.monthGrid(viewYear, viewMonth, weekStart, todayKey)
 
+
+  // ---- Countdown timers and stopwatches under the calendar. Each is kept
+  //      as timestamps rather than a counter, so it stays exact while the
+  //      popup is closed and one shared ticker is all that runs. They live
+  //      on the panel, not the popup, so closing the calendar does not stop
+  //      them, and the bar label reads the most pressing one back.
+  readonly property var timerPresets: [60, 300, 600, 1500]
+  readonly property int maxTimers: 5
+  // Countdowns are { kind: "timer", id, name, total, endsAt, pausedRemaining,
+  // running }; stopwatches are { kind: "stopwatch", id, name, startedAt,
+  // elapsedBefore, running }. Always replaced, never mutated in place, so
+  // bindings see every change.
+  //
+  // The bar builds this panel once per monitor, but the timers are one list.
+  // The first instance owns it: it holds the records, ticks, saves the state
+  // file and notifies. Every other instance reads the owner's list and sends
+  // its changes there, so no two copies can drift or overwrite each other.
+  readonly property var timerOwner: {
+    if (!root.bar || typeof root.bar.moduleWidgets !== "function") return root
+    var instances = root.bar.moduleWidgets(root.moduleName)
+    var first = instances.length > 0 ? instances[0] : null
+    return first && first.timerPanel ? first.timerPanel : root
+  }
+  readonly property bool ownsTimers: timerOwner === root
+  // This instance's own copy, used while it is the owner (and, at startup,
+  // before the bar has said who is).
+  property var ownTimers: []
+  property real ownTimerNow: Date.now()
+  property int ownBarTimerId: 0
+  readonly property var timers: ownsTimers ? ownTimers : timerOwner.timers
+  property int timerSerial: 0
+  // The list is mirrored to a state file so a shell restart (or a reboot)
+  // picks every timer back up where it was: the records are timestamps, so
+  // nothing drifts while the shell is down. Nothing is written until the
+  // file has been read, or an early save would wipe what it held.
+  readonly property string timersStateDir: Quickshell.env("HOME") + "/.local/state/omarchy"
+  readonly property string timersStatePath: timersStateDir + "/clock-timers.json"
+  property bool timersRestored: false
+  // What the file last held, so a save that changes nothing is skipped.
+  property string timersStateText: ""
+  readonly property real timerNow: ownsTimers ? ownTimerNow : timerOwner.timerNow
+  readonly property bool anyTimerRunning: timers.some(function(t) { return t.running })
+  readonly property var soonestTimer: Model.soonestTimer(timers, timerNow)
+  // With no countdown to show, the bar falls back to a stopwatch, running
+  // ones first.
+  readonly property var barStopwatch: {
+    var first = null
+    for (var i = 0; i < timers.length; i++) {
+      var t = timers[i]
+      if (t.kind !== "stopwatch") continue
+      if (!first || (t.running && !first.running)) first = t
+    }
+    return first
+  }
+  // Scrolling over the bar label picks which one it shows; 0 means "the
+  // most pressing", and a pick that has since finished falls back to it.
+  readonly property int barTimerId: ownsTimers ? ownBarTimerId : timerOwner.barTimerId
+  readonly property var barEntry: {
+    for (var i = 0; i < timers.length; i++) if (timers[i].id === barTimerId) return timers[i]
+    return soonestTimer ? soonestTimer.timer : barStopwatch
+  }
+  // What the bar shows beside the clock: the picked timer (by default the
+  // soonest countdown, or else a stopwatch), its name, and how many others
+  // are waiting behind it.
+  readonly property string barTimerKind: barEntry ? (barEntry.kind === "stopwatch" ? "stopwatch" : "timer") : ""
+  // The time alone, for the vertical bar's narrow stack.
+  readonly property string barTimerTime: barEntry
+    ? localDigits(barEntry.kind === "stopwatch" ? Model.formatElapsed(Model.stopwatchElapsed(barEntry, timerNow)) : Model.formatTimer(Model.timerRemaining(barEntry, timerNow)))
+    : ""
+  readonly property string barTimerText: barEntry
+    ? localDigits(Model.barTimerLabel(barEntry, timerNow) + (timers.length > 1 ? " +" + (timers.length - 1) : ""))
+    : ""
+
+  // Timer read-outs are built from ASCII digits; this shows them in the
+  // interface language's own.
+  function localDigits(text) {
+    return String(text).replace(/[0-9]/g, function(d) { return Commons.I18n.formatNumber(Number(d)) })
+  }
+
+  // "5m", "1h30m" in the interface language, for unnamed timers and presets.
+  function shortTimerLabel(seconds) {
+    return root.localDigits(Model.shortTimerLabel(seconds, function(key, english) {
+      return Commons.I18n.t(key, english)
+    }))
+  }
+
+  // Steps the bar label through the timers in panel order, wrapping.
+  function cycleBarTimer(step) {
+    if (!root.ownsTimers) return root.timerOwner.cycleBarTimer(step)
+    if (timers.length < 2 || !barEntry) return false
+    var index = 0
+    for (var i = 0; i < timers.length; i++) if (timers[i].id === barEntry.id) index = i
+    var next = (index + step + timers.length) % timers.length
+    root.ownBarTimerId = timers[next].id
+    return true
+  }
+  // Off unless asked for: a finished timer always notifies, and the sound is
+  // an extra a desk shared with other people may not want.
+  readonly property bool timerSound: Model.parseBool(setting("timerSound", false))
+  readonly property string timerSoundFile: "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga"
+  // The fields' text, held here so the controls can read it without reaching
+  // into the popup's content.
+  property string timerInput: "5:00"
+  property string timerNameInput: ""
+  readonly property bool timerInputValid: Model.parseTimerDuration(timerInput) > 0
+  readonly property bool canAddTimer: timers.length < maxTimers
+  // Holds the add row open for the frame it takes to become focusable when
+  // the keyboard asks for it; hovering or a focused field keeps it open after.
+  property bool timerAddPinned: false
 
   // Guarded so the widget renders before the bar is injected (the bar-widget
   // contract instantiates it bare).
@@ -224,6 +334,233 @@ Panel {
     setWeekStart(Model.toggledWeekStart(root.weekStart))
   }
 
+  // The add functions report whether anything started, so only the panel the
+  // name was typed in clears it, and only once it was used.
+  function addTimer(seconds, name) {
+    if (!root.startTimer(seconds, name)) return false
+    root.timerNameInput = ""
+    return true
+  }
+
+  function addStopwatch(name) {
+    if (!root.startStopwatch(name)) return false
+    root.timerNameInput = ""
+    return true
+  }
+
+  function startTimer(seconds, name) {
+    if (!root.ownsTimers) return root.timerOwner.startTimer(seconds, name)
+    if (!(seconds > 0) || !root.canAddTimer || !root.timersRestored) return false
+    var now = Date.now()
+    root.timerSerial += 1
+    root.ownTimerNow = now
+    root.ownTimers = root.ownTimers.concat([{
+      kind: "timer",
+      id: root.timerSerial,
+      name: String(name || "").trim(),
+      total: seconds,
+      endsAt: now + seconds * 1000,
+      pausedRemaining: 0,
+      running: true
+    }])
+    // What was just started is what the next key should act on.
+    root.ownBarTimerId = root.timerSerial
+    return true
+  }
+
+  function startStopwatch(name) {
+    if (!root.ownsTimers) return root.timerOwner.startStopwatch(name)
+    if (!root.canAddTimer || !root.timersRestored) return false
+    var now = Date.now()
+    root.timerSerial += 1
+    root.ownTimerNow = now
+    root.ownTimers = root.ownTimers.concat([{
+      kind: "stopwatch",
+      id: root.timerSerial,
+      name: String(name || "").trim(),
+      startedAt: now,
+      elapsedBefore: 0,
+      running: true
+    }])
+    // What was just started is what the next key should act on.
+    root.ownBarTimerId = root.timerSerial
+    return true
+  }
+
+  function addTimerFromFields() {
+    root.addTimer(Model.parseTimerDuration(root.timerInput), root.timerNameInput)
+  }
+
+  function updateTimer(id, change) {
+    if (!root.ownsTimers) return root.timerOwner.updateTimer(id, change)
+    var now = Date.now()
+    root.ownTimerNow = now
+    root.ownTimers = root.ownTimers.map(function(t) {
+      if (t.id !== id) return t
+      var next = {}
+      for (var key in t) next[key] = t[key]
+      change(next, now)
+      return next
+    })
+  }
+
+  function toggleTimerPause(id) {
+    root.updateTimer(id, function(t, now) {
+      if (t.kind === "stopwatch") {
+        if (t.running) t.elapsedBefore = Model.stopwatchElapsed(t, now)
+        else t.startedAt = now
+        t.running = !t.running
+      } else if (t.running) {
+        t.pausedRemaining = Model.timerRemaining(t, now)
+        t.running = false
+      } else {
+        t.endsAt = now + t.pausedRemaining * 1000
+        t.running = true
+      }
+    })
+  }
+
+  // ---- Keyboard actions on the timer the bar is showing, so the panel and
+  //      the bar always agree on which one a key will touch.
+  function toggleTargetPause() {
+    if (!root.barEntry) return false
+    root.toggleTimerPause(root.barEntry.id)
+    return true
+  }
+
+  function cancelTarget() {
+    if (root.barEntry) root.cancelTimer(root.barEntry.id)
+  }
+
+  function resetTarget() {
+    if (root.barEntry && root.barEntry.kind === "stopwatch") root.resetStopwatch(root.barEntry.id)
+  }
+
+  function startPreset(index) {
+    if (index >= 0 && index < root.timerPresets.length) root.addTimer(root.timerPresets[index], "")
+  }
+
+  // Back to zero, staying paused or running as it was.
+  function resetStopwatch(id) {
+    root.updateTimer(id, function(t, now) {
+      t.elapsedBefore = 0
+      t.startedAt = now
+    })
+  }
+
+  function cancelTimer(id) {
+    if (!root.ownsTimers) return root.timerOwner.cancelTimer(id)
+    root.ownTimers = root.ownTimers.filter(function(t) { return t.id !== id })
+  }
+
+  function setTimerSound(enabled) {
+    persistSettings({ timerSound: enabled === true })
+  }
+
+  // One notification per timer, but a single chime for timers that land on
+  // the same tick. A timer that ran out while the shell was down says when.
+  function finishTimers(finished, now) {
+    for (var i = 0; i < finished.length; i++) {
+      var t = finished[i]
+      var duration = Model.describeTimer(t.total, function(key, count, english) {
+        return Commons.I18n.tn(key, count, english).arg(Commons.I18n.formatNumber(count))
+      })
+      if (now - t.endsAt > 5000)
+        duration = Commons.I18n.t("clock.timerEndedAt").arg(duration)
+          .arg(new Date(t.endsAt).toLocaleTimeString(root.labelLocale, Locale.ShortFormat))
+      // The name rides in the body, after the duration, never where the
+      // helper still reads options: a timer named "--help" is just text.
+      var body = t.name !== ""
+        ? Commons.I18n.t("clock.namedTimerUp").arg(duration).arg(t.name)
+        : Commons.I18n.t("clock.timerUp").arg(duration)
+      Util.execArgv(["omarchy-notification-send", "-g", "󰔟", "-u", "critical",
+        Commons.I18n.t("clock.timerDone"), body])
+    }
+    if (finished.length > 0 && root.timerSound)
+      Util.execArgv(["bash", "-c", '[[ -f $1 ]] && exec pw-play "$1"', "bash", root.timerSoundFile])
+  }
+
+  function restoreTimers(content) {
+    var parsed = []
+    try {
+      parsed = JSON.parse(String(content || "[]"))
+    } catch (e) {
+      console.warn("clock", "Ignoring unreadable timer state", root.timersStatePath, e)
+    }
+    var restored = Model.restoreTimers(parsed)
+    var serial = 0
+    for (var i = 0; i < restored.length; i++) serial = Math.max(serial, restored[i].id)
+    root.timerSerial = serial
+    root.timersStateText = JSON.stringify(restored) + "\n"
+    root.ownTimers = restored
+    root.timersRestored = true
+    // Settles anything that ran out while the shell was down.
+    root.tickTimers()
+  }
+
+  function saveTimers() {
+    if (!root.timersRestored || !root.ownsTimers) return
+    var text = JSON.stringify(root.ownTimers) + "\n"
+    if (text === root.timersStateText) return
+    root.timersStateText = text
+    timersStateFile.setText(text)
+  }
+
+  // Only the owner settles finished timers, so each notifies once. Until the
+  // bar has registered its widgets nobody does: at startup every instance
+  // reads the file and counts as its own owner, and each would otherwise
+  // settle the same expired timers. The ticker keeps asking, so the owner
+  // catches up once the bar says who it is.
+  function isTimerLeader() {
+    if (!root.bar || typeof root.bar.moduleWidgets !== "function") return true
+    var instances = root.bar.moduleWidgets(root.moduleName)
+    return instances.length > 0 && instances[0] === root.barIdentity
+  }
+
+  // Owner-side code reads ownTimers, never the timers binding: inside this
+  // handler that binding may not have caught up with the change yet.
+  onOwnTimersChanged: saveTimers()
+  // Taking over (the owning monitor went away): pick up what it last saved.
+  // The list held here is the one read at startup, so ticking, saving and
+  // adding stay off until the reload has restored the current one.
+  onOwnsTimersChanged: {
+    if (!ownsTimers || !timersRestored) return
+    timersRestored = false
+    timersStateFile.reload()
+  }
+
+  function tickTimers() {
+    if (!root.ownsTimers || !root.timersRestored) return
+    var now = Date.now()
+    root.ownTimerNow = now
+    if (!root.isTimerLeader()) return
+    var done = function(t) { return t.kind !== "stopwatch" && t.running && now >= t.endsAt }
+    var finished = root.ownTimers.filter(done)
+    if (finished.length === 0) return
+    root.ownTimers = root.ownTimers.filter(function(t) { return !done(t) })
+    root.finishTimers(finished, now)
+  }
+
+  // Shared by the two timer fields: Enter starts a timer, Tab hops to the
+  // other field, and Enter or Escape hands the keys back to the calendar.
+  function handleTimerKey(event, other, catcher) {
+    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+      root.addTimerFromFields()
+      // Back to the calendar's keys, letting the row fold away again.
+      catcher.forceActiveFocus()
+      event.accepted = true
+    } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+      other.selectAll()
+      other.forceActiveFocus()
+      event.accepted = true
+    } else if (event.key === Qt.Key_Escape) {
+      catcher.forceActiveFocus()
+      event.accepted = true
+    }
+  }
+
+
+
   // English short day names, matching the rest of the interface.
   function weekdayLabel(weekday) {
     return String(labelLocale.dayName(weekday, Locale.ShortFormat)).toUpperCase()
@@ -237,6 +574,27 @@ Panel {
       root.today = clock.date
       if (followToday) root.goToToday()
     }
+  }
+
+  FileView {
+    id: timersStateFile
+    path: root.timersStatePath
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.restoreTimers(text())
+    // No file yet is the normal first run: start empty and save from here on.
+    onLoadFailed: root.restoreTimers("[]")
+  }
+
+  Component.onCompleted: Util.execArgv(["mkdir", "-p", root.timersStateDir])
+
+  Timer {
+    id: timerTicker
+    interval: 250
+    repeat: true
+    running: root.ownsTimers && root.timersRestored && root.anyTimerRunning
+    triggeredOnStart: true
+    onTriggered: root.tickTimers()
   }
 
   KeyboardPanel {
@@ -258,12 +616,13 @@ Panel {
       property alias expectancyField: expectancyField
       implicitHeight: calendarColumn.implicitHeight
       anchors.fill: parent
-      blocked: root.editingLife
+      blocked: root.editingLife || timerField.activeFocus || timerNameField.activeFocus
       onMoveRequested: function(dx, dy) {
         if (dx !== 0) root.moveMonth(dx)
         if (dy !== 0) root.moveYear(dy)
       }
       onActivateRequested: root.goToToday()
+      onDeleteRequested: root.cancelTarget()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
@@ -273,6 +632,24 @@ Panel {
         else if (t === "}") root.moveYear(1)
         else if (t === "t" || t === "T") root.goToToday()
         else if (t === "w" || t === "W") root.toggleWeekStart()
+        // Timers only take keys the calendar leaves free: a adds a named
+        // one, s starts a stopwatch, 1–4 the presets; the rest act on the
+        // one the bar shows.
+        else if (t === "a" || t === "A") {
+          root.timerAddPinned = true
+          Qt.callLater(function() {
+            timerNameField.selectAll()
+            timerNameField.forceActiveFocus()
+            root.timerAddPinned = false
+          })
+        }
+        else if (t === "s" || t === "S") root.addStopwatch("")
+        else if (t >= "1" && t <= "4") root.startPreset(Number(t) - 1)
+        else if (t === "p" || t === "P") root.toggleTargetPause()
+        else if (t === "r" || t === "R") root.resetTarget()
+        else if (t === "n") root.cycleBarTimer(1)
+        else if (t === "N") root.cycleBarTimer(-1)
+        else if (t === "m" || t === "M") root.setTimerSound(!root.timerSound)
       }
 
       Flickable {
@@ -770,6 +1147,351 @@ Panel {
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
                 onClicked: root.moveMonth(1)
+              }
+            }
+          }
+
+          // ---- Countdown timers, set off from the calendar by a hairline.
+          //      Each running timer is the same rail as the year above,
+          //      filling as its time runs out; below them a row names and
+          //      starts the next one, from a preset or a typed duration.
+          Item {
+            width: parent.width
+            height: Style.space(14)
+
+            PanelSeparator {
+              anchors.horizontalCenter: parent.horizontalCenter
+              anchors.verticalCenter: parent.verticalCenter
+              width: gridColumn.width
+              foreground: root.contentForeground
+            }
+          }
+
+          // The whole timer section is one hover zone: reaching for it is
+          // what unfolds the add row, and it folds back a beat after the
+          // pointer leaves, unless a field still has the keyboard.
+          Item {
+            id: timerSection
+            width: parent.width
+            height: timerSectionColumn.implicitHeight
+
+            readonly property bool addRowOpen: root.canAddTimer
+              && (timerSectionHover.hovered || timerFoldDelay.running || root.timerAddPinned
+                || timerNameField.activeFocus || timerField.activeFocus)
+
+            HoverHandler {
+              id: timerSectionHover
+              onHoveredChanged: if (!hovered) timerFoldDelay.restart()
+            }
+
+            Timer {
+              id: timerFoldDelay
+              interval: 450
+            }
+
+            Column {
+              id: timerSectionColumn
+              width: parent.width
+
+              Item {
+                width: parent.width
+                height: timerHeader.height
+
+                Item {
+                  id: timerHeader
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  width: gridColumn.width
+                  height: Style.space(22)
+
+                  HoverHandler { id: timerHeaderHover }
+
+                  PanelToolTip {
+                    visible: timerHeaderHover.hovered
+                    text: Commons.I18n.t("clock.timerKeys")
+                    fontFamily: root.contentFontFamily
+                  }
+
+                  Text {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    textFormat: Text.PlainText
+                    text: Commons.I18n.t("clock.timers")
+                    color: Qt.darker(root.contentForeground, 1.5)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    font.letterSpacing: 1
+                  }
+
+                  PanelActionButton {
+                    anchors.right: parent.right
+                    anchors.rightMargin: -Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconText: root.timerSound ? "󰂚" : "󰂛"
+                    tooltipText: root.timerSound ? Commons.I18n.t("clock.timerSoundOn") : Commons.I18n.t("clock.timerSoundOff")
+                    foreground: root.timerSound ? root.contentForeground : Qt.darker(root.contentForeground, 1.6)
+                    fontFamily: root.contentFontFamily
+                    onClicked: root.setTimerSound(!root.timerSound)
+                  }
+                }
+              }
+
+              Repeater {
+                model: root.timers
+
+                Item {
+                  id: timerRow
+                  required property var modelData
+                  readonly property bool stopwatch: modelData.kind === "stopwatch"
+                  readonly property real remaining: stopwatch ? 0 : Model.timerRemaining(modelData, root.timerNow)
+                  readonly property real elapsed: stopwatch ? Model.stopwatchElapsed(modelData, root.timerNow) : 0
+                  width: calendarColumn.width
+                  height: Style.space(26)
+
+                  Item {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: gridColumn.width
+                    height: parent.height
+
+                    Text {
+                      id: timerName
+                      textFormat: Text.PlainText
+                      anchors.left: parent.left
+                      anchors.verticalCenter: parent.verticalCenter
+                      width: Style.space(96)
+                      elide: Text.ElideRight
+                      text: timerRow.modelData.name !== ""
+                        ? timerRow.modelData.name
+                        : (timerRow.stopwatch ? Commons.I18n.t("clock.stopwatch") : root.shortTimerLabel(timerRow.modelData.total))
+                      // The one the bar shows, and so the one the keys act on.
+                      color: root.timers.length > 1 && root.barEntry && root.barEntry.id === timerRow.modelData.id
+                        ? Style.selectedStateColor(root.contentForeground, Commons.Color.accent)
+                        : root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.bodySmall
+                    }
+
+                    PanelActionButton {
+                      id: timerCancelButton
+                      anchors.right: parent.right
+                      anchors.rightMargin: -Style.space(8)
+                      anchors.verticalCenter: parent.verticalCenter
+                      iconText: "󰅖"
+                      tooltipText: timerRow.stopwatch ? Commons.I18n.t("clock.removeStopwatch") : Commons.I18n.t("clock.cancelTimer")
+                      foreground: root.contentForeground
+                      fontFamily: root.contentFontFamily
+                      onClicked: root.cancelTimer(timerRow.modelData.id)
+                    }
+
+                    PanelActionButton {
+                      id: timerPauseButton
+                      anchors.right: timerCancelButton.left
+                      anchors.verticalCenter: parent.verticalCenter
+                      iconText: timerRow.modelData.running ? "󰏤" : "󰐊"
+                      tooltipText: timerRow.modelData.running ? Commons.I18n.t("clock.pauseTimer") : Commons.I18n.t("clock.resumeTimer")
+                      foreground: root.contentForeground
+                      fontFamily: root.contentFontFamily
+                      onClicked: root.toggleTimerPause(timerRow.modelData.id)
+                    }
+
+                    // Countdowns keep the reset slot empty, so every row's
+                    // time and rail line up.
+                    PanelActionButton {
+                      id: timerResetButton
+                      opacity: timerRow.stopwatch ? 1 : 0
+                      enabled: timerRow.stopwatch
+                      anchors.right: timerPauseButton.left
+                      anchors.verticalCenter: parent.verticalCenter
+                      iconText: "󰑐"
+                      tooltipText: Commons.I18n.t("clock.resetStopwatch")
+                      foreground: root.contentForeground
+                      fontFamily: root.contentFontFamily
+                      onClicked: root.resetStopwatch(timerRow.modelData.id)
+                    }
+
+                    Text {
+                      id: timerRemainingText
+                      textFormat: Text.PlainText
+                      anchors.right: timerResetButton.left
+                      anchors.rightMargin: Style.space(6)
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: root.localDigits(timerRow.stopwatch ? Model.formatElapsed(timerRow.elapsed) : Model.formatTimer(timerRow.remaining))
+                      color: timerRow.modelData.running ? root.contentForeground : Qt.darker(root.contentForeground, 1.5)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.body
+                      font.features: { "tnum": 1 }
+                    }
+
+                    Rectangle {
+                      anchors.left: timerName.right
+                      anchors.right: timerRemainingText.left
+                      anchors.leftMargin: Style.space(10)
+                      anchors.rightMargin: Style.space(12)
+                      anchors.verticalCenter: parent.verticalCenter
+                      height: Style.space(6)
+                      radius: Style.cornerRadius > 0 ? height / 2 : 0
+                      color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.12)
+
+                      Rectangle {
+                        // A countdown fills as it runs out; a stopwatch, with no
+                        // end to measure against, sweeps once a minute like a
+                        // second hand.
+                        width: Math.round(parent.width * (timerRow.stopwatch
+                          ? (timerRow.elapsed % 60) / 60
+                          : Math.min(1, 1 - timerRow.remaining / timerRow.modelData.total)))
+                        height: parent.height
+                        radius: parent.radius
+                        color: Style.selectedStateColor(root.contentForeground, Commons.Color.accent)
+
+                        Behavior on width {
+                          enabled: !timerRow.stopwatch || (timerRow.elapsed % 60) > 1
+                          NumberAnimation { duration: Style.duration(240); easing.type: Easing.Linear }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+
+              // ---- The next timer: an optional name, then a preset, a typed
+              //      duration, or a stopwatch. Gone once the list is full.
+              Item {
+                id: timerAddReveal
+                readonly property real fullHeight: timerAddRow.height + Style.space(6)
+                width: parent.width
+                height: timerSection.addRowOpen ? fullHeight : 0
+                visible: timerSection.addRowOpen || height > 0
+                clip: true
+
+                // Leaving takes two thirds of the arrival.
+                Behavior on height {
+                  NumberAnimation {
+                    duration: Style.duration(timerSection.addRowOpen ? 200 : 130)
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Style.easeOut
+                  }
+                }
+
+                Item {
+                  id: timerAddRow
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  // Pinned to the bottom of the growing clip, so the row
+                  // slides down into view rather than being uncovered.
+                  y: timerAddReveal.height - timerAddReveal.fullHeight + Style.space(4)
+                  opacity: timerAddReveal.fullHeight > 0 ? timerAddReveal.height / timerAddReveal.fullHeight : 0
+                  width: gridColumn.width
+                  height: Math.max(timerField.implicitHeight, Style.space(26))
+
+                  TextField {
+                    id: timerNameField
+                    anchors.left: parent.left
+                    anchors.right: timerPresetRow.left
+                    anchors.rightMargin: Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    placeholderText: Commons.I18n.t("clock.timerName")
+                    text: root.timerNameInput
+                    onTextChanged: root.timerNameInput = text
+                    maximumLength: 40
+                    foreground: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+
+                    Keys.onPressed: function(event) { root.handleTimerKey(event, timerField, keyCatcher) }
+                  }
+
+                  Row {
+                    id: timerPresetRow
+                    anchors.right: timerField.left
+                    anchors.rightMargin: Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.space(4)
+
+                    Repeater {
+                      model: root.timerPresets
+
+                      Rectangle {
+                        required property var modelData
+                        width: presetText.implicitWidth + Style.space(14)
+                        height: Style.space(22)
+                        radius: Style.cornerRadius
+                        color: presetMouse.containsMouse
+                          ? Style.hoverFillFor(root.contentForeground, Commons.Color.accent)
+                          : "transparent"
+                        border.width: Style.spacing.hairline
+                        border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.15)
+
+                        Text {
+                          id: presetText
+                          anchors.centerIn: parent
+                          textFormat: Text.PlainText
+                          text: root.shortTimerLabel(modelData)
+                          color: presetMouse.containsMouse
+                            ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
+                            : root.contentForeground
+                          font.family: root.contentFontFamily
+                          font.pixelSize: Style.font.bodySmall
+                        }
+
+                        MouseArea {
+                          id: presetMouse
+                          anchors.fill: parent
+                          hoverEnabled: true
+                          cursorShape: Qt.PointingHandCursor
+                          onClicked: {
+                            root.addTimer(modelData, root.timerNameInput)
+                            keyCatcher.forceActiveFocus()
+                          }
+                        }
+                      }
+                    }
+                  }
+
+                  TextField {
+                    id: timerField
+                    width: Style.space(64)
+                    anchors.right: timerStartButton.left
+                    anchors.rightMargin: Style.space(4)
+                    anchors.verticalCenter: parent.verticalCenter
+                    horizontalAlignment: TextInput.AlignHCenter
+                    placeholderText: "mm:ss"
+                    text: root.timerInput
+                    onTextChanged: root.timerInput = text
+                    foreground: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+
+                    Keys.onPressed: function(event) { root.handleTimerKey(event, timerNameField, keyCatcher) }
+                  }
+
+                  PanelActionButton {
+                    id: timerStartButton
+                    anchors.right: stopwatchStartButton.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconText: "󰐊"
+                    tooltipText: Commons.I18n.t("clock.startTimer")
+                    enabled: root.timerInputValid
+                    foreground: root.contentForeground
+                    fontFamily: root.contentFontFamily
+                    onClicked: {
+                      root.addTimerFromFields()
+                      keyCatcher.forceActiveFocus()
+                    }
+                  }
+
+                  PanelActionButton {
+                    id: stopwatchStartButton
+                    anchors.right: parent.right
+                    anchors.rightMargin: -Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconText: "󰔛"
+                    tooltipText: Commons.I18n.t("clock.startStopwatch")
+                    foreground: root.contentForeground
+                    fontFamily: root.contentFontFamily
+                    onClicked: {
+                      root.addStopwatch(root.timerNameInput)
+                      keyCatcher.forceActiveFocus()
+                    }
+                  }
+                }
               }
             }
           }
