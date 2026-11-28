@@ -1,6 +1,10 @@
+// name is the BlueZ alias, deviceName the device's own; an alias that is no name
+// must not hide a device that has one.
 function deviceLabel(device) {
   if (!device) return ""
-  return String(device.deviceName || device.name || "").trim()
+  var alias = String(device.name || "").trim()
+  if (isHumanLabel(alias)) return alias
+  return String(device.deviceName || alias).trim()
 }
 
 function toArray(values) {
@@ -33,9 +37,13 @@ function normalizedAddress(value) {
   return String(value || "").trim().toLowerCase().replace(/[^0-9a-f]/g, "")
 }
 
+function isHumanLabel(value) {
+  var text = String(value || "").trim()
+  return text !== "" && !isUuidLike(text) && !isAddressLike(text)
+}
+
 function hasHumanName(device) {
-  var label = deviceLabel(device)
-  return label !== "" && !isUuidLike(label) && !isAddressLike(label)
+  return isHumanLabel(deviceLabel(device))
 }
 
 function nodeProps(node) {
@@ -63,15 +71,37 @@ function nodeText(node) {
   ].join(" ").toLowerCase()
 }
 
-function bluetoothSinkMatchesDevice(node, device) {
-  if (!node || !node.isSink || node.isStream || !device) return false
+function isAudioSink(node) {
+  return !!node && node.isSink && !node.isStream
+}
 
+function bluetoothSinkMatchesAddress(node, device) {
+  if (!isAudioSink(node) || !device) return false
   var address = normalizedAddress(device.address)
-  var text = nodeText(node)
-  if (address !== "" && normalizedAddress(text).indexOf(address) !== -1) return true
+  return address !== "" && normalizedAddress(nodeText(node)).indexOf(address) !== -1
+}
 
+function bluetoothSinkMatchesLabel(node, device) {
+  if (!isAudioSink(node) || !device) return false
   var label = deviceLabel(device).toLowerCase()
-  return label !== "" && text.indexOf(label) !== -1
+  return label !== "" && nodeText(node).indexOf(label) !== -1
+}
+
+function bluetoothSinkMatchesDevice(node, device) {
+  return bluetoothSinkMatchesAddress(node, device) || bluetoothSinkMatchesLabel(node, device)
+}
+
+// The alias is the user's word, and "Headphones" can name a built-in sink too,
+// so the label counts only when no sink carries the device's address.
+function bluetoothSinkFor(sinks, device) {
+  var list = toArray(sinks)
+  for (var i = 0; i < list.length; i++) {
+    if (bluetoothSinkMatchesAddress(list[i], device)) return list[i]
+  }
+  for (var j = 0; j < list.length; j++) {
+    if (bluetoothSinkMatchesLabel(list[j], device)) return list[j]
+  }
+  return null
 }
 
 function sortedByLabel(devices) {
@@ -161,10 +191,12 @@ if (typeof module !== "undefined") {
     isUuidLike: isUuidLike,
     isAddressLike: isAddressLike,
     normalizedAddress: normalizedAddress,
+    isHumanLabel: isHumanLabel,
     hasHumanName: hasHumanName,
     nodeProps: nodeProps,
     nodeText: nodeText,
     bluetoothSinkMatchesDevice: bluetoothSinkMatchesDevice,
+    bluetoothSinkFor: bluetoothSinkFor,
     sortedByLabel: sortedByLabel,
     deviceRow: deviceRow,
     deviceLists: deviceLists,
