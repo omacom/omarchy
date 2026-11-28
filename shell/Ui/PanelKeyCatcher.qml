@@ -68,7 +68,7 @@ Item {
     shiftHeld = event.key === Qt.Key_Shift || !!(event.modifiers & Qt.ShiftModifier)
     if (blocked) return
 
-    if (event.key === Qt.Key_Escape) {
+    if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
       closeRequested(); event.accepted = true; return
     }
     if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
