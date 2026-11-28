@@ -132,7 +132,7 @@ journalctl -f -n 0 -o json \
     # A dash for a field that is empty, missing, or non-string (journalctl
     # emits non-UTF-8 values as byte arrays): tab is IFS whitespace, so an
     # empty field collapses into the next delimiter and shifts fields along.
-    IFS=$'\t' read -r msg_id uid comm pid exe signal user_unit rt_us cd_us < <(
+    IFS=$'\t' read -r msg_id uid comm pid exe signal user_unit rt_us cd_us crash_unit < <(
       jq -r 'def field:
                if type == "string" and . != "" then
                  gsub("[\t\r\n]"; "") | if . == "" then "-" else . end
@@ -146,7 +146,8 @@ journalctl -f -n 0 -o json \
               (.COREDUMP_SIGNAL_NAME | field),
               (.USER_UNIT | field),
               (.__REALTIME_TIMESTAMP | field),
-              (.COREDUMP_TIMESTAMP | field)] | join("\t")' <<<"$entry" 2>/dev/null
+              (.COREDUMP_TIMESTAMP | field),
+              (.COREDUMP_USER_UNIT | field)] | join("\t")' <<<"$entry" 2>/dev/null
     )
 
     # Only this user's events; a daemon dying is a sysadmin's problem.
@@ -172,6 +173,13 @@ journalctl -f -n 0 -o json \
     fi
 
     [[ $pid =~ ^[0-9]+$ ]] || continue
+
+    # Services sharing an executable can be muted independently. Use the
+    # exact recorded service name, and never let it name a path outside the flags.
+    if [[ $crash_unit == ?*.service && $crash_unit != */* ]] &&
+      omarchy-toggle-enabled "crash-ignore-unit/$crash_unit"; then
+      continue
+    fi
 
     # The toast only offers a diagnosis, so it has nothing to offer until an
     # agent is chosen. Checked per crash, not at startup, so picking one takes
