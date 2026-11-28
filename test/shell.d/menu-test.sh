@@ -110,6 +110,45 @@ assert(menu.isVisible(visibilityItems, visibilityOrder, { 'hardware.laptop': tru
 assert(!menu.isVisible(visibilityItems, visibilityOrder, { 'nested.branch.leaf': false }, visibilityItems.nested), 'menu hides recursively empty submenus')
 assert(menu.isVisible(visibilityItems, visibilityOrder, {}, visibilityItems.dynamic), 'menu keeps provider-backed submenus visible')
 
+// Depth-limited recursion through a back-link must not poison the visibility
+// memo for a later reachable branch under the same menu.
+const backLinkMerged = menu.mergeMenuSources([
+  menu.normalizeItem('a', { label: 'A' }),
+  menu.normalizeItem('a.back', { label: 'Back', target: 'a' }),
+  menu.normalizeItem('a.branch', { label: 'Branch' }),
+  menu.normalizeItem('a.branch.deep', { label: 'Deep' }),
+  menu.normalizeItem('a.branch.deep.run', { label: 'Run', action: 'run-cmd' })
+], [])
+const backLinkIndex = menu.buildSearchIndex(backLinkMerged.items, backLinkMerged.itemOrder)
+assert(
+  menu.isVisible(backLinkMerged.items, backLinkMerged.itemOrder, {}, backLinkMerged.items.a, 0, backLinkIndex, Object.create(null)),
+  'menu visibility memo does not hide a working branch after a depth-limited back-link'
+)
+
+// Multiple back-links targeting the same empty submenu must terminate immediately
+// without exponential recursion.
+const cycleMerged = menu.mergeMenuSources([
+  menu.normalizeItem('a', { label: 'A' }),
+  menu.normalizeItem('a.one', { label: 'One', target: 'a' }),
+  menu.normalizeItem('a.two', { label: 'Two', target: 'a' })
+], [])
+const cycleIndex = menu.buildSearchIndex(cycleMerged.items, cycleMerged.itemOrder)
+assert(
+  !menu.isVisible(cycleMerged.items, cycleMerged.itemOrder, {}, cycleMerged.items.a, 0, cycleIndex, Object.create(null)),
+  'menu visibility stops immediately on multiple cyclic back-links to an empty submenu'
+)
+
+// Parent/item ids matching Object.prototype keys must not break index building.
+const protoMerged = menu.mergeMenuSources([
+  menu.normalizeItem('constructor', { label: 'Constructor' }),
+  menu.normalizeItem('constructor.run', { label: 'Run', action: 'run-cmd' }),
+  menu.normalizeItem('toString', { label: 'ToString', action: 'str-cmd' })
+], [])
+const protoIndex = menu.buildSearchIndex(protoMerged.items, protoMerged.itemOrder)
+assertEqual(menu.childCount(protoMerged.items, protoMerged.itemOrder, 'constructor', protoIndex), 1, 'menu search index handles Object.prototype parent names')
+assert(menu.isVisible(protoMerged.items, protoMerged.itemOrder, {}, protoMerged.items.constructor, 0, protoIndex, Object.create(null)), 'menu visibility handles Object.prototype parent names')
+assert(menu.matchesQuery(protoMerged.items.toString, 'tostring', true, protoIndex), 'menu search handles Object.prototype item ids')
+
 // `disabled:` is the softer guard: the row stays listed and only loses the
 // cursor, which is how an already-installed app keeps its place in Install.
 const installed = menu.normalizeItem('install.browser.zen', { label: 'Zen', disabled: 'omarchy-pkg-present zen-browser-bin', action: 'install-zen' })

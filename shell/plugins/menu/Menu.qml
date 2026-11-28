@@ -109,6 +109,7 @@ Item {
   property int applySerial: 0
   property var items: ({})
   property var itemOrder: []
+  property var searchIndex: MenuModel.buildSearchIndex({}, [])
   property var navStack: []
   property var providersLoaded: ({})
   property var providerQueue: []
@@ -329,6 +330,7 @@ Item {
     root.providerQueue = []
     root.items = mergedMenu.items
     root.itemOrder = mergedMenu.itemOrder
+    root.searchIndex = MenuModel.buildSearchIndex(mergedMenu.items, mergedMenu.itemOrder)
     root.rowsLoaded = true
     if (!skipGuards && root.defaultMenuSettled && root.userMenuSettled) root.evaluateGuards()
     if (root.opened) {
@@ -400,7 +402,7 @@ Item {
   // The apps provider is QML-native: rows come from the shared AppLibrary
   // (DesktopEntries) instead of a bash enumeration, so they carry image
   // icons, launch feedback, and uninstall support like the launcher.
-  function mergeAppRows() {
+  function mergeAppRows(skipRebuild) {
     if (!root.appLibrary) return
 
     var rows = root.appLibrary.sortedEntries("")
@@ -439,15 +441,16 @@ Item {
     var merged = MenuModel.mergeAppRows(root.items, root.itemOrder, appRows)
     root.items = merged.items
     root.itemOrder = merged.itemOrder
-    if (root.opened) root.rebuildDisplay()
+    root.searchIndex = MenuModel.buildSearchIndex(merged.items, merged.itemOrder)
+    if (root.opened && !skipRebuild) root.rebuildDisplay()
   }
 
-  function startProviderForMenu(id) {
+  function startProviderForMenu(id, skipRebuild) {
     var entry = root.item(id)
     if (!entry || !entry.provider || root.providersLoaded[id]) return
     if (entry.provider === "apps") {
       root.providersLoaded[id] = true
-      root.mergeAppRows()
+      root.mergeAppRows(skipRebuild)
       return
     }
     var spec = root.providers[entry.provider]
@@ -506,6 +509,7 @@ Item {
     var merged = MenuModel.swapProviderRows(root.items, root.itemOrder, menuId, providerRows)
     root.items = merged.items
     root.itemOrder = merged.itemOrder
+    root.searchIndex = MenuModel.buildSearchIndex(merged.items, merged.itemOrder)
     if (root.opened) root.rebuildDisplay()
   }
 
@@ -531,13 +535,13 @@ Item {
     if (spec && spec.volatile) root.providersLoaded[id] = false
   }
 
-  function loadProviderForMenu(id) {
+  function loadProviderForMenu(id, skipRebuild) {
     var entry = root.item(id)
     if (!entry || !entry.provider || root.providersLoaded[id]) return
 
     // Native providers don't touch providerProc, so they never need to queue.
     if (entry.provider === "apps") {
-      root.startProviderForMenu(id)
+      root.startProviderForMenu(id, skipRebuild)
       return
     }
 
@@ -546,10 +550,10 @@ Item {
       return
     }
 
-    root.startProviderForMenu(id)
+    root.startProviderForMenu(id, skipRebuild)
   }
 
-  function loadProvidersForSearch() {
+  function loadProvidersForSearch(skipRebuild) {
     var active = root.item(root.activeMenu) ? root.activeMenu : "root"
 
     for (var i = 0; i < root.itemOrder.length; i++) {
@@ -559,7 +563,7 @@ Item {
       // A submenu its guard hides has no rows to search.
       if (!root.isVisible(entry)) continue
 
-      root.loadProviderForMenu(entry.id)
+      root.loadProviderForMenu(entry.id, skipRebuild)
     }
   }
 
@@ -580,14 +584,14 @@ Item {
   }
 
   function childCount(id) {
-    return MenuModel.childCount(root.items, root.itemOrder, id)
+    return MenuModel.childCount(root.items, root.itemOrder, id, root.searchIndex)
   }
 
   // Guarded items are hidden when their `when:` evaluates false. Static
   // submenus are also hidden when none of their descendants are visible;
   // provider-backed menus stay visible because their rows load on demand.
-  function isVisible(entry) {
-    return MenuModel.isVisible(root.items, root.itemOrder, root.whenResults, entry)
+  function isVisible(entry, visMemo) {
+    return MenuModel.isVisible(root.items, root.itemOrder, root.whenResults, entry, 0, root.searchIndex, visMemo)
   }
 
   // Label with the ✓ marker baked in when `checked:` or `disabled:` evaluated
@@ -625,16 +629,16 @@ Item {
   // A disabled row earns its place in the submenu it belongs to, where the
   // list around it is the point. Search is a list of what you can do, so it
   // leaves them out.
-  function matchesQuery(entry, query) {
-    return MenuModel.matchesQuery(entry, query, root.isVisible(entry) && !root.isDisabled(entry))
+  function matchesQuery(entry, query, visMemo) {
+    return MenuModel.matchesQuery(entry, query, root.isVisible(entry, visMemo) && !root.isDisabled(entry), root.searchIndex)
   }
 
   function searchScore(entry, query) {
-    return MenuModel.searchScore(root.items, entry, query)
+    return MenuModel.searchScore(root.items, entry, query, root.searchIndex)
   }
 
   function displayRow(entry, detail, score, section) {
-    return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section)
+    return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section, root.searchIndex)
   }
 
   function rowSelectable(index) {
@@ -758,6 +762,7 @@ Item {
     root.activeMenu = active
     var rows = []
     var query = root.filterText.trim()
+    var visMemo = Object.create(null)
     root.searchDivider = false
 
     if (query) {
@@ -768,7 +773,7 @@ Item {
         var entry = root.item(root.itemOrder[i])
         if (!entry || entry.id === "root") continue
         if (!root.isDescendantOf(entry.id, active)) continue
-        if (!root.matchesQuery(entry, query)) continue
+        if (!root.matchesQuery(entry, query, visMemo)) continue
 
         var detail = root.parentPathFor(entry.id)
         var row = root.displayRow(entry, detail, root.searchScore(entry, query))
@@ -791,11 +796,11 @@ Item {
     } else {
       // A Alt stand-in shows in place of its row, never beside it.
       var altVariants = MenuModel.altVariantIds(root.items, root.itemOrder)
-      for (var j = 0; j < root.itemOrder.length; j++) {
-        var child = root.item(root.itemOrder[j])
-        if (!child || child.parent !== active) continue
+      var activeChildren = (root.searchIndex && root.searchIndex.children && root.searchIndex.children[active]) || []
+      for (var j = 0; j < activeChildren.length; j++) {
+        var child = activeChildren[j]
         if (altVariants[child.id]) continue
-        if (!root.isVisible(child)) continue
+        if (!root.isVisible(child, visMemo)) continue
         rows.push(root.displayRow(child, child.description, child.order))
       }
 
@@ -868,7 +873,7 @@ Item {
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
     root.disarmPointer()
-    if (!root.dmenuActive && root.filterText.trim()) root.loadProvidersForSearch()
+    if (!root.dmenuActive && root.filterText.trim()) root.loadProvidersForSearch(true)
     root.rebuildDisplay()
   }
 
