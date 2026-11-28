@@ -118,6 +118,8 @@ done
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
+printf '#!/bin/bash\n' >"$mock_bin/omo"
+chmod +x "$mock_bin/omo"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_TEST_NOTIFICATION_HISTORY="$notification_history"
 export OMARCHY_TEST_AGENT_OPEN_LOG="$agent_open_log"
@@ -287,6 +289,7 @@ declare -A expected_agents=(
   [muse]="muse"
   [muse-code]="muse"
   [musecode]="muse"
+  [omo]="omo"
 )
 
 for selection in "${!expected_agents[@]}"; do
@@ -542,6 +545,7 @@ assert_launch ori ori code --interactive --prompt "Review this project"
 assert_launch claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto -- "Review this project"
 assert_launch codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me -- "Review this project"
 assert_launch muse muse --approval-mode never -- "Review this project"
+assert_launch omo omo "Review this project"
 assert_launch crush crush run "Review this project"
 assert_launch grok env -u GROK_HOME OMARCHY_AGENT_GROK_HOME= grok --permission-mode bypassPermissions -- "Review this project"
 assert_launch cursor-agent cursor-agent --yolo --trust agent -- "Review this project"

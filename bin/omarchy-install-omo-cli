@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Install OmO from npm into the user's home directory
+# omarchy:args=<--check|--now>
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+case ${1:-} in
+--check)
+  omarchy-cmd-present omo
+  ;;
+--now)
+  if omarchy-cmd-missing omo; then
+    if omarchy-cmd-missing npm; then
+      omarchy-pkg-add npm || exit 1
+    fi
+
+    npm install --global --prefix "$HOME/.local" --engine-strict omo-ai || exit 1
+    [[ -x $HOME/.local/bin/omo ]] || exit 1
+  fi
+
+  omarchy-agent-launcher omo
+  ;;
+*)
+  echo "Usage: omarchy-install-omo-cli <--check|--now>" >&2
+  exit 1
+  ;;
+esac
