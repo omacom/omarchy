@@ -107,6 +107,16 @@ The camera driver hangs the machine if it is loaded when the Mac hibernates, so 
 
 The camera's firmware is downloaded from Apple, so the camera works only once the Mac has been online. The download starts at boot and is retried every 15 minutes while the network is the problem; if Apple's file has changed, it stops and waits for an Omarchy update. If the camera does not appear, `journalctl -u facetimehd-firmware-fetcher` says why, `sudo systemctl restart facetimehd-firmware-fetcher` tries again, and a reboot loads the driver if the download finished but the camera still is not there.
 
+#### MacBook Pro 13-inch (2017, two Thunderbolt 3 ports)
+
+On `MacBookPro14,1`, deep sleep with a USB-C hub attached can leave the fast USB controller inaccessible until a complete shutdown and power-on. A Gigabit Ethernet adapter may then use the hub's USB 2 connection, even though its wired link still reports 1 Gbps.
+
+Check `lsusb -t` before and after sleep. If the command is missing, install `usbutils` with `omarchy pkg add usbutils`. A Gigabit USB adapter connected at `480M` cannot deliver full Gigabit throughput; its USB 3 connection normally appears at `5000M`. A fallback after sleep can indicate a controller resume failure, so check it after a cold power-on before replacing the hub or cable. The SSD suspend fix does not cover this Thunderbolt controller issue.
+
+See [the upstream investigation](https://github.com/omacom/omarchy/issues/10593), [the proposed module fix](https://github.com/omacom/omarchy/pull/10758) and [the package proposal](https://github.com/omacom/omarchy-pkgs/pull/349) for current status. Independent RTC-triggered testing on one MacBookPro14,1 on November 8, 2026 recorded quick wake and over 900 Mbps after resume with the proposed module and s2idle. Other models, Thunderbolt peripherals and overnight battery use need separate validation.
+
+Test lid-open wake separately from an alarm or keyboard wake. In [local s2idle testing](https://github.com/omacom/omarchy/pull/18138), opening the lid still required a keypress both with the proposed module and after restoring the older local hook. The author attributes this to the embedded controller's wake interrupt not being registered as wake-capable. A model-specific local helper reportedly corrected that error and passed one physical lid-open test, then loaded automatically after reboot with two further suspend cycles completed. The helper was tested with the older local Thunderbolt hook and D3cold guard, and has not been physically tested together with the proposed Alpine Ridge module. The helper is not part of Omarchy; longer-term reliability and battery effects remain untested.
+
 #### Devices with T1 Chip
 
 The Apple T1 chip was introduced in late 2016 and used exclusively in the first-generation MacBook Pro models with Touch Bar.
