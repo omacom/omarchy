@@ -2160,6 +2160,7 @@ Panel {
     focusTarget: root.openFocusItem
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(860))
+    scrollOverflow: false
 
     content: PanelKeyCatcher {
       id: keyCatcher

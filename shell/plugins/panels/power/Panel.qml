@@ -459,6 +459,7 @@ Panel {
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
+    scrollOverflow: true
 
     content: PanelKeyCatcher {
       id: keyCatcher
@@ -728,6 +729,7 @@ Panel {
               trackHeight: Math.round(limitHeader.font.pixelSize * 1.2)
               cursorPad: Style.space(3)
               hasCursor: root.cursorActive && root.focusRow === "limit"
+              onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, limitSwitch)
               foreground: root.bar.foreground
               anchors.right: parent.right
               anchors.verticalCenter: limitHeader.verticalCenter
@@ -817,6 +819,7 @@ Panel {
                 trackHeight: Math.round(limitHeader.font.pixelSize * 1.2)
                 cursorPad: Style.space(3)
                 hasCursor: root.cursorActive && root.focusRow === "topup"
+                onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, topUpSwitch)
                 foreground: root.bar.foreground
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
@@ -890,6 +893,7 @@ Panel {
                 bordered: true
                 active: root.activeProfile === modelData
                 hasCursor: root.cursorActive && root.focusRow === "profile" && root.profileIndex === index
+                onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {

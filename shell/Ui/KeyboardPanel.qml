@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as Controls
 import Quickshell
 import Quickshell.Wayland
 import qs.Commons
@@ -35,6 +36,14 @@ import qs.Commons as Commons
 // QsWindow.mask subtracting the bar strip so clicks on the bar still
 // reach the bar widgets (activePopout coordinator hands off to another
 // popup if the user clicks a different bar icon).
+//
+// ExclusionMode.Auto (not Ignore): Ignore stretches the overlay over other
+// surfaces' exclusive zones, so a layer-shell on-screen keyboard at the
+// bottom is covered by dismissArea. The first OSK tap then closes the
+// panel (wifi passphrase, bluetooth PIN, …) instead of typing. Auto keeps
+// the reserved OSK/bar bands clickable. Keyboard focus still primes
+// Exclusive then settles on OnDemand so Hyprland does not keep routing
+// every pointer event here.
 PanelWindow {
   id: root
 
@@ -45,6 +54,14 @@ PanelWindow {
   property int padding: Style.spacing.popupPadding
   property int contentWidth: Style.space(280)
   property int contentHeight: Style.space(200)
+  // Panels with an existing full-card ScrollView/Flickable must keep their
+  // constrained viewport so their keyboard cursor can scroll it normally.
+  property bool scrollOverflow: false
+  property Item scrollCursorItem: null
+  function ensureItemVisible(item) {
+    scrollCursorItem = item
+    contentViewport.revealItem(item)
+  }
 
   // The card's height on screen. Content that arrives after the panel is up
   // (a Wi-Fi scan, Bluetooth devices turning up) grows the card toward it
@@ -139,7 +156,7 @@ PanelWindow {
   screen: anchorWindow ? anchorWindow.screen : null
   visible: open || card.opacity > 0 || popoutSwitching
   color: "transparent"
-  exclusionMode: ExclusionMode.Ignore
+  exclusionMode: ExclusionMode.Auto
 
   WlrLayershell.namespace: "omarchy-keyboard-panel"
   WlrLayershell.layer: WlrLayer.Overlay
@@ -207,11 +224,36 @@ PanelWindow {
   readonly property real anchorH: anchorItem ? anchorItem.height : 0
   readonly property real screenW: screen ? screen.width : 0
   readonly property real screenH: screen ? screen.height : 0
-  readonly property real availableCardWidth: screenW > 0
-    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? barThickness + gap + margin : margin * 2))
+  // Whether the overlay surface is inset around reserved bands (Auto mode
+  // mapped while the bar or an OSK holds an exclusive zone) or still covers
+  // the full screen (Ignore mode, Auto before the first map, or Auto with
+  // nothing reserved, e.g. a hidden bar). Width/height report 100x100 before
+  // the first map, so only trust them once the backing window is visible.
+  readonly property bool insetOverlay: backingWindowVisible
+    && (Math.abs(width - screenW) > 1 || Math.abs(height - screenH) > 1)
+  // Screen-space origin of this surface. A PanelWindow root exposes no x/y
+  // position (reading them yields undefined and poisons the card origin to
+  // NaN, parking every panel at the top-left), so derive it from the bar edge
+  // the inset surface starts after instead: a top/left bar pushes the surface
+  // past its edge, while bottom/right bars and fullscreen windows start at
+  // the output origin. A hidden bar reserves nothing, so an OSK alone insets
+  // only the far edge.
+  readonly property bool barReserved: insetOverlay && !(bar && bar.barHidden)
+  readonly property real originX: (barPos === "left" && barReserved) ? barThickness : 0
+  readonly property real originY: (barPos === "top" && barReserved) ? barThickness : 0
+  // The surface the card is placed in. ExclusionMode.Auto with all four
+  // anchors insets it around the bar, an OSK and any reserved area once
+  // mapped; until then it is measured as the screen.
+  readonly property real surfaceW: insetOverlay ? width : screenW
+  readonly property real surfaceH: insetOverlay ? height : screenH
+  // How far the bar strip reaches into the surface from its edge: none when
+  // the bar reserves its space, its thickness when hidden or not yet inset.
+  readonly property real barInset: barReserved ? 0 : barThickness
+  readonly property real availableCardWidth: surfaceW > 0
+    ? Math.max(120, surfaceW - ((barPos === "left" || barPos === "right") ? barInset + gap + margin : margin * 2))
     : 0
-  readonly property real availableCardHeight: screenH > 0
-    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? barThickness + gap + margin : margin * 2))
+  readonly property real availableCardHeight: surfaceH > 0
+    ? Math.max(120, surfaceH - ((barPos === "top" || barPos === "bottom") ? barInset + gap + margin : margin * 2))
     : 0
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 
@@ -235,7 +277,7 @@ PanelWindow {
     return Math.round(Math.min(desired, maxHeight))
   }
 
-  // Desired top-left of the card in screen coordinates. For the
+  // Desired top-left of the card. For the
   // perpendicular axis (away-from-bar) we anchor to the bar strip's edge
   // directly — not the anchor item's y/x — because mapToItem(barContent)
   // returns coordinates in the bar's content space, which can be offset
@@ -254,30 +296,32 @@ PanelWindow {
   // bar-window content coordinates in barPoint() below.
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW
   readonly property real barH: anchorWindow ? anchorWindow.height : 0
+  // In surface coordinates: along the bar, its content and this surface start
+  // at the same work-area edge, so the anchor's position carries straight over.
   readonly property point cardOrigin: {
     if (!anchorItem || !bar) return Qt.point(margin, margin)
     var x = 0, y = 0
     if (centerOnBar && (barPos === "top" || barPos === "bottom")) {
-      x = screenW / 2 - contentWidth / 2
-      y = barPos === "bottom" ? screenH - barThickness - drawnHeight - gap : barThickness + gap
+      x = surfaceW / 2 - contentWidth / 2
+      y = barPos === "bottom" ? surfaceH - barInset - drawnHeight - gap : barInset + gap
     } else if (centerOnBar) {
-      x = barPos === "left" ? barThickness + gap : screenW - barThickness - contentWidth - gap
-      y = screenH / 2 - drawnHeight / 2
+      x = barPos === "left" ? barInset + gap : surfaceW - barInset - contentWidth - gap
+      y = surfaceH / 2 - drawnHeight / 2
     } else if (barPos === "bottom") {
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = screenH - barThickness - drawnHeight - gap
+      y = surfaceH - barInset - drawnHeight - gap
     } else if (barPos === "left") {
-      x = barThickness + gap
+      x = barInset + gap
       y = anchorScreenPos.y + anchorH / 2 - drawnHeight / 2
     } else if (barPos === "right") {
-      x = screenW - barThickness - contentWidth - gap
+      x = surfaceW - barInset - contentWidth - gap
       y = anchorScreenPos.y + anchorH / 2 - drawnHeight / 2
     } else { // "top" (default)
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = barThickness + gap
+      y = barInset + gap
     }
-    x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
-    y = Math.max(margin, Math.min(y, screenH - drawnHeight - margin))
+    x = Math.max(margin, Math.min(x, surfaceW - contentWidth - margin))
+    y = Math.max(margin, Math.min(y, surfaceH - drawnHeight - margin))
     return Qt.point(Math.round(x), Math.round(y))
   }
 
@@ -411,17 +455,25 @@ PanelWindow {
     property bool hoveringBar: false
     cursorShape: hoveringBar ? Qt.PointingHandCursor : Qt.ArrowCursor
 
+    // Mouse coordinates are window-local. The inset overlay starts past the
+    // bar edge (see originX/originY), so translate to screen coordinates
+    // before testing against screen-space bar geometry; a fullscreen window
+    // shares the output origin and the translation is a no-op there.
     function inBarRegion(px, py) {
-      if (root.barPos === "bottom") return py >= root.screenH - root._barStripSize
-      if (root.barPos === "left") return px <= root._barStripSize
-      if (root.barPos === "right") return px >= root.screenW - root._barStripSize
-      return py <= root._barStripSize
+      var sy = py + root.originY
+      var sx = px + root.originX
+      if (root.barPos === "bottom") return sy >= root.screenH - root._barStripSize
+      if (root.barPos === "left") return sx <= root._barStripSize
+      if (root.barPos === "right") return sx >= root.screenW - root._barStripSize
+      return sy <= root._barStripSize
     }
 
     function barPoint(px, py) {
-      if (root.barPos === "bottom") return Qt.point(px, py - (root.screenH - root.barH))
-      if (root.barPos === "right") return Qt.point(px - (root.screenW - root.barW), py)
-      return Qt.point(px, py)
+      var sx = px + root.originX
+      var sy = py + root.originY
+      if (root.barPos === "bottom") return Qt.point(sx, sy - (root.screenH - root.barH))
+      if (root.barPos === "right") return Qt.point(sx - (root.screenW - root.barW), sy)
+      return Qt.point(sx, sy)
     }
 
     function pressTargetAt(px, py) {
@@ -495,7 +547,7 @@ PanelWindow {
         // twin maps, or a twin would cover the panel's own output.
         visible: root.open && !!root.screen && modelData.name !== root.screen.name
         color: "transparent"
-        exclusionMode: ExclusionMode.Ignore
+        exclusionMode: ExclusionMode.Auto
 
         WlrLayershell.namespace: "omarchy-keyboard-panel-dismiss"
         WlrLayershell.layer: WlrLayer.Overlay
@@ -564,12 +616,50 @@ PanelWindow {
       acceptedButtons: Qt.AllButtons
     }
 
-    Item {
-      id: contentHolder
+    Flickable {
+      id: contentViewport
+      objectName: "keyboard-panel-content-viewport"
       anchors.top: parent.top
       anchors.left: parent.left
       width: root.contentWidth - card.contentLeftInset - card.contentRightInset
       height: root.contentHeight - card.contentTopInset - card.contentBottomInset
+      contentWidth: width
+      contentHeight: contentHolder.height
+      // Only while it scrolls: panels draw selection boxes into the card's padding.
+      clip: interactive
+      boundsBehavior: Flickable.StopAtBounds
+      flickableDirection: Flickable.VerticalFlick
+      interactive: contentHeight > height
+      Controls.ScrollBar.vertical: Controls.ScrollBar { policy: Controls.ScrollBar.AsNeeded }
+      function revealItem(item) {
+        if (!interactive) {
+          contentY = 0
+          return
+        }
+        // A panel's key catcher spans the entire form. Only reveal controls
+        // that fit inside the viewport, not that enclosing focus scope.
+        if (!item || item.height > height) return
+        var ancestor = item
+        while (ancestor && ancestor !== contentHolder) ancestor = ancestor.parent
+        if (!ancestor) return
+        var point = item.mapToItem(contentHolder, 0, 0)
+        if (point.y < contentY) contentY = point.y
+        else if (point.y + item.height > contentY + height)
+          contentY = point.y + item.height - height
+        contentY = Math.max(0, Math.min(contentY, contentHeight - height))
+      }
+      function revealFocusedItem() {
+        var window = contentHolder.Window.window
+        var item = window ? window.activeFocusItem : null
+        if (!item || item.height > height) item = root.scrollCursorItem
+        revealItem(item)
+      }
+      onHeightChanged: Qt.callLater(revealFocusedItem)
+      onContentHeightChanged: Qt.callLater(revealFocusedItem)
+      Connections {
+        target: contentHolder.Window.window
+        function onActiveFocusItemChanged() { Qt.callLater(contentViewport.revealFocusedItem) }
+      }
       // Right-to-left languages read the card mirrored; the card itself
       // stays where the bar puts it.
       LayoutMirroring.enabled: Commons.I18n.rightToLeft
@@ -579,12 +669,20 @@ PanelWindow {
       // Fades in with the morph, done by the time the card has mostly landed.
       opacity: Math.min(1, root.morph * 1.6)
 
-      Loader {
-        id: contentLoader
-        anchors.fill: parent
-        focus: true
-        active: !!root.content && (root.open || root.contentRequested)
-        sourceComponent: root.content
+      Item {
+        id: contentHolder
+        width: contentViewport.width
+        // Keep the full form/list layout intact when the OSK reduces the card.
+        // The viewport scrolls instead of putting lower controls off-surface.
+        height: root.scrollOverflow ? Math.max(contentViewport.height, root.loadedContentHeight) : contentViewport.height
+
+        Loader {
+          id: contentLoader
+          anchors.fill: parent
+          focus: true
+          active: !!root.content && (root.open || root.contentRequested)
+          sourceComponent: root.content
+        }
       }
 
     }
