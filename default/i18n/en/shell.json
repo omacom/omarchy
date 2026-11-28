@@ -707,5 +707,11 @@
   "camera.title": "Camera",
   "camera.tooltipActive": "Camera active — click to tune image",
   "camera.warmth": "Warmth",
-  "wifiqr.showPassword": "Show password"
+  "wifiqr.showPassword": "Show password",
+  "overview.empty": "No open windows on this workspace",
+  "overview.moveToWorkspace": "Move to workspace %1",
+  "overview.newWorkspace": "New workspace %1",
+  "overview.reorderWorkspace": "Move workspace %1 to slot %2",
+  "overview.reorderingWorkspace": "Drag workspace %1 to reorder",
+  "overview.workspace": "Workspace %1"
 }

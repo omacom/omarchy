@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Select a window on a floating workspace or configure overview triggers
+# omarchy:args=[show | middle-click [on|off|toggle]]
+# omarchy:examples=omarchy hyprland window-overview | omarchy hyprland window-overview middle-click on
+
+set -euo pipefail
+
+case "${1:-show}" in
+  show)
+    (( $# <= 1 )) || exit 1
+    if [[ $(omarchy-hyprland-workspace-layout-current) == "floating" ]]; then
+      omarchy-shell shell toggle omarchy.window-overview
+    fi
+    ;;
+  middle-click)
+    (( $# <= 2 )) || exit 1
+    flag="window-overview-$1"
+    if (( $# == 1 )); then
+      if omarchy-toggle-enabled "$flag"; then echo on; else echo off; fi
+    else
+      [[ $2 == "on" || $2 == "off" || $2 == "toggle" ]] || exit 1
+      omarchy-toggle "$flag" "$2"
+      hyprctl reload config-only >/dev/null
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy hyprland window-overview [show | middle-click [on|off|toggle]]" >&2
+    exit 1
+    ;;
+esac

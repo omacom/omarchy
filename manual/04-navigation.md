@@ -89,3 +89,5 @@ To move a window off either the scratchpad or the console, send it directly to a
 ### It takes some getting used to!
 
 It takes a little while to get used to navigating your desktop like this, but once you do, it'll be hard to go back to a traditional mouse-driven desktop experience!
+
+On floating workspaces, swipe up with four fingers to see a grid of live window previews. Select a preview with the pointer, or use the arrow keys and Enter; Escape dismisses it. _Setup > Input > Workspace Overview_ can also enable middle-click, which is off by default and remains available to apps on tiled workspaces. Three-finger swipe up still opens the AI console. The four-finger gesture follows the other default gestures and is disabled with them. `omarchy hyprland window-overview` opens the overview directly.

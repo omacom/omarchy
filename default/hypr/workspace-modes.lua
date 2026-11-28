@@ -24,8 +24,18 @@ local OPENED_TAG = "omarchy-mode-opened"
 local OPEN_RULE = "omarchy-floating-open-"
 local LAST_WORKSPACE = 2147483647
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
+local LAYOUTS_DIR = (paths.state_home or (paths.home .. "/.local/state")) .. "/omarchy/workspace-layouts"
 
 local M = {}
+local mode_listeners = {}
+
+function M.on_change(listener)
+  table.insert(mode_listeners, listener)
+end
+
+local function notify_mode_change()
+  for _, listener in ipairs(mode_listeners) do listener() end
+end
 
 local modes = {}
 local default_mode = nil
@@ -388,6 +398,7 @@ function o.workspace_mode(spec)
     if anything_floats() then
       set_up_floating()
     end
+    notify_mode_change()
     return
   end
 
@@ -408,6 +419,7 @@ function o.workspace_mode(spec)
   arrange(hl.get_workspace_windows(workspace))
   sync_open_rules()
   update_input()
+  notify_mode_change()
 end
 
 local function theme_colors()
@@ -578,5 +590,134 @@ set_up_floating = function()
 
   titlebars()
 end
+
+local function read_saved_mode(id)
+  local file = io.open(LAYOUTS_DIR .. "/" .. tostring(id) .. ".lua", "r")
+  if not file then
+    return nil
+  end
+  local content = file:read("*a") or ""
+  file:close()
+  return content:match('mode%s*=%s*"([a-z]+)"')
+end
+
+local function write_saved_mode(id, mode)
+  local path = LAYOUTS_DIR .. "/" .. tostring(id) .. ".lua"
+  if not mode then
+    os.remove(path)
+    return
+  end
+
+  local content = string.format('o.workspace_mode({ workspace = "%s", mode = "%s" })\n', tostring(id), mode)
+  local file = io.open(path, "w")
+  if not file then
+    os.execute("mkdir -p " .. o.shell_quote(LAYOUTS_DIR))
+    file = io.open(path, "w")
+  end
+  if file then
+    file:write(content)
+    file:close()
+  end
+end
+
+-- Move runtime workspace modes, saved layout files, and minimized-from tags
+-- alongside renumbered workspace IDs.
+function M.reorder(ops)
+  if type(ops) ~= "table" or #ops == 0 then
+    return
+  end
+
+  local clean_ops = {}
+  for _, op in ipairs(ops) do
+    local from_id = tonumber(op.from)
+    local to_id = tonumber(op.to)
+    if from_id and to_id and from_id >= 1 and to_id >= 1 and from_id ~= to_id then
+      table.insert(clean_ops, { from = from_id, to = to_id })
+    end
+  end
+  if #clean_ops == 0 then
+    return
+  end
+
+  local saved_snapshot = {}
+  local mode_snapshot = {}
+  local written_to = {}
+  local retag = {}
+
+  for _, op in ipairs(clean_ops) do
+    local from_key = tostring(op.from)
+    local saved = read_saved_mode(op.from)
+    saved_snapshot[op.from] = saved
+    mode_snapshot[op.from] = modes[from_key] or saved
+    written_to[op.to] = true
+
+    if hl.get_windows and hl.dsp and hl.dsp.window and hl.dsp.window.tag then
+      local old_tag = "omarchy-minimized-from-" .. from_key
+      local new_tag = "omarchy-minimized-from-" .. tostring(op.to)
+      for _, win in ipairs(hl.get_windows({ tag = old_tag })) do
+        table.insert(retag, { window = win, old_tag = old_tag, new_tag = new_tag })
+      end
+    end
+  end
+
+  for _, op in ipairs(clean_ops) do
+    modes[tostring(op.from)] = nil
+    modes[tostring(op.to)] = nil
+  end
+
+  for _, op in ipairs(clean_ops) do
+    local to_key = tostring(op.to)
+    local next_mode = mode_snapshot[op.from]
+    if next_mode ~= nil then
+      modes[to_key] = next_mode
+    end
+    write_saved_mode(op.to, saved_snapshot[op.from])
+  end
+
+  for _, op in ipairs(clean_ops) do
+    if not written_to[op.from] and saved_snapshot[op.from] ~= nil then
+      write_saved_mode(op.from, nil)
+    end
+  end
+
+  for _, item in ipairs(retag) do
+    hl.dispatch(hl.dsp.window.tag({ tag = "-" .. item.old_tag, window = item.window }))
+    hl.dispatch(hl.dsp.window.tag({ tag = "+" .. item.new_tag, window = item.window }))
+  end
+
+  if anything_floats() and hl.get_config and hl.window_rule then
+    watch()
+    set_up_floating()
+  end
+
+  for _, op in ipairs(clean_ops) do
+    local to_key = tostring(op.to)
+    local mode = modes[to_key]
+    if hl.workspace_rule then
+      if mode and mode ~= "floating" then
+        hl.workspace_rule({ workspace = to_key, layout = mode })
+      elseif not mode then
+        local fallback = (default_mode and default_mode ~= "floating" and default_mode)
+          or (hl.get_config and hl.get_config("general.layout"))
+        if fallback and fallback ~= "floating" then
+          hl.workspace_rule({ workspace = to_key, layout = fallback })
+        end
+      end
+    end
+    if watching and hl.get_workspace_windows then
+      arrange(hl.get_workspace_windows(to_key))
+    end
+  end
+
+  if hl.window_rule then
+    sync_open_rules()
+  end
+  if watching and hl.get_active_workspace and hl.config then
+    update_input()
+  end
+  notify_mode_change()
+end
+
+M.is_floating = floating_workspace
 
 return M

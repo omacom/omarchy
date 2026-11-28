@@ -64,6 +64,7 @@ load_blocks()
 -- joined another monitor's block while its own monitor was unplugged. Kept in a
 -- file to outlive config reloads, and cleared when Hyprland starts.
 local merged = {}
+local reordering = false
 
 local function load_merged()
   local file = io.open(MERGED_FILE, "r")
@@ -676,6 +677,113 @@ function M.reconcile(added, gone)
   end
 end
 
+-- Reorder workspaces through temporary IDs while preserving merged monitor
+-- origin records, saved workspace layouts, and runtime workspace modes.
+function M.reorder(ops)
+  if type(ops) ~= "table" or #ops == 0 then
+    return
+  end
+
+  local clean_ops = {}
+  local used = {}
+  local max_used = 0
+  local function mark_used(id)
+    local n = tonumber(id)
+    if n and n > 0 then
+      used[n] = true
+      if n > max_used then
+        max_used = n
+      end
+    end
+  end
+
+  for _, ws in ipairs(hl.get_workspaces()) do
+    mark_used(ws and ws.id)
+  end
+  for id in pairs(merged) do
+    mark_used(id)
+  end
+
+  for _, op in ipairs(ops) do
+    local from_id = tonumber(op.from)
+    local to_id = tonumber(op.to)
+    local temp_id = tonumber(op.temp)
+    if from_id and to_id and from_id >= 1 and to_id >= 1 and from_id ~= to_id then
+      mark_used(from_id)
+      mark_used(to_id)
+      table.insert(clean_ops, { from = from_id, to = to_id, temp = temp_id })
+    end
+  end
+  if #clean_ops == 0 then
+    return
+  end
+
+  local next_temp = math.max(9900, max_used + 100)
+  for _, op in ipairs(clean_ops) do
+    if op.temp and op.temp >= 1 and not used[op.temp] and not hl.get_workspace(op.temp) then
+      used[op.temp] = true
+    else
+      while used[next_temp] or hl.get_workspace(next_temp) do
+        next_temp = next_temp + 1
+      end
+      op.temp = next_temp
+      used[op.temp] = true
+    end
+  end
+
+  local merged_snapshot = {}
+  for _, op in ipairs(clean_ops) do
+    merged_snapshot[op.from] = merged[op.from]
+  end
+
+  local staged = {}
+  reordering = true
+  local ok, err = pcall(function()
+    for _, op in ipairs(clean_ops) do
+      if hl.get_workspace(op.from) then
+        hl.dispatch(hl.dsp.workspace.change_id({ workspace = tostring(op.from), id = op.temp }))
+        staged[op.temp] = true
+      end
+    end
+    for _, op in ipairs(clean_ops) do
+      if staged[op.temp] and hl.get_workspace(op.temp) then
+        hl.dispatch(hl.dsp.workspace.change_id({ workspace = tostring(op.temp), id = op.to }))
+      end
+    end
+  end)
+  reordering = false
+  if not ok then
+    error(err)
+  end
+
+  local merged_changed = false
+  for _, op in ipairs(clean_ops) do
+    if merged[op.from] ~= nil or merged[op.to] ~= nil then
+      merged[op.from] = nil
+      merged[op.to] = nil
+      merged_changed = true
+    end
+  end
+  for _, op in ipairs(clean_ops) do
+    if merged_snapshot[op.from] ~= nil then
+      merged[op.to] = merged_snapshot[op.from]
+      merged_changed = true
+    end
+  end
+  if merged_changed then
+    save_merged()
+  end
+
+  local modes_ok, modes = pcall(require, "default.hypr.workspace-modes")
+  if modes_ok and modes and modes.reorder then
+    modes.reorder(clean_ops)
+  end
+
+  if hl.exec_cmd then
+    hl.exec_cmd("omarchy-shell -q omarchy.workspaces refresh; omarchy-shell -q omarchy.dock refresh")
+  end
+end
+
 hl.on("hyprland.start", function()
   -- Windows don't outlive a session, so neither do the workspaces that held them.
   merged = {}
@@ -686,6 +794,9 @@ end)
 -- A workspace created under a remembered number is a new one; the one that
 -- came from elsewhere has gone.
 hl.on("workspace.created", function(workspace)
+  if reordering then
+    return
+  end
   if workspace and merged[workspace.id] then
     merged[workspace.id] = nil
     save_merged()

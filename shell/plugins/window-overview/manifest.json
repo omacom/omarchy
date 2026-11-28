@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.window-overview",
+  "name": "Workspace Overview",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Select a window on a floating workspace",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": { "overlay": "Overview.qml" }
+}

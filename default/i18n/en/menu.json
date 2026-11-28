@@ -1444,5 +1444,14 @@
   },
   "update.hardware.trackpad": {
     "label": "Trackpad"
+  },
+  "setup.input.config": {
+    "label": "Input Configuration"
+  },
+  "setup.input.window-overview": {
+    "label": "Workspace Overview"
+  },
+  "setup.input.window-overview.middle-click": {
+    "label": "Middle-Click"
   }
 }
