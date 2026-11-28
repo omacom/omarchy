@@ -850,6 +850,62 @@ fi
 [[ ! -s $launch_log ]] || fail "OpenClaw's agent without the package starts nothing"
 pass "OpenClaw's agent hands a missing command to its launcher only when the package is there"
 
+# AFK ships from its own release rather than one of Omarchy's packages, so
+# choosing it routes through omarchy-install-afk-cli, and it opens the session
+# itself: a prompt and the project go on its command line and it runs inline,
+# where a terminal would only wrap a command that opens a browser tab.
+cat >"$mock_bin/omarchy-install-afk-cli" <<'SH'
+#!/bin/bash
+if [[ $1 == "--check" ]]; then
+  [[ ${OMARCHY_TEST_AFK_INSTALLED:-false} == "true" ]]
+else
+  printf '%s\n' "install-afk-cli $*" >>"$OMARCHY_TEST_STUB_LOG"
+fi
+SH
+cat >"$mock_bin/afk" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
+SH
+chmod +x "$mock_bin/omarchy-install-afk-cli" "$mock_bin/afk"
+
+: >"$inline_log"
+: >"$launch_log"
+: >"$install_history"
+OMARCHY_TEST_AFK_INSTALLED=true omarchy-default-agent afk
+read -r chosen <"$agent_file"
+[[ $chosen == afk ]] || fail "choosing AFK records it as the default agent"
+mapfile -d '' -t inline_args <"$inline_log"
+[[ ${#inline_args[@]} == 3 && ${inline_args[0]} == "open" && ${inline_args[1]} == "--project" ]] ||
+  fail "choosing AFK opens it on the project" "actual: ${inline_args[*]}"
+[[ ! -s $launch_log ]] || fail "AFK runs inline instead of in a terminal"
+[[ ! -s $install_history ]] || fail "AFK never installs as a package"
+pass "choosing AFK uses its own release and opens it in the browser"
+
+
+: >"$inline_log"
+omarchy-agent-prompt "Review this project"
+mapfile -d '' -t inline_args <"$inline_log"
+[[ ${#inline_args[@]} == 4 && ${inline_args[3]} == "Review this project" ]] ||
+  fail "AFK takes the prompt as the task it prefills" "actual: ${inline_args[*]}"
+pass "AFK opens on the prompted task"
+
+: >"$terminal_log"
+OMARCHY_TEST_AFK_INSTALLED=false omarchy-default-agent afk
+mapfile -d '' -t terminal_args <"$terminal_log"
+[[ ${terminal_args[*]} == "omarchy-default-agent --install afk" ]] ||
+  fail "a missing AFK routes through the install terminal"
+pass "a missing AFK routes through the install terminal"
+
+: >"$stub_log"
+: >"$inline_log"
+OMARCHY_TEST_AFK_INSTALLED=false omarchy-default-agent --install afk >/dev/null
+grep -Fx "install-afk-cli --now" "$stub_log" >/dev/null ||
+  fail "installing AFK as default agent installs its release"
+mapfile -d '' -t inline_args <"$inline_log"
+[[ ${#inline_args[@]} -gt 0 && ${inline_args[0]} == "open" ]] ||
+  fail "installing AFK opens it in the browser"
+pass "installing AFK fetches its release and opens it"
+
 # Each local model that is set up gets a launcher of its own, and the warm-up
 # behind it starts a stopped model before its agent opens.
 applications="$HOME/.local/share/applications"

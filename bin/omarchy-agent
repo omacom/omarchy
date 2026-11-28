@@ -160,6 +160,12 @@ fi
 # with its own spelling of "don't stop to ask". Pi and Ori have none to skip.
 resume_supported=false
 case "$agent" in
+afk)
+  # AFK is browser-first: it opens the session itself, so the project and a
+  # prompt go on its command line and it runs inline rather than in a terminal.
+  command=(afk open --project "$PWD")
+  [[ -n ${prompt:-} ]] && command+=("$prompt")
+  ;;
 opencode)
   resume_supported=true
   command=(opencode --auto)
@@ -452,7 +458,7 @@ if [[ -n $home_env ]]; then
   fi
 fi
 
-if [[ $inline == "true" ]]; then
+if [[ $agent == "afk" || $inline == "true" ]]; then
   exec "${command[@]}"
 else
   # A fixed app-id rather than the default org.omarchy.<binary>, so every agent

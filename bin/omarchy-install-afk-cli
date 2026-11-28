@@ -1,0 +1,132 @@
+#!/bin/bash
+
+# omarchy:summary=Install AFK, the browser-first coding agent, from its own release
+# omarchy:args=<--check|--now>
+# omarchy:examples=omarchy install afk cli --now | omarchy install afk cli --check
+
+# AFK is not one of Omarchy's curated packages: it ships from the project's own
+# Forgejo release as a single binary, and it is the release that updates it. So
+# choosing it as the default agent installs it the way hermes and openclaw
+# install: an installer of its own with the same --check/--now contract, rather
+# than a package omarchy-install-ai-cli does not know.
+#
+# --check asks whether the command omarchy-agent would run is in and runs, and
+# --now installs the current release over it. Both answer from the command, so
+# an AFK the user installed another way counts, and neither ever runs it.
+
+set -euo pipefail
+
+mode=${1:-}
+api="https://git.mooglest.com/api/v1/repos/mooglest/public"
+command_path="$HOME/.local/bin/afk"
+
+case "$mode" in
+--check | --now) ;;
+*)
+  echo "Usage: omarchy-install-afk-cli <--check|--now>" >&2
+  exit 1
+  ;;
+esac
+
+# The release names its assets for the architecture the binary was built for.
+if omarchy-hw-aarch64; then
+  asset="afk-linux-arm64.tar.gz"
+else
+  asset="afk-linux-amd64.tar.gz"
+fi
+
+# A binary that runs is the only answer that counts: the executable bit alone
+# proves little, since a truncated download or an architecture that cannot run
+# passes it too.
+afk_runs() {
+  [[ -f $1 && -x $1 ]] && timeout 15 "$1" --version >/dev/null 2>&1
+}
+
+# What omarchy-agent runs is whichever afk is first on PATH, so an install of
+# the user's own - in /usr/local/bin, or one a mise config puts earlier -
+# already answers yes. Installing a second copy over it would not be the one
+# the agent then started.
+installed_afk() {
+  local found
+  found=$(type -P afk) || return 1
+  afk_runs "$found"
+}
+
+if [[ $mode == "--check" ]]; then
+  installed_afk
+  exit
+fi
+
+if ((EUID == 0)); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+# Updating in place is the same work as installing over an older one, so --now
+# always replaces the command with the release that is current.
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+release=$(curl -fsSL --max-time 60 "$api/releases/latest" | jq -r '.tag_name // empty')
+if [[ -z $release ]]; then
+  echo "Could not read the current AFK release." >&2
+  echo "Check the network, then run omarchy-install-afk-cli --now again." >&2
+  exit 1
+fi
+
+url="$api/releases/download/$release/$asset"
+echo "Downloading AFK $release..."
+if ! curl -fsSL --max-time 900 -o "$work/$asset" "$url"; then
+  echo "Could not download $asset for AFK $release." >&2
+  exit 1
+fi
+
+# The release publishes the digest beside the asset, so a truncated or replaced
+# download is refused before anything is unpacked.
+if ! curl -fsSL --max-time 60 -o "$work/$asset.sha256" "$url.sha256"; then
+  echo "Could not download the checksum for AFK $release." >&2
+  exit 1
+fi
+expected=$(cut -d' ' -f1 <"$work/$asset.sha256")
+actual=$(sha256sum "$work/$asset" | cut -d' ' -f1)
+if [[ -z $expected || $expected != "$actual" ]]; then
+  echo "The AFK $release download does not match its published checksum." >&2
+  exit 1
+fi
+
+tar xzf "$work/$asset" -C "$work"
+if [[ ! -f $work/afk ]]; then
+  echo "The AFK $release archive holds no afk command." >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$command_path")"
+
+# A symlink or a directory at the path is the user's arrangement, not a release
+# Omarchy put there, so replacing it would move where their afk points. A
+# regular file is only ever an earlier release, since this is the one installer
+# that writes the command.
+if [[ -L $command_path || (-e $command_path && ! -f $command_path) ]]; then
+  echo "$command_path is not a file this installer wrote. Move it aside, then run omarchy-install-afk-cli --now again." >&2
+  exit 1
+fi
+
+# The binary replaces the old one in a rename, so a launch running meanwhile
+# keeps the copy it started with and never sees a half-written file.
+install -m 0755 "$work/afk" "$work/afk.new"
+mv -f "$work/afk.new" "$command_path"
+
+if ! afk_runs "$command_path"; then
+  echo "AFK $release was installed at $command_path, but it does not run here." >&2
+  exit 1
+fi
+
+# The copy has to be the one PATH finds, or the agent starts something else.
+found=$(type -P afk) || found=""
+if [[ $(realpath -m -- "${found:-$command_path}") != "$(realpath -m -- "$command_path")" ]]; then
+  echo "$command_path is ready, but 'afk' on PATH is $found, which is what the default agent runs." >&2
+  echo "Remove or reorder it, then run omarchy-install-afk-cli --now again." >&2
+  exit 1
+fi
+
+echo "AFK $release installed."
