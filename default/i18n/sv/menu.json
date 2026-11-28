@@ -1441,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock i kakelläge"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock endast i flytläge"
   }
 }
