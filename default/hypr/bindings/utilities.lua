@@ -41,6 +41,9 @@ o.bind("switch:off:Apple SMC power/lid events", nil, "omarchy-hyprland-monitor-c
 -- ChromeOS EC laptops (Googlebooks, Chromebooks) report their lid through cros_ec_buttons.
 o.bind("switch:on:cros_ec_buttons", nil, "omarchy-system-lid-close", { locked = true })
 o.bind("switch:off:cros_ec_buttons", nil, "omarchy-hyprland-monitor-clamshell", { locked = true })
+-- Device-tree laptops (Snapdragon X Elite and kin) report their lid through gpio-keys.
+o.bind("switch:on:gpio-keys", nil, "omarchy-system-lid-close", { locked = true })
+o.bind("switch:off:gpio-keys", nil, "omarchy-hyprland-monitor-clamshell", { locked = true })
 
 o.bind("PRINT", "Screenshot", "omarchy-capture-screenshot")
 o.bind("SUPER + CTRL + ALT + C", "Screenshot", "omarchy-capture-screenshot")
