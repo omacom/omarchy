@@ -2,6 +2,7 @@
 
 set -euo pipefail
 
+# shellcheck source=test/shell.d/base-test.sh
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 # The shared shell/Ui kit carries Qt Accessible roles, names, states and
