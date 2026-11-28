@@ -102,6 +102,9 @@ pass "fallback commands are inferred and documented"
 jq -e '.commands[] | select(.route == "omarchy dev benchmark cli")' "$commands_all_json_file" >/dev/null
 pass "benchmark command is discoverable in all commands"
 
+jq -e '.commands[] | select(.binary == "omarchy-dev-pr-audit" and .route == "omarchy dev pr audit")' "$commands_json_file" >/dev/null
+pass "dev PR audit command is discoverable in commands JSON"
+
 jq -e '.commands[] | select(.binary == "omarchy-pkg-add" and .route == "omarchy pkg add" and .filename_route == "omarchy pkg add" and (.routes | index("omarchy pkg add")))' "$commands_json_file" >/dev/null
 pass "JSON exposes direct pkg add route"
 
@@ -273,6 +276,31 @@ assert_output_contains "system command help is safe" "$output" "omarchy-system"
 
 output=$("$CLI" dev benchmark cli --repeat=1)
 assert_output_contains "benchmark command runs" "$output" "Omarchy CLI benchmark"
+
+output=$("$CLI" dev pr audit --help)
+assert_output_contains "dev PR audit help renders" "$output" "omarchy-dev-pr-audit"
+
+status=0
+"$CLI" dev pr audit --repo >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "dev PR audit exits 1 when --repo has no argument"
+pass "dev PR audit exits 1 when --repo has no argument"
+
+status=0
+"$CLI" dev pr audit --limit 0 >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "dev PR audit exits 1 when --limit is invalid"
+pass "dev PR audit exits 1 when --limit is invalid"
+
+# A cancelled shard beside a passing one is neither a pass nor hidden.
+audit_bin=$(mktemp -d)
+cat >"$audit_bin/gh" <<'SH'
+#!/bin/bash
+printf '%s\n' '[{"number":1,"title":"t","author":{"login":"a"},"headRefName":"b","mergeable":"MERGEABLE","labels":[],"updatedAt":"","url":"","statusCheckRollup":[{"name":"test (noncomp-1)","workflowName":"Tests","status":"COMPLETED","conclusion":"SUCCESS"},{"name":"test (comp)","workflowName":"Tests","status":"COMPLETED","conclusion":"CANCELLED"}]}]'
+SH
+chmod +x "$audit_bin/gh"
+audit_tests=$(PATH="$audit_bin:$PATH" "$CLI" dev pr audit --repo omacom/omarchy --json | jq -r '.[0].tests')
+rm -rf "$audit_bin"
+[[ $audit_tests == "INCOMPLETE" ]] || fail "dev PR audit reports a cancelled shard beside a passing one" "$audit_tests"
+pass "dev PR audit reports mixed shard results as incomplete"
 
 "$CLI" theme list >/dev/null
 pass "safe dispatch works for theme list"
