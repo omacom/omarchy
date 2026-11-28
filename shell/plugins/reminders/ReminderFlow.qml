@@ -97,6 +97,7 @@ Item {
     id: panel
     shown: root.opened
     WlrLayershell.namespace: "omarchy-reminders"
+    onDismissRequested: root.dismiss()
 
     Rectangle {
       anchors.fill: parent
