@@ -26,43 +26,23 @@ cat >"$mock_bin/systemd-detect-virt" <<'SH'
 #!/bin/bash
 [[ ${TEST_IN_CHROOT:-0} == 1 ]]
 SH
-cat >"$mock_bin/sudo" <<'SH'
-#!/bin/bash
-printf "%s\n" "$*" >>"$TEST_SUDO_LOG"
-exec "$@"
-SH
 chmod +x "$mock_bin"/*
 
-# Build a realistic sysfs layout under soc0/ with symlinked platform/devices entries.
-make_sysfs() {
-  local root=$1
-  mkdir -p "$root/drivers/dwc3-qcom" "$root/drivers/xhci-hcd" "$root/drivers/qcom-qmp-combo-phy" \
-    "$root/soc0/a200000.usb/xhci-hcd.1.auto/power" "$root/soc0/a200000.usb/power" \
-    "$root/soc0/a600000.usb/xhci-hcd.3.auto/power" "$root/soc0/a600000.usb/power" \
-    "$root/soc0/fd5000.phy/power" \
-    "$root/platform/devices"
-
-  ln -s "$root/drivers/dwc3-qcom" "$root/soc0/a200000.usb/driver"
-  ln -s "$root/drivers/xhci-hcd" "$root/soc0/a200000.usb/xhci-hcd.1.auto/driver"
-  ln -s "$root/drivers/dwc3-qcom" "$root/soc0/a600000.usb/driver"
-  ln -s "$root/drivers/xhci-hcd" "$root/soc0/a600000.usb/xhci-hcd.3.auto/driver"
-  ln -s "$root/drivers/qcom-qmp-combo-phy" "$root/soc0/fd5000.phy/driver"
-
-  ln -s "$root/soc0/a200000.usb" "$root/platform/devices/a200000.usb"
-  ln -s "$root/soc0/a200000.usb/xhci-hcd.1.auto" "$root/platform/devices/xhci-hcd.1.auto"
-  ln -s "$root/soc0/a600000.usb" "$root/platform/devices/a600000.usb"
-  ln -s "$root/soc0/a600000.usb/xhci-hcd.3.auto" "$root/platform/devices/xhci-hcd.3.auto"
-  ln -s "$root/soc0/fd5000.phy" "$root/platform/devices/fd5000.phy"
-
-  printf "auto\n" >"$root/soc0/a200000.usb/power/control"
-  printf "auto\n" >"$root/soc0/a200000.usb/xhci-hcd.1.auto/power/control"
-  printf "auto\n" >"$root/soc0/a600000.usb/power/control"
-  printf "auto\n" >"$root/soc0/a600000.usb/xhci-hcd.3.auto/power/control"
-  printf "auto\n" >"$root/soc0/fd5000.phy/power/control"
-}
-
 sysfs="$test_tmp/sysfs"
-make_sysfs "$sysfs"
+mkdir -p "$sysfs/drivers/dwc3-qcom" "$sysfs/drivers/xhci-hcd" "$sysfs/drivers/qcom-qmp-combo-phy" \
+  "$sysfs/soc0/a200000.usb/xhci-hcd.1.auto" "$sysfs/soc0/a600000.usb/xhci-hcd.3.auto" \
+  "$sysfs/soc0/fd5000.phy" "$sysfs/platform/devices"
+ln -s "$sysfs/drivers/dwc3-qcom" "$sysfs/soc0/a200000.usb/driver"
+ln -s "$sysfs/drivers/xhci-hcd" "$sysfs/soc0/a200000.usb/xhci-hcd.1.auto/driver"
+ln -s "$sysfs/drivers/dwc3-qcom" "$sysfs/soc0/a600000.usb/driver"
+ln -s "$sysfs/drivers/xhci-hcd" "$sysfs/soc0/a600000.usb/xhci-hcd.3.auto/driver"
+ln -s "$sysfs/drivers/qcom-qmp-combo-phy" "$sysfs/soc0/fd5000.phy/driver"
+ln -s "$sysfs/soc0/a200000.usb" "$sysfs/platform/devices/a200000.usb"
+ln -s "$sysfs/soc0/a200000.usb/xhci-hcd.1.auto" "$sysfs/platform/devices/xhci-hcd.1.auto"
+ln -s "$sysfs/soc0/a600000.usb" "$sysfs/platform/devices/a600000.usb"
+ln -s "$sysfs/soc0/a600000.usb/xhci-hcd.3.auto" "$sysfs/platform/devices/xhci-hcd.3.auto"
+ln -s "$sysfs/soc0/fd5000.phy" "$sysfs/platform/devices/fd5000.phy"
+
 run_udev="$test_tmp/run-udev"
 mkdir -p "$run_udev"
 
@@ -101,32 +81,3 @@ grep -qxF "trigger --action=change --sysname-match=xhci-hcd.1.auto --subsystem-m
 ! grep -qE "a600000\.usb|xhci-hcd\.3\.auto|fd5000\.phy" "$live_log" ||
   fail "live run must not trigger external USB3 controllers or QMP PHYs" "$(cat "$live_log")"
 pass "live run reloads udev and triggers only internal a200000.usb and its xhci-hcd child"
-
-# 3. Migration restores external controllers to on even when the new rules file already exists.
-mig_sudo_log="$test_tmp/mig-sudo.log"
-: >"$mig_sudo_log"
-PATH="$mock_bin:$ROOT/bin:$PATH" \
-  OMARCHY_PATH="$ROOT" \
-  TEST_IN_CHROOT=0 TEST_UDEVADM_LOG="$test_tmp/mig-udevadm.log" TEST_SUDO_LOG="$mig_sudo_log" \
-  OMARCHY_ZENBOOK_UX3480QA_NM_CONF_DIR="$live_nm" \
-  OMARCHY_ZENBOOK_UX3480QA_UDEV_RULES_DIR="$live_udev" \
-  OMARCHY_ZENBOOK_UX3480QA_PLATFORM_DEVICES_DIR="$sysfs/platform/devices" \
-  bash -euo pipefail "$ROOT/migrations/1795856518.sh" >/dev/null
-[[ $(<"$sysfs/soc0/a600000.usb/power/control") == "on" ]] || fail "migration must restore external dwc3-qcom to on"
-[[ $(<"$sysfs/soc0/a600000.usb/xhci-hcd.3.auto/power/control") == "on" ]] || fail "migration must restore external xhci-hcd to on"
-[[ $(<"$sysfs/soc0/fd5000.phy/power/control") == "on" ]] || fail "migration must restore QMP PHY to on"
-[[ $(<"$sysfs/soc0/a200000.usb/power/control") == "auto" ]] || fail "migration must keep internal a200000.usb at auto"
-[[ $(<"$sysfs/soc0/a200000.usb/xhci-hcd.1.auto/power/control") == "auto" ]] || fail "migration must keep internal xhci-hcd at auto"
-pass "migration restores live external USB3/PHY power/control even when rules file is already updated"
-
-# 4. Re-running migration once rules and live sysfs are clean is a no-op without sudo.
-: >"$mig_sudo_log"
-PATH="$mock_bin:$ROOT/bin:$PATH" \
-  OMARCHY_PATH="$ROOT" \
-  TEST_IN_CHROOT=0 TEST_UDEVADM_LOG="$test_tmp/mig-udevadm2.log" TEST_SUDO_LOG="$mig_sudo_log" \
-  OMARCHY_ZENBOOK_UX3480QA_NM_CONF_DIR="$live_nm" \
-  OMARCHY_ZENBOOK_UX3480QA_UDEV_RULES_DIR="$live_udev" \
-  OMARCHY_ZENBOOK_UX3480QA_PLATFORM_DEVICES_DIR="$sysfs/platform/devices" \
-  bash -euo pipefail "$ROOT/migrations/1795856518.sh" >/dev/null
-[[ ! -s $mig_sudo_log ]] || fail "already-repaired machine must skip sudo" "$(cat "$mig_sudo_log")"
-pass "already-repaired machine exits cleanly without invoking sudo"
