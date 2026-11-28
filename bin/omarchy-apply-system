@@ -99,4 +99,13 @@ fi
 source "$OMARCHY_INSTALL/login/all.sh"
 source "$OMARCHY_INSTALL/post-install/all.sh"
 
+# omarchy-settings ships the compiled renderer as immutable data because that
+# package also lives in the ISO environment, where package hooks must not touch
+# an ESP. Activate it only while finalizing a real target, after the boot
+# stack and initial UKI paths exist. The installer owns publication and rebuild.
+ttfx_payload=/usr/lib/omarchy/plymouth/ttfx-plymouth.so
+if (( first_install )) && [[ -f $ttfx_payload ]]; then
+  omarchy-plymouth-ttfx-install --module "$ttfx_payload"
+fi
+
 stop_install_log

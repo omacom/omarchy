@@ -29,6 +29,37 @@ LUA
 done
 pass "look and feel mutes bells only when the running compositor supports it"
 
+for hold_supported in false true; do
+  OMARCHY_HOLD_SUPPORTED="$hold_supported" lua - <<'LUA' || fail "the Plymouth handoff loads before and after a Hyprland upgrade"
+local supported = os.getenv("OMARCHY_HOLD_SUPPORTED") == "true"
+local known = { ["misc.startup_hold_layer"] = "", ["cursor.hide_at_startup"] = false }
+local set, rules, animations = {}, {}, {}
+hl = {
+  get_config = function(key)
+    assert(known[key] ~= nil, "unexpected config key " .. key)
+    if supported then return known[key] end
+    return nil, "unknown config key '" .. key .. "'"
+  end,
+  config = function(config)
+    for section, values in pairs(config) do
+      for key, value in pairs(values) do
+        assert(supported, "unknown config key '" .. section .. "." .. key .. "'")
+        set[section .. "." .. key] = value
+      end
+    end
+  end,
+  layer_rule = function(rule) rules[#rules + 1] = rule end,
+  animation = function(animation) animations[animation.leaf] = animation.enabled end,
+}
+dofile(os.getenv("ROOT") .. "/default/hypr/plymouth-handoff.lua")
+assert(#rules == 1 and rules[1].match.namespace == "^omarchy-plymouth-continuity$" and rules[1].no_anim and rules[1].order < 0)
+assert(animations.monitorAdded == false)
+assert(set["misc.startup_hold_layer"] == (supported and "overlay:omarchy-plymouth-continuity" or nil))
+assert(set["cursor.hide_at_startup"] == (supported or nil))
+LUA
+done
+pass "the Plymouth handoff layer draws on top at once, and holds the boot frame only where Hyprland can"
+
 run_application_bindings() {
   local home="$1"
   local prelude="${2:-}"

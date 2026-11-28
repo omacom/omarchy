@@ -1,0 +1,32 @@
+# First-party C in native/ follows the repository's two-space indentation
+# (AGENTS.md) and otherwise keeps Plymouth's layout: braces on their own line
+# after a function, continuations aligned with the open parenthesis, and line
+# breaks left where they are.
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 2
+ContinuationIndentWidth: 4
+UseTab: Never
+ColumnLimit: 0
+AlignAfterOpenBracket: Align
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+IndentCaseLabels: false
+SortIncludes: Never
+ReflowComments: false
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+PointerAlignment: Right
+SpaceAfterCStyleCast: false
+AlignConsecutiveMacros: None
+AlignTrailingComments: false
+AlignOperands: DontAlign
+BinPackArguments: true
+BinPackParameters: true
+KeepEmptyLinesAtTheStartOfBlocks: true
+MaxEmptyLinesToKeep: 2
+IndentPPDirectives: None

@@ -1,0 +1,3 @@
+
+# Patch context preserves upstream whitespace.
+native/plymouth-ttfx-engine/vendor/ttfx-plymouth.patch -whitespace

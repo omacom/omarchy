@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Keep the native Plymouth splash's last frame on screen until the desktop is ready
+# omarchy:args=[--launch-shell]
+# omarchy:hidden=true
+
+set -uo pipefail
+
+# Runs unprivileged from hyprland.start and never blocks or fails login.
+#
+# At its quit, the native TTFX Plymouth module leaves its last frame in
+# /run/omarchy-plymouth-handoff.raw. When it did, start the continuity client,
+# which shows that frame as an overlay layer from Hyprland's first frame until
+# the wallpaper intro plays (and plays the reverse outro there with
+# [ttfx] Outro=desktop), then start the shell as the default login path does.
+launch_shell=false
+case $# in
+0) ;;
+1) [[ $1 == --launch-shell ]] || exit 0; launch_shell=true ;;
+*) exit 0 ;;
+esac
+
+launcher=${OMARCHY_PLYMOUTH_CONTINUITY_LAUNCHER:-/usr/lib/omarchy/plymouth/omarchy-plymouth-continuity-run}
+frame=${OMARCHY_PLYMOUTH_HANDOFF_FRAME:-/run/omarchy-plymouth-handoff.raw}
+runtime=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+
+# The packaged launcher is root-owned. A test may point at its own, owned by
+# the caller. Neither may be writable by anyone else.
+trusted_launcher() {
+  local expected_owner=0 owner mode
+
+  [[ -v OMARCHY_PLYMOUTH_CONTINUITY_LAUNCHER ]] && expected_owner=$EUID
+  [[ -f $launcher && -x $launcher && ! -L $launcher ]] || return 1
+  owner=$(stat -c %u -- "$launcher") || return 1
+  mode=$(stat -c %a -- "$launcher") || return 1
+  (( owner == expected_owner && (8#$mode & 0022) == 0 ))
+}
+
+# The client goes first: every process started ahead of it delays its first
+# frame. It hides the cursor over the boot frame and exits on its own.
+if [[ -f $frame && -d $runtime ]] && trusted_launcher; then
+  "$launcher" --settle-ms 30 --pid-file "$runtime/omarchy-plymouth-continuity.pid" \
+    </dev/null >/dev/null 2>"$runtime/omarchy-plymouth-continuity.log" &
+fi
+
+if $launch_shell; then
+  exec omarchy-launch-shell
+fi

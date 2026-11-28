@@ -3,6 +3,17 @@ Name=Omarchy
 Description=Omarchy splash screen.
 ModuleName=script
 
+[ttfx]
+ImageDir=/usr/share/plymouth/themes/omarchy
+Enabled=true
+Mode=fixed
+Effect=decrypt
+Seed=22321466108495961
+PlaybackMode=submit-to-finish
+BackgroundColor=1a1b26
+TextColor=ffffff
+MessageColor=b8bec9
+
 [script]
 ImageDir=/usr/share/plymouth/themes/omarchy
 ScriptFile=/usr/share/plymouth/themes/omarchy/omarchy.script

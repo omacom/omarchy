@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# omarchy:summary=Open the TTFX Plymouth boot-logo effect switcher
+
+set -euo pipefail
+
+current=$(omarchy-plymouth-effect-set current)
+[[ $current == off ]] && current=decrypt
+options=()
+declare -A option_keys=()
+mapfile -t effects < <(omarchy-plymouth-effect-list)
+
+add_option() {
+  local label=$1 key=$2 glyph=·
+  [[ $current == "$key" ]] && glyph=✓
+  options+=("$glyph"$'\t'"$label")
+  option_keys["$label"]=$key
+}
+
+case $current in
+random) add_option "Random" "random" ;;
+*)
+  for effect in "${effects[@]}"; do
+    if [[ $effect == "$current" ]]; then
+      add_option "${effect^}" "$effect"
+      break
+    fi
+  done
+  ;;
+esac
+[[ $current == random ]] || add_option "Random" "random"
+for effect in "${effects[@]}"; do
+  [[ $effect == "$current" ]] || add_option "${effect^}" "$effect"
+done
+
+selection=$(printf '%s\n' "${options[@]}" | omarchy-menu-select "$(omarchy-i18n plymouth.effectPrompt)") || exit 1
+key=${option_keys[$selection]:-}
+[[ -n ${key:-} ]] || exit 1
+printf '%s\n' "$key"
