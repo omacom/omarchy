@@ -107,7 +107,12 @@ function deviceLists(devices) {
 
   for (var i = 0; i < values.length; i++) {
     var d = values[i]
-    if (!d || !hasHumanName(d)) continue
+    if (!d) continue
+    // Connected / paired devices must stay visible even when BlueZ first cached
+    // an address-like placeholder name (AirPods Max, etc.). Discovered devices
+    // still require a human label so scan noise does not flood Available.
+    var established = !!(d.connected || d.paired || d.bonded || d.trusted)
+    if (!established && !hasHumanName(d)) continue
     if (d.connected) connected.push(d)
     else if (d.paired || d.bonded || d.trusted) known.push(d)
     else discovered.push(d)
