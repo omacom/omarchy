@@ -175,11 +175,23 @@ choose_theme_background() {
       fi
     done
 
-    if (( index != -1 )); then
+    if (( index == -1 )) && [[ -n $current_background ]]; then
+      local current_stem="${current_background%.*}"
+      for i in "${!backgrounds[@]}"; do
+        if [[ ${backgrounds[$i]%.*} == "$current_stem" ]]; then
+          index=$i
+          break
+        fi
+      done
+    fi
+
+    if (( index == -1 )); then
+      CHOSEN_THEME_BACKGROUND="${backgrounds[0]}"
+    elif [[ ${OMARCHY_THEME_SKIP_BACKGROUND:-} == "1" ]]; then
+      CHOSEN_THEME_BACKGROUND="${backgrounds[$index]}"
+    else
       next_index=$(((index + 1) % ${#backgrounds[@]}))
       CHOSEN_THEME_BACKGROUND="${backgrounds[$next_index]}"
-    else
-      CHOSEN_THEME_BACKGROUND="${backgrounds[0]}"
     fi
     return
   fi
@@ -530,12 +542,19 @@ if [[ $THEME_HEADLESS == "1" ]]; then
   # No shell/session bus exists during ISO chroot finalization, but the first
   # real login still needs a current background symlink for omarchy-shell to
   # render.
-  [[ $OMARCHY_THEME_SKIP_BACKGROUND == "1" ]] || set_theme_background_link || true
+  if [[ ${OMARCHY_THEME_SKIP_BACKGROUND:-} != "1" || ! -e $CURRENT_BACKGROUND_LINK ]]; then
+    set_theme_background_link || true
+  fi
   # The app retints don't run headless, but the first login should already
   # show Omarchy's app icons in the theme's colors.
   omarchy-theme-set-icons || true
-elif [[ $OMARCHY_THEME_SKIP_BACKGROUND == "1" ]]; then
-  shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
+elif [[ ${OMARCHY_THEME_SKIP_BACKGROUND:-} == "1" ]]; then
+  # A refresh keeps the wallpaper, unless its file is gone and the theme has another to offer.
+  if [[ ! -e $CURRENT_BACKGROUND_LINK ]] && choose_theme_background; then
+    set_theme_background
+  else
+    shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
+  fi
 else
   set_theme_background
 fi
