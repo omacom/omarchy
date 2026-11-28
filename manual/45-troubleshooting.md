@@ -16,6 +16,41 @@ On some ASUS ROG and TUF laptops, `Fn + Super` is an easy-to-miss chord that tog
 
 Press `Fn + Super` once before you dig into `~/.config/hypr/`, and if that doesn't bring Super back, press it again so you don't leave the lock on. This is not Fn-lock, which only changes what the F-key row does.
 
+### The bar and launcher stopped responding after unlocking
+
+If the pointer moves and `Super + Return` still opens a terminal, but bar clicks and `Super + Space` do nothing, the Omarchy shell may have stopped responding while Hyprland is still running. This can happen after a suspend and successful unlock; it does not necessarily mean your keyboard or mouse failed.
+
+From the terminal, check the shell and save the current boot's user logs before restarting it:
+
+```bash
+omarchy-shell shell ping
+journalctl --user -b --no-pager > ~/omarchy-shell-journal.txt
+omarchy restart shell
+omarchy-shell shell ping
+```
+
+A healthy shell answers `ok`. Restarting the shell restores its bar and launcher without logging out of your applications. If the restart refuses because the session is locked, do not bypass that refusal: the shell also owns the lock screen.
+
+If the shell remains hung and the restart cannot finish, run:
+
+```bash
+omarchy restart shell --force
+```
+
+Forced recovery verifies that the compositor is unlocked, then terminates only the identified Omarchy shell process before restarting. It refuses to proceed if lock state is locked or undetermined, or if the process no longer matches the registered shell configuration. It discards transient shell UI state and notifications. This recovers an unresponsive shell; it does not establish or fix the underlying cause of a hang.
+
+### The lock screen does not respond after waking with an NVIDIA GPU
+
+On x86 NVIDIA systems affected by kernel-notifier suspend hangs, try NVIDIA's service-based suspend path:
+
+```bash
+omarchy setup nvidia-suspend
+```
+
+This writes an NVIDIA module configuration, enables the GPU sleep services without starting them, and rebuilds installed Limine boot images. Reboot before testing suspend and unlock. The command is an opt-in workaround; it does not change the default suspend path on unaffected systems.
+
+If unlocking succeeds but the bar and launcher subsequently stop responding, use the shell recovery above. Save the journal before restarting so the original failure can be investigated. Include your GPU and driver version, monitor setup, and custom plugins when reporting recurring hangs.
+
 ### My Wi-Fi, Bluetooth, audio, or trackpad just stopped working
 
 Before you reboot, try restarting the offending subsystem on its own. _Update > Hardware_ in the Omarchy menu has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up the majority of "it worked five minutes ago" situations — a Bluetooth headset that won't reconnect, a trackpad that went dead after a suspend, sound that vanished when you unplugged a monitor.

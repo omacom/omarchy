@@ -69,6 +69,14 @@ strays=${OMARCHY_TEST_QS_STRAYS:-/nonexistent}
 
 case " $* " in
   *' list '*)
+    if [[ -n ${OMARCHY_TEST_FORCE_PID:-} ]]; then
+      if kill -0 "$OMARCHY_TEST_FORCE_PID" 2>/dev/null; then
+        jq -n --arg dir "$OMARCHY_TEST_SESSION_PATH/shell/shell.qml" --argjson pid "$OMARCHY_TEST_FORCE_PID" '[{config_path: $dir, pid: $pid}]'
+      else
+        echo '[]'
+      fi
+      exit 0
+    fi
     [[ -f $strays ]] && jq -R -s -c 'split("\n") | map(select(length > 0) | split(" ") | {config_path: (.[0] + "/shell.qml"), pid: (.[1] | tonumber)})' "$strays"
     ;;
   *' kill -p '*)
@@ -87,6 +95,7 @@ case " $* " in
 
     pid=$(head -n 1 "$OMARCHY_TEST_QS_STATE")
     [[ $pid =~ ^[0-9]+$ ]] || exit 1
+    [[ $pid != 303 ]] || exit 1
     kill "$pid" 2>/dev/null
     while kill -0 "$pid" 2>/dev/null; do sleep 0.01; done
     awk 'NR > 1' "$OMARCHY_TEST_QS_STATE" >"$OMARCHY_TEST_QS_STATE.next"
@@ -104,6 +113,7 @@ cat >"$restart_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 if [[ ${1:-} == "-j" && ${2:-} == "monitors" ]]; then
+  [[ ${OMARCHY_TEST_SESSION_LOCKED:-0} == unknown ]] && exit 1
   # Hyprland reports an active session lock as a reason the monitor cannot hand
   # a client the whole screen, not as a workspace.
   if [[ ${OMARCHY_TEST_SESSION_LOCKED:-0} == 1 ]]; then
@@ -333,3 +343,80 @@ wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 [[ $(<"$restart_state") == 303 ]] || fail "restart with a worktree shell leaves one fresh session shell"
 pass "restart stops a worktree's shell and leaves other Quickshell configs alone"
+
+# Real processes prove that recovery sends a signal only to the identified
+# config, while locked/unknown states and stale PID records remain untouched.
+require_command cc
+cat >"$test_tmp/quickshell.c" <<'C'
+#include <unistd.h>
+int main(void) { for (;;) pause(); }
+C
+cc "$test_tmp/quickshell.c" -o "$test_tmp/quickshell"
+
+force_restart() {
+  PATH="$restart_bin:$PATH" OMARCHY_PATH="$restart_root" XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_SESSION_LOCKED="$1" OMARCHY_TEST_FORCE_PID="$restart_pid_one" \
+  OMARCHY_TEST_QS_STATE="$restart_state" OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" OMARCHY_TEST_SESSION_PATH="$restart_root" \
+    timeout 8 "$ROOT/bin/omarchy-restart-shell" --force
+}
+
+"$test_tmp/quickshell" -p "$restart_root/shell" &
+restart_pid_one=$!
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+for lock_state in 1 unknown; do
+  if force_restart "$lock_state" >"$test_tmp/force.out" 2>&1; then
+    fail "forced restart refuses a locked or undetermined session"
+  fi
+  kill -0 "$restart_pid_one" || fail "forced restart killed a potential lock client"
+  grep -q 'session is locked or lock state is unknown' "$test_tmp/force.out" || fail "force refusal explains lock state"
+done
+pass "forced recovery preserves a hung locker and an undetermined session"
+
+rm -f "$restart_state.locked"
+force_restart 0 >"$test_tmp/force.out" 2>&1 || fail "forced restart recovers an unlocked hung process" "$(cat "$test_tmp/force.out")"
+if kill -0 "$restart_pid_one" 2>/dev/null; then fail "forced restart left the hung process alive"; fi
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$restart_state") == 303 ]] || fail "forced restart launches a replacement"
+pass "forced recovery kills an unlocked shell that cannot answer IPC"
+
+# A recycled PID with the wrong executable must not receive SIGKILL.
+sleep 30 &
+restart_pid_one=$!
+printf '303\n' >"$restart_state"
+if force_restart 0 >"$test_tmp/stale.out" 2>&1; then fail "forced restart accepted a reused PID"; fi
+kill -0 "$restart_pid_one" || fail "forced restart killed an unrelated reused PID"
+pass "forced recovery ignores stale records pointing to unrelated executables"
+
+kill "$restart_pid_one" 2>/dev/null || true
+wait "$restart_pid_one" 2>/dev/null || true
+"$test_tmp/quickshell" -p "$test_tmp/another-config" &
+restart_pid_one=$!
+if force_restart 0 >"$test_tmp/wrong-config.out" 2>&1; then
+  fail "forced restart accepted a process running another configuration"
+fi
+kill -0 "$restart_pid_one" || fail "forced restart killed another Quickshell configuration"
+pass "forced recovery refuses a live process whose configuration differs from its stale record"
+
+# Package upgrades atomically replace the binary while the old inode keeps
+# running. Exercise the real /proc suffix instead of faking readlink output.
+kill "$restart_pid_one" 2>/dev/null || true
+wait "$restart_pid_one" 2>/dev/null || true
+"$test_tmp/quickshell" -p "$restart_root/shell" &
+restart_pid_one=$!
+for attempt in {1..100}; do
+  [[ $(readlink "/proc/$restart_pid_one/exe") == "$test_tmp/quickshell" ]] && break
+  sleep 0.01
+done
+cp "$test_tmp/quickshell" "$test_tmp/quickshell.new"
+mv "$test_tmp/quickshell.new" "$test_tmp/quickshell"
+[[ $(readlink "/proc/$restart_pid_one/exe") == "$test_tmp/quickshell (deleted)" ]] || fail "fixture keeps running the replaced executable"
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+force_restart 0 >"$test_tmp/replaced.out" 2>&1 || fail "forced recovery accepts a replaced Quickshell executable" "$(cat "$test_tmp/replaced.out")"
+if kill -0 "$restart_pid_one" 2>/dev/null; then fail "forced recovery left the replaced executable running"; fi
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$restart_state") == 303 ]] || fail "forced recovery replaces an upgraded shell"
+pass "forced recovery accepts the deleted executable left running after a package upgrade"
