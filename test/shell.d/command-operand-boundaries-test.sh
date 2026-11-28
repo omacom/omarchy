@@ -124,7 +124,8 @@ if [[ ${1:-} == "--help" ]]; then
 elif [[ ${1:-} == "--" ]]; then
   shift
 fi
-[[ ${1:-} == "known-hardware" ]]
+# An empty pattern matches every line, as it does for the real grep.
+[[ -z ${1:-} || ${1:-} == "known-hardware" ]]
 STUB
 chmod +x "$mock_bin/grep"
 
@@ -136,6 +137,23 @@ pass "hw-match treats an option-shaped hardware pattern literally"
 PATH="$mock_bin:$PATH" "$ROOT/bin/omarchy-hw-match" known-hardware ||
   fail "hw-match still accepts an ordinary hardware pattern"
 pass "hw-match still accepts an ordinary hardware pattern"
+
+# A missing pattern would match every readable DMI file, turning a forgotten
+# argument into a hardware "yes" for any caller.
+if PATH="$mock_bin:$PATH" "$ROOT/bin/omarchy-hw-match" 2>/dev/null; then
+  fail "hw-match refuses a missing pattern"
+fi
+pass "hw-match refuses a missing pattern"
+
+if PATH="$mock_bin:$PATH" "$ROOT/bin/omarchy-hw-match" "" 2>/dev/null; then
+  fail "hw-match refuses an empty pattern"
+fi
+pass "hw-match refuses an empty pattern"
+
+usage=$("$ROOT/bin/omarchy-hw-match" 2>&1 >/dev/null || true)
+[[ $usage == *"Usage: omarchy-hw-match <pattern>"* ]] ||
+  fail "hw-match usage names the missing pattern" "actual: $usage"
+pass "hw-match usage names the missing pattern"
 
 pkill_calls="$test_tmp/pkill-calls"
 cat >"$mock_bin/pkill" <<'STUB'
