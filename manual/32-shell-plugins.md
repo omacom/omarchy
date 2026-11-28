@@ -50,7 +50,16 @@ omarchy plugin update acme.weather
 omarchy plugin update
 ```
 
-With no id it updates every git-managed plugin you have. It shows you the diff before applying it, refuses to update if you've got local changes it can't fast-forward past, and rolls back if the new revision fails validation.
+With no id it updates every git-managed plugin you have. It shows you the diff before applying it, refuses to update if you've got local changes it can't fast-forward past, and rolls back if the new revision fails validation. To have `omarchy update` do this for you, see _Updating plugins with Omarchy_ in the updates chapter.
+
+If you need one plugin to stay where it is, because you patched it locally or its latest version broke something, hold it:
+
+```
+omarchy plugin hold acme.weather
+omarchy plugin unhold acme.weather
+```
+
+A held plugin is skipped by `omarchy plugin update` with no id, and so by `omarchy update` too. Naming it, as in `omarchy plugin update acme.weather`, still updates it, because you asked for that one.
 
 ```
 omarchy plugin remove acme.weather
