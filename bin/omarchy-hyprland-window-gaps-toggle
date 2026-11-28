@@ -1,5 +1,33 @@
 #!/bin/bash
 
-# omarchy:summary=Toggles the window gaps globally between no gaps and the default.
+# omarchy:summary=Toggle window gaps or read and set their sizes.
+# omarchy:args=[get | set <in|out> <pixels>]
 
-omarchy-hyprland-toggle window-no-gaps
+GAPS_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+
+if (( $# == 0 )); then
+  omarchy-hyprland-toggle window-no-gaps
+elif [[ $1 == "get" && $# == 1 ]]; then
+  enabled=true
+  if omarchy-hyprland-toggle-enabled window-no-gaps; then
+    enabled=false
+  fi
+  set -o pipefail
+  hyprctl -j --batch 'getoption general:gaps_in ; getoption general:gaps_out' |
+    jq -e -s --argjson enabled "$enabled" '
+      def size($option):
+        map(select(.option == $option))[0] |
+        (([.css // "" | scan("-?[0-9]+")] | first) // .int) | tonumber;
+      {in: size("general:gaps_in"), out: size("general:gaps_out"), enabled: $enabled} |
+      select(.in != null and .out != null)
+    '
+elif [[ $1 == "set" && $# == 3 && $2 =~ ^(in|out)$ && $3 =~ ^(0|[1-9][0-9]?)$ ]] && (( $3 <= 64 )); then
+  mkdir -p "$GAPS_DIR" || exit 1
+  temp_file=$(mktemp "$GAPS_DIR/.window-gaps.XXXXXX") || exit 1
+  trap 'rm -f "$temp_file"' EXIT
+  printf '%s\n' "$3" > "$temp_file" && mv -f "$temp_file" "$GAPS_DIR/window-gaps-$2" || exit 1
+  omarchy-restart-hyprctl
+else
+  echo "Usage: omarchy-hyprland-window-gaps-toggle [get | set <in|out> <0-64>]" >&2
+  exit 1
+fi

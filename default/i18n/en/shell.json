@@ -426,6 +426,9 @@
     "other": "%1 selected"
   },
   "monitor.brightness": "BRIGHTNESS",
+  "monitor.gapsBetweenTiles": "BETWEEN TILES",
+  "monitor.gapsAtScreenEdges": "SCREEN EDGES",
+  "monitor.gapsDisabled": "Turn Window Gaps On to adjust tile spacing.",
   "monitor.builtInDisplay": "Built-in Display",
   "monitor.display": "Display",
   "monitor.extend": "Extend",

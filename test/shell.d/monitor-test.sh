@@ -245,3 +245,42 @@ scope.onProcExited(1)
 scope.onProcRunningChanged(false)
 assertEqual(scope.textSizePreviewIndex, -1, 'failed text size update clears preview')
 JS
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+mkdir -p "$tmpdir/bin"
+
+cat > "$tmpdir/bin/hyprctl" <<'SH'
+#!/bin/bash
+if [[ $1 == "-j" ]]; then
+  printf '%s\n' '{"option":"general:gaps_in","css":"5 5 5 5"}' '{"option":"general:gaps_out","int":10}'
+fi
+SH
+chmod +x "$tmpdir/bin/hyprctl"
+
+run_gaps() {
+  HOME="$tmpdir" XDG_STATE_HOME="$tmpdir/state" OMARCHY_PATH="$ROOT" \
+    PATH="$tmpdir/bin:$ROOT/bin:$PATH" omarchy-hyprland-window-gaps-toggle "$@"
+}
+
+run_gaps get | jq -e '. == {"in":5,"out":10,"enabled":true}' >/dev/null ||
+  fail "window gaps read both Hyprland option formats"
+
+run_gaps set in 0
+run_gaps set out 21
+run_gaps set in 12
+if run_gaps set out 65 2>/dev/null; then
+  fail "a gap outside the slider range must be rejected"
+fi
+[[ $(cat "$tmpdir/state/omarchy/window-gaps-in") == 12 ]] ||
+  fail "changing the gap between tiles must save its numeric preference"
+[[ $(cat "$tmpdir/state/omarchy/window-gaps-out") == 21 ]] ||
+  fail "changing the gap between tiles must leave the edge gap alone"
+pass "window gaps are validated and saved independently"
+
+run_gaps >/dev/null
+run_gaps get | jq -e '.enabled == false' >/dev/null ||
+  fail "the existing no-gaps toggle disables the sliders"
+[[ $(cat "$tmpdir/state/omarchy/window-gaps-in") == 12 ]] ||
+  fail "turning gaps off must preserve the saved spacing"
+pass "window gap spacing survives the no-gaps toggle"
