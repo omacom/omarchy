@@ -662,6 +662,79 @@ check(shows("eDP-1") == 1, "the monitor it left shows one of its own")
 ' || fail "moving a workspace to a monitor makes it that monitor's"
 pass "moving a workspace to a monitor makes it that monitor's"
 
+run_lua move_free_slot '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+window("0xb", 11)
+hl.dispatch(hl.dsp.focus({ workspace = "11" }))
+
+hl.dispatch(m.move_to_monitor("eDP-1"))
+check(world.windows["0xb"].workspace == 2 and on(2) == "eDP-1", "the workspace takes the first free number, not the one Hyprland parked the other monitor on: " .. world.windows["0xb"].workspace)
+check(shows("DP-1") >= 11, "the monitor it left shows one of its own")
+' || fail "a workspace moved to a monitor whose slot is taken takes the first free number"
+pass "a workspace moved to a monitor whose slot is taken takes the first free number"
+
+run_lua move_full_block '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "DP-1"
+for id = 2, 10 do window("0x" .. id, id) end
+world.focused = "eDP-1"
+hl.dispatch(hl.dsp.focus({ workspace = "1" }))
+
+hl.dispatch(m.move_to_monitor("DP-1"))
+check(on(world.windows["0xa"].workspace) == "DP-1", "the workspace stays on the monitor it was moved to: " .. tostring(on(world.windows["0xa"].workspace)))
+check(shows("eDP-1") == 1, "the monitor it left takes the number the move freed: " .. shows("eDP-1"))
+' || fail "a workspace moved off a monitor whose block is taken does not come back"
+pass "a workspace moved off a monitor whose block is taken does not come back"
+
+run_lua move_both_blocks_full '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+plug("HDMI-A-1", 2, "Dell", 22)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "HDMI-A-1"
+for id = 2, 10 do window("0x" .. id, id) end
+world.focused = "DP-1"
+for id = 11, 20 do window("0x" .. id, id) end
+world.focused = "eDP-1"
+hl.dispatch(hl.dsp.focus({ workspace = "1" }))
+
+hl.dispatch(m.move_to_monitor("DP-1"))
+check(on(world.windows["0xa"].workspace) == "DP-1", "the workspace stays on the monitor it was moved to: " .. tostring(on(world.windows["0xa"].workspace)))
+' || fail "a workspace that cannot be renumbered stays on the monitor it was moved to"
+pass "a workspace that cannot be renumbered stays on the monitor it was moved to"
+
+run_lua move_frees_middle '
+plug("eDP-1", 0, "Panel", 5)
+plug("DP-1", 1, "LG", 11)
+plug("HDMI-A-1", 2, "Dell", 22)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0x5", 5)
+world.focused = "HDMI-A-1"
+for _, id in ipairs({ 1, 2, 3, 4, 6, 7, 8, 9, 10 }) do window("0x" .. id, id) end
+world.focused = "eDP-1"
+hl.dispatch(hl.dsp.focus({ workspace = "5" }))
+
+hl.dispatch(m.move_to_monitor("DP-1"))
+check(shows("eDP-1") == 5, "the monitor it left takes the number the move freed: " .. shows("eDP-1"))
+check(on(world.windows["0x1"].workspace) == "HDMI-A-1", "no other workspace is pulled over")
+' || fail "a move frees its number for the monitor it left without pulling others over"
+pass "a move frees its number for the monitor it left without pulling others over"
+
 run_lua window_to_monitor '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)
