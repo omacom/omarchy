@@ -139,7 +139,7 @@ payload=$(
     ' --args -- "${options[@]}"
 )
 
-omarchy-shell shell summon omarchy.menu "$payload" >/dev/null || exit 2
+[[ $(omarchy-shell shell summon omarchy.menu "$payload") == "ok" ]] || exit 2
 
 while [[ ! -e $done_file ]]; do
   sleep 0.05

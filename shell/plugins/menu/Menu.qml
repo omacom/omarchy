@@ -27,14 +27,17 @@ Item {
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
     // A shell that started mid-update may never have read the shipped menu
     // whole; reading it again here keeps the menu from opening empty.
-    if (root.defaultMenuItems.length === 0) defaultMenuFile.reload()
-
+    // openRoute() loads the menu sources itself before resolving the route.
     if (payload.mode === "keybindings") {
+      if (root.defaultMenuItems.length === 0) defaultMenuFile.reload()
       root.openKeybindings()
+      return "ok"
     } else if (payload.mode === "select" || payload.mode === "input") {
+      if (root.defaultMenuItems.length === 0) defaultMenuFile.reload()
       root.openDmenu(payload)
+      return "ok"
     } else {
-      root.openRoute(payload.initialMenu || payload.menu || "root")
+      return root.openRoute(payload.initialMenu || payload.menu || "root")
     }
   }
 
@@ -1126,26 +1129,59 @@ Item {
   //
   // The menu is opened through the standard plugin lifecycle:
   // `omarchy-shell shell summon omarchy.menu '{"menu":"system"}'`.
-  // Callers may pass a real id (`system`, `setup.power`) or an alias declared
-  // in JSONC (`power`, `reminder-set`). Unknown strings fall through to the
-  // id-as-route behavior so misspellings still attempt to open the literal id.
+  // Callers may pass a real id (`system`) or an alias declared
+  // in JSONC (`power-menu`, `reminder-set`). Unknown strings are refused, so
+  // a misspelling never opens the root menu as if it were the requested one.
   function resolveRoute(input) {
     return MenuModel.resolveRoute(root.items, root.itemOrder, input)
   }
 
+  function ensureMenuSourcesLoaded() {
+    var changed = false
+    if (!root.defaultMenuSettled || root.defaultMenuItems.length === 0) {
+      if (root.defaultMenuSettled) defaultMenuFile.reload()
+      defaultMenuFile.waitForJob()
+      if (!root.defaultMenuSettled || root.defaultMenuItems.length === 0) {
+        root.defaultMenuItems = MenuModel.keepMenuRows(root.defaultMenuItems, defaultMenuFile.text(), true)
+        root.defaultMenuSettled = true
+        changed = true
+      }
+    }
+    if (!root.userMenuSettled) {
+      userMenuFile.waitForJob()
+      if (!root.userMenuSettled) {
+        root.userMenuItems = MenuModel.keepMenuRows(root.userMenuItems, userMenuFile.text(), false)
+        root.userMenuSettled = true
+        changed = true
+      }
+    }
+    if (changed || !root.rowsLoaded) root.rebuildItemsFromSources()
+  }
+
   function openRoute(initialMenu) {
+    root.ensureMenuSourcesLoaded()
     var id = root.resolveRoute(initialMenu)
+    if (!id || !root.items[id]) {
+      console.warn("openRoute: unknown menu route:", initialMenu)
+      return "refused"
+    }
     var entry = root.items[id]
     // If the resolved id is an action (i.e. the user invoked an alias for
-    // a leaf, e.g. `omarchy menu summon screenrecord-stop`), run it directly
+    // a leaf, e.g. `omarchy menu summon reminder-set`), run it directly
     // instead of opening an action with no children.
-    if (entry && entry.kind === "action" && entry.action) {
+    if (entry.kind === "action" && entry.action) {
       root.cancel()
       root.runAction(entry.action)
       return "ok"
     }
     // If it's a link (a redirect to another menu), follow the link.
-    if (entry && entry.kind === "link" && entry.target) id = entry.target
+    if (entry.kind === "link" && entry.target) {
+      id = entry.target
+      if (!root.items[id]) {
+        console.warn("openRoute: unknown menu route:", initialMenu)
+        return "refused"
+      }
+    }
     root.pendingInitialMenu = id
     root.openExistingMenu(id)
     return "ok"
@@ -1337,6 +1373,7 @@ Item {
   FileView {
     id: defaultMenuFile
     path: root.defaultMenuPath
+    blockLoading: true
     watchChanges: true
     printErrors: false
     onLoaded: { root.defaultMenuItems = MenuModel.keepMenuRows(root.defaultMenuItems, text(), true); root.defaultMenuSettled = true; root.rebuildItemsFromSources() }
@@ -1348,6 +1385,7 @@ Item {
   FileView {
     id: userMenuFile
     path: root.userMenuPath
+    blockLoading: true
     watchChanges: true
     printErrors: false
     onLoaded: { root.userMenuItems = MenuModel.keepMenuRows(root.userMenuItems, text(), false); root.userMenuSettled = true; root.rebuildItemsFromSources() }

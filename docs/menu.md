@@ -160,15 +160,7 @@ omarchy menu refresh            # re-parse the JSONC files
 omarchy menu ping
 ```
 
-A route is an item id or a declared alias, case-insensitive, with
-underscores normalized to dashes. An exact id beats any alias; empty input,
-`go`, and `menu` mean root; an unknown string falls through as a literal id
-so a misspelling still attempts to open that id. Summoning a route that
-resolves to an action — an alias for a leaf, like `screenrecord-stop` — runs
-the action directly instead of opening an action with no children, and a
-link is followed to its target. The default Hyprland bindings in
-`default/hypr/bindings/utilities.lua` all go through this surface
-(SUPER+SPACE toggles root, SUPER+ESCAPE the system menu, and so on).
+A route is an item id or a declared alias, case-insensitive, with underscores normalized to dashes. An exact id beats any alias; empty input, `go`, and `menu` mean root; an unknown string is refused instead of falling back to the root menu: `summon` and `toggle` answer `refused`, and `omarchy menu` reports the unknown route and exits 2. Summoning a route that resolves to an action — an alias for a leaf, like `reminder-set` — runs the action directly instead of opening an action with no children, and a link is followed to its target. The default Hyprland bindings in `default/hypr/bindings/utilities.lua` all go through this surface (SUPER+SPACE toggles root, SUPER+ESCAPE the system menu, and so on).
 
 ## Select and input modes
 

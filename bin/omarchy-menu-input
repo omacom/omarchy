@@ -50,7 +50,7 @@ payload=$(jq -nc \
     + (if ($width | length) > 0 then { width: ($width | tonumber? // 0 | trunc) } else {} end)
   ')
 
-omarchy-shell shell summon omarchy.menu "$payload" >/dev/null
+[[ $(omarchy-shell shell summon omarchy.menu "$payload") == "ok" ]] || exit 2
 
 while [[ ! -e $done_file ]]; do
   sleep 0.05

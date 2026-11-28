@@ -1243,31 +1243,43 @@ ShellRoot {
   }
 
   function summon(pluginId, payloadJson) {
+    return summonStatus(pluginId, payloadJson) === "ok"
+  }
+
+  // "ok", "unknown" for an unknown, disabled or unavailable plugin, or
+  // "refused" when the plugin's open() returned "refused" for the payload.
+  function summonStatus(pluginId, payloadJson) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
-    if (!id) return false
+    if (!id) return "unknown"
     var plugins = shell.pluginRegistry.installedPlugins
     if (!plugins[id]) {
       console.warn("summon: unknown plugin", id)
-      return false
+      return "unknown"
     }
     // A disabled plugin has no Loader, so setting openPanelIds would only
     // produce an invisible "open" state that toggle() then has to unwind.
     // Tell the caller plainly instead of silently no-op'ing.
     if (!shell.pluginRegistry.isEnabled(id)) {
       console.warn("summon: plugin not enabled, not summoning:", id)
-      return false
+      return "unknown"
     }
     // Bar widgets take no payload; payloadJson is dropped on this path.
     if (shell.isBarWidgetPanelPlugin(id)) {
       var summoned = shell.bar && typeof shell.bar.summonBarWidget === "function"
         && shell.bar.summonBarWidget(id)
       if (!summoned) console.warn("summon: no live bar widget for:", id)
-      return summoned === true
+      return summoned === true ? "ok" : "unknown"
     }
+    var wasOpen = openPanelIds[id] === true
     var next = ({})
     for (var k in openPanelIds) next[k] = openPanelIds[k]
     next[id] = true
     openPanelIds = next
+
+    // Menu plugins validate their route inside open(), so mount the menu now
+    // to answer with its verdict. While plugins reload there is no Loader yet;
+    // the payload is queued and delivered once it registers.
+    if (plugins[id].kinds && plugins[id].kinds.indexOf("menu") !== -1) ensurePanelLoaded(id)
 
     // Stash payload so the Loader.onLoaded handler can hand it to open().
     var pending = ({})
@@ -1277,9 +1289,18 @@ ShellRoot {
     pending[id] = queue
     pendingPayloads = pending
 
-    // If the plugin is keepLoaded and already mounted, deliver immediately.
-    deliverIfLoaded(id)
-    return true
+    // If the plugin is already mounted, deliver immediately. A plugin that
+    // refused the payload was not summoned, so undo the open state it was
+    // just given.
+    if (!deliverIfLoaded(id)) {
+      if (!wasOpen) {
+        var closed = ({})
+        for (var c in openPanelIds) if (c !== id) closed[c] = openPanelIds[c]
+        openPanelIds = closed
+      }
+      return "refused"
+    }
+    return "ok"
   }
 
   function hide(pluginId) {
@@ -1313,19 +1334,46 @@ ShellRoot {
   }
 
   function toggle(pluginId, payloadJson) {
+    return toggleStatus(pluginId, payloadJson) === "ok"
+  }
+
+  function toggleStatus(pluginId, payloadJson) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
-    return isPluginOpen(id) ? hide(id) : summon(id, payloadJson)
+    if (isPluginOpen(id)) return hide(id) ? "ok" : "unknown"
+    return summonStatus(id, payloadJson)
   }
 
   // Map of pluginId -> Loader, populated by the Instantiator delegate below.
   property var panelLoaders: ({})
+
+  function findPanelLoader(pluginId) {
+    for (var i = 0; i < panelEntryModel.count; i++) {
+      if (panelEntryModel.get(i).pluginId === pluginId) {
+        var entry = panelInstantiator.objectAt(i)
+        return entry ? entry.panelLoader : null
+      }
+    }
+    return null
+  }
+
+  function ensurePanelLoaded(pluginId) {
+    if (panelLoaders[pluginId] && panelLoaders[pluginId].item) return
+    var loader = findPanelLoader(pluginId)
+    // Finish loading synchronously so summon() can deliver the payload and
+    // inspect open()'s return value before replying to the caller.
+    if (loader) loader.asynchronous = false
+  }
 
   function registerPanelLoader(pluginId, loader) {
     var next = ({})
     for (var k in panelLoaders) next[k] = panelLoaders[k]
     next[pluginId] = loader
     panelLoaders = next
-    deliverIfLoaded(pluginId)
+    if (!deliverIfLoaded(pluginId)) {
+      var closed = ({})
+      for (var c in openPanelIds) if (c !== pluginId) closed[c] = openPanelIds[c]
+      openPanelIds = closed
+    }
   }
 
   function unregisterPanelLoader(pluginId) {
@@ -1343,14 +1391,18 @@ ShellRoot {
     openPanelIds = ({})
   }
 
+  // False when the plugin's open() returned "refused" for a queued payload.
   function deliverIfLoaded(pluginId) {
     var loader = panelLoaders[pluginId]
-    if (!loader || !loader.item) return
+    if (!loader || !loader.item) return true
     var queue = pendingPayloads[pluginId]
-    if (!Array.isArray(queue) || queue.length === 0) return
+    if (!Array.isArray(queue) || queue.length === 0) return true
+    var delivered = true
     if (typeof loader.item.open === "function") {
       for (var i = 0; i < queue.length; i++) {
-        try { loader.item.open(queue[i]) } catch (e) {
+        try {
+          if (loader.item.open(queue[i]) === "refused") delivered = false
+        } catch (e) {
           console.warn("plugin " + pluginId + " open() threw:", e)
         }
       }
@@ -1358,6 +1410,7 @@ ShellRoot {
     var next = ({})
     for (var k in pendingPayloads) if (k !== pluginId) next[k] = pendingPayloads[k].slice()
     pendingPayloads = next
+    return delivered
   }
 
   function invokeIfLoaded(pluginId, method, arg) {
@@ -1450,6 +1503,7 @@ ShellRoot {
   }
 
   Instantiator {
+    id: panelInstantiator
     model: panelEntryModel
     active: true
 
@@ -2093,15 +2147,15 @@ ShellRoot {
     }
 
     function summon(id: string, payloadJson: string): string {
-      return shell.summon(id, payloadJson) ? "ok" : "unknown"
+      return shell.summonStatus(id, payloadJson)
     }
 
     function hide(id: string): void {
       shell.hide(id)
     }
 
-    function toggle(id: string, payloadJson: string): void {
-      shell.toggle(id, payloadJson)
+    function toggle(id: string, payloadJson: string): string {
+      return shell.toggleStatus(id, payloadJson)
     }
 
     // A bar section's panels answer to their position as well as their id, so a
