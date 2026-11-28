@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock apenas no Flutuante"
+  },
+  "appearance.dock.visibility": {
+    "label": "Visibilidade da Dock"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Sempre visível"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Primeira app oculta"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Sempre oculta"
   }
 }

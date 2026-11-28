@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Док само при плаваща подредба"
+  },
+  "appearance.dock.visibility": {
+    "label": "Видимост на дока"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Винаги видима"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Първото приложение скрива"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Винаги скрита"
   }
 }

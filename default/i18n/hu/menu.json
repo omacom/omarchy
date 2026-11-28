@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock csak lebegő módban"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock láthatósága"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Mindig látható"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Első app elrejti"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Mindig rejtve"
   }
 }

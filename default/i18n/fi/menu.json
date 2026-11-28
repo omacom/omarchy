@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock vain kelluvassa"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dockin näkyvyys"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Aina näkyvissä"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Ensimmäinen sovellus piilottaa"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Aina piilotettu"
   }
 }

@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dok jen v plovoucím režimu"
+  },
+  "appearance.dock.visibility": {
+    "label": "Viditelnost doku"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Vždy viditelný"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "První aplikace skryje"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Vždy skrytý"
   }
 }

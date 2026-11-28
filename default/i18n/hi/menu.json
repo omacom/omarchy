@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "केवल फ्लोटिंग पर Dock"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock दृश्यता"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "हमेशा दृश्यमान"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "पहला ऐप छिपाए"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "हमेशा छिपा हुआ"
   }
 }

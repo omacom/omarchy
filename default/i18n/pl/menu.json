@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "Dock tylko w trybie pływającym"
+  },
+  "appearance.dock.visibility": {
+    "label": "Widoczność Docka"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "Zawsze widoczny"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "Ukrywa się przy pierwszej aplikacji"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "Zawsze ukryty"
   }
 }

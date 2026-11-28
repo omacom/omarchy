@@ -1447,5 +1447,17 @@
   },
   "appearance.dock.floating-only": {
     "label": "පාවෙන සැකසුමේ පමණක් Dock"
+  },
+  "appearance.dock.visibility": {
+    "label": "Dock දෘශ්‍යතාව"
+  },
+  "appearance.dock.visibility.always": {
+    "label": "සැමවිටම දිස්වේ"
+  },
+  "appearance.dock.visibility.first-app": {
+    "label": "පළමු යෙදුමෙන් සැඟවේ"
+  },
+  "appearance.dock.visibility.hidden": {
+    "label": "සැමවිටම සැඟවී"
   }
 }
