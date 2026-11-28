@@ -4,8 +4,8 @@ background       = "#101820"
 background-alpha = 1.0
 text             = "#d6e3e9"
 active           = "#ec8894"
-scale-with-font  = false
-size-horizontal  = 28
+scale-with-font  = true
+size-horizontal  = 26
 size-vertical    = 28
 
 [hyprland]
@@ -46,7 +46,7 @@ scale = 1.0
 scale-with-font = true
 
 [font]
-base-size = 13
+base-size = 12
 
 [popups]
 background       = "#101820"
@@ -124,8 +124,6 @@ selection        = "#67d8ed"
 selection-alpha  = 0.45
 
 [image-picker]
-scrim                   = "#0d1218"
-scrim-alpha             = 0.5
 text                    = "#d6e3e9"
 selected-border         = "#67d8ed"
 selected-border-alpha   = 1.0
