@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Set up preference history and optional sharing with another computer
+# omarchy:args=[--repo <ssh-url>]
+
+exec omarchy-dots setup "$@"
