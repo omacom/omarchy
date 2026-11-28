@@ -2797,33 +2797,26 @@ Panel {
         wrapMode: Text.WordWrap
       }
 
-      Item {
+      TextField {
+        id: addNameField
         width: parent.width
-        implicitHeight: Math.max(addNameField.implicitHeight, addNameSubmit.implicitHeight)
-
-        TextField {
-          id: addNameField
-          anchors.left: parent.left
-          anchors.right: addNameSubmit.left
-          anchors.rightMargin: Style.space(6)
-          anchors.verticalCenter: parent.verticalCenter
-          placeholderText: Commons.I18n.t("agents.placeholderWork")
-          foreground: root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          function claimFocus() { if (visible) { text = ""; forceActiveFocus() } }
-          onVisibleChanged: claimFocus()
-          Component.onCompleted: claimFocus()
-          // Enter stops here, or the panel would press its cursor too.
-          Keys.onReturnPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
-          Keys.onEnterPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
-          Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
-        }
+        rightPadding: addNameSubmit.width + Style.space(8)
+        placeholderText: Commons.I18n.t("agents.placeholderWork")
+        foreground: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        function claimFocus() { if (visible) { text = ""; forceActiveFocus() } }
+        onVisibleChanged: claimFocus()
+        Component.onCompleted: claimFocus()
+        // Enter stops here, or the panel would press its cursor too.
+        Keys.onReturnPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
+        Keys.onEnterPressed: function(event) { root.startAdd(text.trim()); event.accepted = true }
+        Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
 
         PanelActionButton {
           id: addNameSubmit
-          outlined: true
           anchors.right: parent.right
+          anchors.rightMargin: Style.space(4)
           anchors.verticalCenter: parent.verticalCenter
           iconText: "󰄬"
           tooltipText: Commons.I18n.t("common.confirm")
@@ -2960,44 +2953,37 @@ Panel {
             wrapMode: Text.WordWrap
           }
 
-          Item {
+          TextField {
+            id: pasteField
             width: parent.width
-            implicitHeight: Math.max(pasteField.implicitHeight, pasteSubmit.implicitHeight)
-
-            TextField {
-              id: pasteField
-              anchors.left: parent.left
-              anchors.right: pasteSubmit.left
-              anchors.rightMargin: Style.space(6)
-              anchors.verticalCenter: parent.verticalCenter
-              placeholderText: root.addKeyEntry ? Commons.I18n.t("agents.placeholderApiKey") : Commons.I18n.t("agents.placeholderCode")
-              password: true
-              foreground: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              // Enter stops here, or the panel would press its cursor too.
-              function submit() { root.submitPaste(text); text = "" }
-              Keys.onReturnPressed: function(event) { submit(); event.accepted = true }
-              Keys.onEnterPressed: function(event) { submit(); event.accepted = true }
-              function syncPasteFocus() {
-                root.pasteFieldItem = visible ? pasteField : null
-                if (visible) forceActiveFocus()
-              }
-              onVisibleChanged: syncPasteFocus()
-              Component.onCompleted: if (visible) syncPasteFocus()
-              Connections {
-                target: root
-                function onAddStageChanged() { if (root.addStage !== "running") pasteField.text = "" }
-                function onAddNeedsPasteChanged() { if (!root.addNeedsPaste) pasteField.text = "" }
-              }
-              Component.onDestruction: if (root.pasteFieldItem === pasteField) root.pasteFieldItem = null
-              Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
+            rightPadding: pasteSubmit.width + Style.space(8)
+            placeholderText: root.addKeyEntry ? Commons.I18n.t("agents.placeholderApiKey") : Commons.I18n.t("agents.placeholderCode")
+            password: true
+            foreground: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            // Enter stops here, or the panel would press its cursor too.
+            function submit() { root.submitPaste(text); text = "" }
+            Keys.onReturnPressed: function(event) { submit(); event.accepted = true }
+            Keys.onEnterPressed: function(event) { submit(); event.accepted = true }
+            function syncPasteFocus() {
+              root.pasteFieldItem = visible ? pasteField : null
+              if (visible) forceActiveFocus()
             }
+            onVisibleChanged: syncPasteFocus()
+            Component.onCompleted: if (visible) syncPasteFocus()
+            Connections {
+              target: root
+              function onAddStageChanged() { if (root.addStage !== "running") pasteField.text = "" }
+              function onAddNeedsPasteChanged() { if (!root.addNeedsPaste) pasteField.text = "" }
+            }
+            Component.onDestruction: if (root.pasteFieldItem === pasteField) root.pasteFieldItem = null
+            Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
 
             PanelActionButton {
               id: pasteSubmit
-              outlined: true
               anchors.right: parent.right
+              anchors.rightMargin: Style.space(4)
               anchors.verticalCenter: parent.verticalCenter
               enabled: pasteField.text.trim() !== ""
               iconText: "󰄬"
@@ -3102,7 +3088,6 @@ Panel {
       nameField.text = accountLabel
       nameField.forceActiveFocus()
       nameField.selectAll()
-      root.renaming = true
     }
 
     function finishRename(save) {
@@ -3154,7 +3139,7 @@ Panel {
       id: sectionHead
       width: parent.width
       // Where the line's text has to stop: before its buttons.
-      readonly property real textEnd: (section.editingName ? renameActions.x : sectionActions.x) - Style.space(8)
+      readonly property real textEnd: sectionActions.x - Style.space(8)
       implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
       // Lit for the keyboard, and as the drop spot while an agent is dragged.
       readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : root.hasKey("provider", section.providerIndex)
@@ -3246,9 +3231,10 @@ Panel {
         visible: section.editingName
         anchors.left: sectionName.right
         anchors.leftMargin: Style.space(8)
-        anchors.right: renameActions.left
-        anchors.rightMargin: Style.space(6)
+        anchors.right: sectionActions.left
+        anchors.rightMargin: Style.space(8)
         anchors.verticalCenter: sectionName.verticalCenter
+        rightPadding: renameSave.width + Style.space(4)
         foreground: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -3262,34 +3248,18 @@ Panel {
           section.finishRename(false)
           event.accepted = true
         }
-      }
-
-      Row {
-        id: renameActions
-        visible: section.editingName
-        anchors.right: parent.right
-        anchors.verticalCenter: sectionName.verticalCenter
-        spacing: Style.space(4)
 
         PanelActionButton {
           id: renameSave
-          outlined: true
+          anchors.right: parent.right
+          anchors.rightMargin: Style.space(2)
+          anchors.verticalCenter: parent.verticalCenter
           enabled: nameField.text.trim() !== ""
           iconText: "󰄬"
           tooltipText: Commons.I18n.t("common.confirm")
           foreground: root.foreground
           fontFamily: root.fontFamily
           onClicked: section.finishRename(true)
-        }
-
-        PanelActionButton {
-          id: renameCancel
-          outlined: true
-          iconText: "󰅖"
-          tooltipText: Commons.I18n.t("common.cancel")
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          onClicked: section.finishRename(false)
         }
       }
 
@@ -3332,7 +3302,6 @@ Panel {
       // star keeps its place so the others don't move.
       Row {
         id: sectionActions
-        visible: !section.editingName
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         layoutDirection: Qt.RightToLeft

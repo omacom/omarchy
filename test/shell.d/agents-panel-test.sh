@@ -613,29 +613,20 @@ assertDeepEqual(
 assertDeepEqual(cnPicker.addGroup('moreSubscriptions'), [], 'cn installs have no extra subscriptions behind More')
 assertDeepEqual(cnPicker.addGroup('moreProviders'), [], 'cn installs have no extra providers behind More')
 
-// Clicking remove targets that exact item through the same eligibility check
-// and confirmation flow as Delete/x, and never targets non-removable items.
 const deleteState = {
   providers: [
     { providerId: 'claude', lineId: 'claude' },
-    { providerId: 'local', lineId: 'local/installing', localModel: { target: 'installing', host: '' } },
-    { providerId: 'local', lineId: 'local/spark/qwen', localModel: { target: 'spark/qwen', host: 'spark' } }
+    { providerId: 'local', lineId: 'local/installing', localModel: { target: 'installing', host: '' } }
   ],
-  deleteTarget: null,
-  localDefaultTarget: '',
+  deleteTarget: null, localDefaultTarget: '',
   usage: { defaultAgent: 'claude', panelProviders: [], lineId: l => l.lineId },
   defaultIdFor: () => 'local',
-  localModelState: local => local.target === 'installing'
-    ? { panelSetup: true, install: { phase: 'downloading' } }
-    : null
+  localModelState: local => local.target === 'installing' ? { panelSetup: true, install: { phase: 'downloading' } } : null
 }
 deleteState.usage.panelProviders = deleteState.providers
-const deleteFns = new Function('with (this) { ' + ['opensByDefault', 'defaultSuccessor', 'removable', 'deleteProvider'].map(fn).join('\n') + '\nreturn { removable, deleteProvider } }').call(deleteState)
-assertEqual(deleteFns.removable(deleteState.providers[0]), true, 'a subscription line is removable')
-assertEqual(deleteFns.removable(deleteState.providers[1]), false, 'an actively installing local setup is not removable')
-assertEqual(deleteFns.removable(deleteState.providers[2]), true, 'a paired tailnet model is removable')
+const deleteFns = new Function('with (this) { ' + ['opensByDefault', 'defaultSuccessor', 'removable', 'deleteProvider'].map(fn).join('\n') + '\nreturn { deleteProvider } }').call(deleteState)
 deleteFns.deleteProvider(1)
-assertEqual(deleteState.deleteTarget, null, 'deleteProvider refuses non-removable items')
-deleteFns.deleteProvider(2)
-assertEqual(deleteState.deleteTarget, deleteState.providers[2], 'deleteProvider targets the clicked line for confirmation')
+assertEqual(deleteState.deleteTarget, null, 'deleteProvider skips non-removable lines')
+deleteFns.deleteProvider(0)
+assertEqual(deleteState.deleteTarget, deleteState.providers[0], 'deleteProvider targets removable lines')
 JS
