@@ -641,6 +641,10 @@ Panel {
   PwObjectTracker { objects: root.candidateSinks }
   PwObjectTracker { objects: root.candidateSources }
   PwObjectTracker { objects: root.audioStreams }
+  // The slider's sink can be a device the lists leave out (a platform hint
+  // hides the physical output behind its DSP sink); keep it bound regardless,
+  // or its volume reads 0 and writes to it are lost.
+  PwObjectTracker { objects: root.volumeSink ? [root.volumeSink] : [] }
 
   PwNodePeakMonitor {
     id: inputPeakMonitor
