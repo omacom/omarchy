@@ -145,3 +145,22 @@ wait "$bg_pid" 2>/dev/null || true
 [[ -e "$late_root/stopped" && ! -e "$late_root/run/systemd/system/graphical.target.wants/omarchy-splash-hold.service" ]] ||
   fail "late hook stops cleanly when a starting splash exits before ready"
 pass "late hook stops cleanly when a starting splash exits before ready"
+
+# With /usr/lib/omarchy-splash/no-kms present, wait_native settles on a
+# firmware framebuffer immediately (zero sleep calls) instead of waiting 8 s.
+rm -rf "$drm" "$dri"
+card card0 simple-framebuffer
+nokms_marker=$test_tmp/no-kms
+touch "$nokms_marker"
+sed -n '/^find_cards() {/,/^devices=/p' "$ROOT/default/splash/session" |
+  sed -e "s|/sys/class/drm|$drm|g" \
+      -e "s|/dev/dri|$dri|g" \
+      -e "s|/usr/lib/omarchy-splash/no-kms|$nokms_marker|g" >"$test_tmp/wait-nokms.sh"
+picked=$(sh -c '
+  run="$1"; sleeps=0
+  sleep() { sleeps=$((sleeps + 1)); }
+  . "$2"
+  printf "%s|%s\n" "$devices" "$sleeps"
+' sh "$test_tmp" "$test_tmp/wait-nokms.sh")
+[[ $picked == "$dri/card0|0" ]] || fail "no-kms marker selects simpledrm without sleeping" "got: $picked"
+pass "no-kms marker draws on the firmware framebuffer immediately without sleeping"
