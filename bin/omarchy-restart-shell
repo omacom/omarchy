@@ -95,6 +95,26 @@ omarchy_shell_dirs() {
     jq -r '.[].config_path | select(endswith("/shell/shell.qml")) | rtrimstr("/shell.qml")' 2>/dev/null)
 }
 
+# Stop supervisors even during crash backoff, when no shell is registered.
+# Match the Bash script itself so editors viewing it are left alone.
+stand_down_launchers() {
+  local pid launcher exe
+  local -a argv
+
+  for pid in $(pgrep -u "$UID" -f omarchy-launch-shell); do
+    exe=$(readlink "/proc/$pid/exe") || continue
+    [[ ${exe%" (deleted)"} == */bash ]] || continue
+    { mapfile -d '' -t argv <"/proc/$pid/cmdline"; } 2>/dev/null || continue
+    (( ${#argv[@]} == 2 )) || continue
+    launcher=${argv[1]}
+    if [[ $launcher == "/usr/bin/omarchy-launch-shell" ]] ||
+      [[ $launcher == */bin/omarchy-launch-shell && -x $launcher && -f ${launcher%/bin/omarchy-launch-shell}/shell/shell.qml ]]; then
+      kill -TERM "$pid" 2>/dev/null || true
+    fi
+  done
+}
+
+stand_down_launchers
 while timeout 30 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
 while IFS= read -r dir; do
   timeout 30 quickshell kill -p "$dir" --any-display >/dev/null 2>&1
