@@ -120,7 +120,8 @@ write_about_config() {
     '{($hardware): $hardware_to, ($software): $software_to, ($age): $age_to}')
   keys=$(jq -n \
     --arg age "$(omarchy-i18n about.osAge)" --arg uptime "$(omarchy-i18n about.uptime)" --arg update "$(omarchy-i18n about.update)" \
-    '{"OS Age": $age, "Uptime": $uptime, "Update": $update}')
+    --arg installed "$(omarchy-i18n about.installedIn)" \
+    '{"OS Age": $age, "Installed In": $installed, "Uptime": $uptime, "Update": $update}')
 
   mkdir -p "${ABOUT_CONFIG%/*}"
   if jq --argjson headings "$headings" --argjson keys "$keys" '

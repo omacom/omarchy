@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# omarchy:summary=Print how long the original Omarchy installation took
+# omarchy:hidden=true
+
+timing_file=${OMARCHY_INSTALL_TIMING_FILE:-/var/log/omarchy-install-timing.json}
+
+[[ -r $timing_file ]] || exit 0
+
+seconds=$(jq -ser '
+  select(length == 1)
+  | .[0]
+  | select(
+    (.started_at | type) == "number" and
+    (.finished_at | type) == "number" and
+    .started_at > 0 and
+    .finished_at >= .started_at
+  )
+  | ((.finished_at - .started_at) | round)
+' "$timing_file" 2>/dev/null) || exit 0
+
+[[ $seconds =~ ^[0-9]+$ ]] || exit 0
+
+hours=$((seconds / 3600))
+minutes=$((seconds % 3600 / 60))
+remainder=$((seconds % 60))
+
+if (( hours > 0 )); then
+  omarchy-i18n about.durationHoursMinutesSeconds "$hours" "$minutes" "$remainder"
+elif (( minutes > 0 )); then
+  omarchy-i18n reminder.durationMinutesSeconds "$minutes" "$remainder"
+else
+  omarchy-i18n reminder.durationSeconds "$remainder"
+fi
+printf '\n'

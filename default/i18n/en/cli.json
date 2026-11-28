@@ -4,7 +4,9 @@
     "one": "%1 day",
     "other": "%1 days"
   },
+  "about.durationHoursMinutesSeconds": "%1h %2m %3s",
   "about.hardware": "Hardware",
+  "about.installedIn": "Installed In",
   "about.osAge": "OS Age",
   "about.software": "Software",
   "about.update": "Update",
