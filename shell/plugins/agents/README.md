@@ -149,8 +149,12 @@ the blank slate for setting one up: it opens on the same choice of agents,
 and the first one signed in that has a harness of its own becomes the default agent if
 none was picked. An agent appears once it is enabled in settings and has
 recorded usage, on this machine or a synced one; a CLI installed
-mid-session shows up at the next refresh. Drop the widget with
-`omarchy plugin disable omarchy.agents`.
+mid-session shows up at the next refresh. Removing an agent from the panel
+turns it off. Like every bar widget's settings, that choice is kept inline on
+the widget's entry in `bar.layout`, not under `plugins`, so it can be set by
+hand there too:
+`{ "id": "omarchy.agents", "providers": { "claude": { "enabled": false } } }`.
+Drop the widget with `omarchy plugin disable omarchy.agents`.
 
 ## Data
 
