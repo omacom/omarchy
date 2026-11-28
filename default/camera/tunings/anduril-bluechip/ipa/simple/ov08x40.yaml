@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: CC0-1.0
+# OmniVision OV08X40 on libcamera's software ISP (Anduril BlueChip front
+# camera). Explicitly set the sensor's 10-bit black level of 64 (4096 in 16 bits)
+# and enable the identity colour matrix so libcamerasrc's Saturation control
+# takes effect instead of outputting flat raw-Bayer colours.
+%YAML 1.1
+---
+version: 1
+algorithms:
+  - BlackLevel:
+      blackLevel: 4096
+  - Awb:
+  - Ccm:
+      ccms:
+        - ct: 6500
+          ccm: [ 1, 0, 0,
+                 0, 1, 0,
+                 0, 0, 1 ]
+  - Adjust:
+  - Agc:
+...

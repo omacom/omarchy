@@ -13,16 +13,11 @@ fi
 sudo env PATH="$PATH" omarchy-apply-gpu-memory || exit 1
 
 # No AMD GPU, or 16 GB or less where the kernel's default is as high.
-if [[ ! -f /etc/limine-entry-tool.d/amd-gpu-memory.conf ]]; then
+if [[ -z $(omarchy-boot-cmdline get amd-gpu-memory) ]]; then
   exit 0
 fi
 
-rebuild_log=$(mktemp)
-trap 'rm -f "$rebuild_log"' EXIT
-sudo limine-mkinitcpio 2>&1 | tee "$rebuild_log"
-
-# limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
-if grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
+if ! sudo omarchy-boot-rebuild; then
   echo "A boot image was not rebuilt. Fix the error above, then run omarchy-migrate again before rebooting." >&2
   exit 1
 fi

@@ -97,7 +97,11 @@ for icon in "${rendered_svgs[@]}"; do
   # A working icon of the user's own stays; a dangling link at the name goes.
   [[ -e $LINKS/$name ]] || missing_links+=("$ICONS/$name")
 done
-run_batched ln -sfn -t "$LINKS" -- "${missing_links[@]}"
+links_changed=0
+if (( ${#missing_links[@]} > 0 )); then
+  run_batched ln -sfn -t "$LINKS" -- "${missing_links[@]}"
+  links_changed=1
+fi
 
 # What the last run drew and this one didn't.
 for icon in "$ICONS"/*.svg; do
@@ -105,7 +109,20 @@ for icon in "$ICONS"/*.svg; do
   link="$LINKS/$name"
   [[ -z ${drawn[$name]:-} ]] || continue
   rm -f "$icon"
-  [[ -L $link && $(readlink "$link") == "$icon" ]] && rm "$link"
+  if [[ -L $link && $(readlink "$link") == "$icon" ]]; then
+    rm "$link"
+    links_changed=1
+  fi
 done
 
-printf '%s\n' "${EPOCHREALTIME//[!0-9]/}" >"$CURRENT/icons.revision"
+draw_rev=${EPOCHREALTIME//[!0-9]/}
+links_rev=0
+if [[ -r $CURRENT/icons.revision ]]; then
+  IFS=$'\t ' read -r _ prev_links_rev _ <"$CURRENT/icons.revision" || true
+  [[ $prev_links_rev =~ ^[0-9]+$ ]] && links_rev=$prev_links_rev
+fi
+if (( links_changed )); then
+  links_rev=$draw_rev
+fi
+
+printf '%s\t%s\n' "$draw_rev" "$links_rev" >"$CURRENT/icons.revision"

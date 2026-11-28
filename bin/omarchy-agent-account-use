@@ -25,6 +25,10 @@ esac
 
 result=$(omarchy-agent-account-state use "$1" "${2:-next}") || exit 1
 
+# Commands run outside omarchy-agent follow the switch through the dispatcher,
+# which a CLI installed outside Omarchy wouldn't have yet.
+omarchy-agent-account-dispatch "$1"
+
 # Who running sessions are on, which differs from the previous choice while an
 # earlier switch is still held back.
 running=$(jq -r '.running // .previous.label' <<<"$result")

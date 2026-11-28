@@ -48,7 +48,11 @@ format-drive() {
       sudo dd if=/dev/zero of="$1" bs=1M count=100 status=progress || { echo "Error: failed to zero $1."; return 1; }
       sudo parted -s "$1" mklabel gpt mkpart primary 1MiB 100% set 1 msftdata on || { echo "Error: failed to partition $1."; return 1; }
 
-      partition="$([[ $1 == *"nvme"* ]] && echo "${1}p1" || echo "${1}1")"
+      if [[ $1 == *[0-9] ]]; then
+        partition="${1}p1"
+      else
+        partition="${1}1"
+      fi
       sudo partprobe "$1" || true
       sudo udevadm settle || true
 

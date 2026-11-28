@@ -88,6 +88,7 @@ seller_key=previous-owner-key
 owner_password=owner-password
 
 sed -n '/^PROVISIONING_UNLOCK_FILES=(/,/^)/p; /^UNLOCK_OWNER=/p; /^limine_auto_unlock_present() {/,/^}/p; /^limine_auto_unlock_drop() {/,/^}/p
+  /^boot_backend() {/,/^}/p; /^rebuild_boot_images() {/,/^}/p
   /^unlock_owner() {/,/^}/p; /^luks_auto_unlock_present() {/,/^}/p; /^luks_auto_unlock_drop() {/,/^}/p
   /^luks_record_slots() {/,/^}/p' \
   "$ROOT/bin/omarchy-provision-owner" | sed "s|/etc/|$tmp/etc/|g" >"$tmp/unlock.sh"
@@ -141,6 +142,9 @@ rekey_state_put() {
   journal_write "$@" || return 1
   crash_point "journal $*"
 }
+
+# A Limine machine, whatever this one boots.
+boot_backend() { echo limine; }
 
 reset_limine_config() {
   echo reset >>"$TMP/limine-ran"

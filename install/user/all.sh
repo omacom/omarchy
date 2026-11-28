@@ -16,6 +16,5 @@ run_logged "$OMARCHY_INSTALL/user/hardware/fix-nouveau-cursor.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/vm-no-animations.sh"
 
 run_logged "$OMARCHY_INSTALL/user/default-keyring.sh"
-run_logged "$OMARCHY_INSTALL/user/mise.sh"
 
 run_logged "$OMARCHY_INSTALL/user/platform-setup.sh"

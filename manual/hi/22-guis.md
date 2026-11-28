@@ -2,115 +2,117 @@
 
 ## Files
 
-Files (Folio) ग्राफ़िकल file manager है। `Super + Shift + F` इसे खोलता है, और `Super + Shift + Alt + F` इसे उस directory में खोलता है जिसमें आपका terminal बैठा है, जिससे बहुत सारा clicking बच जाता है। `Ctrl + L` आपको path लिखने देता है, और किसी भी file पर `Space` दबाने से वह उसे खोले बिना full size में preview हो जाती है।
+Files (Folio) ग्राफ़िकल फ़ाइल मैनेजर है। `Super + Shift + F` इसे खोलता है, और `Super + Shift + Alt + F` इसे उस डायरेक्टरी में खोलता है जिसमें आपका टर्मिनल इस समय है, जिससे बहुत सारी क्लिकिंग बच जाती है। `Ctrl + L` आपको पाथ टाइप करने देता है, और किसी फ़ाइल पर `Space` दबाने से वह खुले बिना पूरे आकार में उसका प्रीव्यू दिख जाता है।
 
-USB stick या SD card लगाएँ और यह अपने आप mount हो जाता है, इसलिए यह बस sidebar में दिख जाता है। इससे ज़्यादा शामिल किसी काम के लिए — drive को format करना, SMART health जाँचना, partitions बनाना — app launcher (`Super + Space`) से _Disks_ launch करें।
+USB स्टिक या SD कार्ड लगाइए और वह अपने आप माउंट हो जाता है, इसलिए वह बस साइडबार में दिख जाता है। किसी भी ज़्यादा पेचीदा काम के लिए — ड्राइव को फ़ॉर्मेट करना, SMART हेल्थ जाँचना, पार्टीशन बनाना — ऐप लॉन्चर (`Super + Space`) से _Disks_ लॉन्च करें।
 
-Double-click करने पर sensible defaults काम करते हैं: pictures, videos, और music Omaview में खुलते हैं, PDFs Document Viewer में, Markdown Omawrite में, और plain text आपके editor में, Plain में, जब तक कि आप _Setup > Defaults > Editor_ के तहत कोई दूसरा न चुन लें।
+एन्क्रिप्ट की गई ड्राइव लगाए जाने पर अपना पासवर्ड माँगती है। किसी ड्राइव को अपने आप अनलॉक करवाने के लिए, `sudo cryptsetup luksAddKey /dev/sdX1 <keyfile>` के साथ उसमें एक कीफ़ाइल जोड़ें और वह कीफ़ाइल `~/.config/omarchy/drive-keys/<UUID>` पर रखें, उसका नाम वह UUID रखें जो `lsblk -dno UUID /dev/sdX1` एन्क्रिप्ट किए गए पार्टीशन के लिए प्रिंट करता है, और वह सिर्फ़ आपके द्वारा पढ़ी जा सके (`chmod 600`)। अगर वह कीफ़ाइल मौजूद नहीं है या अस्वीकार कर दी जाती है, तो आपसे हमेशा की तरह पासवर्ड माँगा जाता है।
+
+डबल-क्लिक करना समझदारी भरे डिफ़ॉल्ट का पालन करता है: तस्वीरें, वीडियो और संगीत Omaview में खुलते हैं, PDFs Document Viewer में, Markdown Omawrite में, और सादा टेक्स्ट आपके एडिटर में, Plain में, जब तक आप _Setup > Defaults > Editor_ के अंतर्गत कोई और न चुन लें।
 
 ## Disktree
 
-जब drive भर जाए और आपको पता ही न हो कि इसे क्या खा रहा है, तो app launcher (`Super + Space`) से [Disktree](https://github.com/tobi/disktree) launch करें। यह आपकी home directory का ग्राफ़िकल treemap दिखाता है। बड़े blocks ज़्यादा जगह लेते हैं; keyboard या mouse से directories के अंदर जाएँ, जो जाना चाहिए उसे mark करें, और कुछ भी हटाने से पहले अपने selections की समीक्षा करें। पूरी disk को scan करने के लिए `disktree --disk` चलाएँ।
+जब ड्राइव भर जाती है और आपको कोई अंदाज़ा नहीं होता कि उसे क्या खा रहा है, तो ऐप लॉन्चर (`Super + Space`) से [Disktree](https://github.com/tobi/disktree) लॉन्च करें। यह आपकी होम डायरेक्टरी का ग्राफ़िकल ट्रीमैप दिखाता है। बड़े ब्लॉक ज़्यादा जगह घेरते हैं; कीबोर्ड या माउस से डायरेक्टरी के अंदर जाएँ, जो हटना चाहिए उसे मार्क करें, और कुछ भी हटाने से पहले अपने चयन की समीक्षा करें। पूरी डिस्क को स्कैन करने के लिए `disktree --disk` चलाएँ।
 
 ## Obsidian
 
-[Obsidian](https://obsidian.md/) एक मुफ़्त और अत्यधिक extensible note लेने वाला application है जो storage के लिए सरल Markdown files का उपयोग करता है।
+[Obsidian](https://obsidian.md/) एक मुफ़्त और बेहद एक्सटेंसिबल नोट लेने वाला एप्लिकेशन है जो स्टोरेज के लिए साधारण Markdown फ़ाइलों का उपयोग करता है।
 
-Obsidian सभी उद्देश्यों के लिए मुफ़्त है, जिनमें personal, commercial, और non-profit उपयोग शामिल हैं।
+Obsidian सभी उद्देश्यों के लिए मुफ़्त है, जिनमें व्यक्तिगत, व्यावसायिक और गैर-लाभकारी उपयोग शामिल हैं।
 
-Obsidian iOS और Android पर mobile apps के साथ sync करने के लिए एक [commercial add-on](https://obsidian.md/sync) भी प्रदान करता है। (https://obsidian.md/pricing)।
+Obsidian iOS और Android पर मोबाइल ऐप्स के साथ [सिंकिंग के लिए एक व्यावसायिक ऐड-ऑन](https://obsidian.md/sync) भी प्रदान करता है। (https://obsidian.md/pricing).
 
-आप Obsidian को `Super + Shift + O` से शुरू करते हैं। Theme syncing का उपयोग करने के लिए, आपको settings के तहत `Omarchy` theme चुनना होगा।
+आप Obsidian को `Super + Shift + O` से शुरू करते हैं। थीम सिंकिंग का उपयोग करने के लिए, आपको सेटिंग्स के अंतर्गत `Omarchy` थीम चुननी होगी।
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) Omarchy का अपना बेहद सरल Markdown writing app है। कोई vaults नहीं, कोई plugins नहीं, बस आप और शब्द।
+[Omawrite](https://github.com/omacom-io/omawrite) Omarchy का अपना बिल्कुल सरल Markdown लेखन ऐप है। कोई वॉल्ट नहीं, कोई प्लगइन नहीं, बस आप और शब्द।
 
 आप Omawrite को `Super + Shift + W` से शुरू करते हैं।
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) एक बुनियादी image editing tool है जो cropping, resizing, और अन्य बुनियादी manipulations के लिए बहुत अच्छा है। बस Photoshop के विकल्प की उम्मीद न करें। लेकिन इसमें फिर भी Magic Wand और layers हैं!
+[Pinta](https://www.pinta-project.com/) एक बुनियादी इमेज एडिटिंग टूल है जो क्रॉप करने, आकार बदलने और अन्य बुनियादी बदलावों के लिए बढ़िया है। बस Photoshop के विकल्प की उम्मीद न करें। लेकिन इसमें फिर भी Magic Wand और लेयर्स हैं!
 
-आप Pinta को application launcher (`Super + Space`) के ज़रिए शुरू करते हैं।
+आप Pinta को एप्लिकेशन लॉन्चर (`Super + Space`) के ज़रिए शुरू करते हैं।
 
 ## Aether
 
-[Aether](https://github.com/bjarneo/aether) एक theming application है जो background image से colors निकाल सकता है और उन्हें एक पूर्ण, cohesive theme में बदल सकता है। यह [अपनी खुद की theme बनाने](43-making-your-own-theme.md) का सबसे आसान तरीका है।
+[Aether](https://github.com/bjarneo/aether) एक थीमिंग एप्लिकेशन है जो बैकग्राउंड इमेज से रंग निकालकर उन्हें एक संपूर्ण, सुसंगत थीम में बदल सकता है। यह [अपनी खुद की थीम बनाने](43-making-your-own-theme.md) का सबसे आसान तरीका है।
 
-आप Aether को application launcher (`Super + Space`) के ज़रिए शुरू करते हैं।
+आप Aether को एप्लिकेशन लॉन्चर (`Super + Space`) के ज़रिए शुरू करते हैं।
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) आपको उसी network पर app चला रहे अन्य devices को files भेजने देता है, जैसे Apple's AirDrop। हालाँकि, यह cross-platform है, इसलिए आप Windows, macOS, Android, iOS, और निश्चित रूप से Linux से और उन पर files भेज सकते हैं।
+[LocalSend](https://localsend.org/) आपको उसी नेटवर्क पर ऐप चला रहे अन्य डिवाइस पर फ़ाइलें भेजने देता है, Apple के AirDrop की तरह। हालाँकि, यह क्रॉस-प्लैटफ़ॉर्म है, इसलिए आप Windows, macOS, Android, iOS और बेशक Linux पर और वहाँ से फ़ाइलें भेज सकते हैं।
 
-आप Share menu को `Super + Ctrl + S` पर या Omarchy menu में _Trigger > Share_ के तहत खोल सकते हैं। यह आपको चार विकल्प देता है:
+आप शेयर मेनू `Super + Ctrl + S` पर या Omarchy मेनू में _Trigger > Share_ के अंतर्गत खोल सकते हैं। यह आपको चार विकल्प देता है:
 
-- **Clipboard** जो कुछ भी आपने copy किया है उसे text file के रूप में भेजता है। खुद को email किए बिना अपने phone पर कोई link या snippet पाने के लिए बढ़िया है।
-- **File** एक file picker खोलता है जहाँ आप एक साथ कई चुन सकते हैं।
-- **Folder** एक पूरी directory भेजता है।
-- **Receive** LocalSend को ठीक से खोलता है ताकि कोई दूसरा device आपको कुछ भेज सके।
+- **Clipboard** जो कुछ भी आपने कॉपी किया है उसे टेक्स्ट फ़ाइल के रूप में भेजता है। खुद को ईमेल किए बिना अपने फ़ोन पर कोई लिंक या स्निपेट पहुँचाने के लिए बढ़िया है।
+- **File** एक फ़ाइल पिकर खोलता है जहाँ आप एक साथ कई फ़ाइलें चुन सकते हैं।
+- **Folder** एक पूरी डायरेक्टरी भेजता है।
+- **Receive** असली LocalSend खोलता है ताकि कोई अन्य डिवाइस आपको कुछ भेज सके।
 
-यही काम terminal से `omarchy share clipboard`, `omarchy share file [path]`, और `omarchy share folder [path]` के साथ भी होता है। Path छोड़ दें और आपको picker मिल जाता है।
+वही काम टर्मिनल से `omarchy share clipboard`, `omarchy share file [path]`, और `omarchy share folder [path]` के साथ होता है। पाथ छोड़ दें और आपको पिकर मिल जाएगा।
 
-आप file manager से भी सीधे भेज सकते हैं: Files में किसी भी selection पर right-click करें और उसे LocalSend के साथ share करें।
+आप फ़ाइल मैनेजर से सीधे भी भेज सकते हैं: Files में किसी भी चयन पर राइट-क्लिक करें और उसे LocalSend के साथ शेयर करें।
 
-Omarchy का firewall LocalSend के port को छोड़कर डिफ़ॉल्ट रूप से बंद रहता है, इसलिए यह fresh install पर out of the box काम करता है। [सुरक्षा](48-security.md) देखें।
+Omarchy का फ़ायरवॉल डिफ़ॉल्ट रूप से LocalSend के पोर्ट को छोड़कर बंद रहता है, इसलिए यह नई इंस्टॉल पर सीधे काम करता है। [सुरक्षा](48-security.md) देखें।
 
 ## LibreOffice
 
-[LibreOffice](https://www.libreoffice.org/) word processor, spreadsheet, presentations, drawing application, और भी बहुत कुछ के साथ एक पूर्ण office package है। यह Microsoft Office की files के साथ compatible है, इसलिए उन Word documents को खोल पाने का यह एक बढ़िया तरीका है।
+[LibreOffice](https://www.libreoffice.org/) वर्ड प्रोसेसर, स्प्रेडशीट, प्रेज़ेंटेशन, ड्रॉइंग एप्लिकेशन और बहुत कुछ के साथ एक संपूर्ण ऑफ़िस पैकेज है। यह Microsoft Office की फ़ाइलों के साथ संगत है, इसलिए उन Word दस्तावेज़ों को खोल पाने का यह एक बढ़िया तरीका है।
 
-आप LibreOffice को application launcher (`Super + Space`) के ज़रिए शुरू करते हैं।
+आप LibreOffice को एप्लिकेशन लॉन्चर (`Super + Space`) के ज़रिए शुरू करते हैं।
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) Omarchy का अपना बेहद सरल presentation app है। आपका deck एक ही Markdown file है जिसके images और videos उसके पास हैं: हर slide को live preview के नीचे लिखें, slides को क्रम में drag करें, फिर fullscreen present करें या PDF और PowerPoint में export करें। यह आपकी Omarchy theme को भी अपना लेता है।
+[Hype](https://github.com/omacom/hype) Omarchy का अपना बिल्कुल सरल प्रेज़ेंटेशन ऐप है। आपकी डेक एक अकेली Markdown फ़ाइल है जिसके बगल में उसकी इमेज और वीडियो होते हैं: लाइव प्रीव्यू के नीचे हर स्लाइड लिखें, स्लाइड को खींचकर क्रम में लगाएँ, फिर फ़ुलस्क्रीन प्रस्तुत करें या PDF और PowerPoint में एक्सपोर्ट करें। यह आपकी Omarchy थीम भी अपना लेता है।
 
-आप Hype को application launcher (`Super + Space`) के ज़रिए शुरू करते हैं। हर shortcut देखने के लिए इसके अंदर `?` दबाएँ।
+आप Hype को एप्लिकेशन लॉन्चर (`Super + Space`) के ज़रिए शुरू करते हैं। इसके अंदर हर शॉर्टकट देखने के लिए `?` दबाएँ।
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) PDFs पर sign करने और उन्हें भरने का Omarchy का अपना बेहद सरल तरीका है। अपने saved signature, text, और आज की date को किसी page पर कहीं भी रखें, फिर मूल के पास एक signed copy save करें। कैसे, इसके लिए [PDF भरना](27-filling-out-pdfs.md) देखें।
+[Signed](https://github.com/omacom/signed) PDFs पर हस्ताक्षर करने और उन्हें भरने का Omarchy का अपना बिल्कुल सरल तरीका है। अपने सहेजे गए हस्ताक्षर, टेक्स्ट और आज की तारीख़ को किसी पेज पर कहीं भी रखें, फिर मूल के बगल में एक हस्ताक्षरित प्रति सहेजें। कैसे करना है, इसके लिए [PDF भरना](27-filling-out-pdfs.md) देखें।
 
-आप Signed को application launcher (`Super + Space`) के ज़रिए शुरू करते हैं, या file manager से कोई PDF इसके साथ खोलते हैं।
+आप Signed को एप्लिकेशन लॉन्चर (`Super + Space`) के ज़रिए शुरू करते हैं, या फ़ाइल मैनेजर से इसके साथ कोई PDF खोलते हैं।
 
 ## Game Vibes
 
-Game Vibes, application launcher (`Super + Space`) में, वह जगह है जहाँ Omarchy के छोटे games रहते हैं: Checkmate, किसी मित्र या built-in opponent के ख़िलाफ़ एक 3D chess game; Cards, Klondike solitaire; Death Wish, spikes और saws से भरे दस rooms का pixel-precise platformer; और Neon Swarm, एक arcade shooter। हर एक एक ही web page है जो आपकी theme का पालन करता है। Arrows और `Enter` से एक चुनें, और किसी game की title screen से `Esc` या उसके paused होने पर `Q` से list पर वापस आएँ। यह full screen खुलता है: `Super + F` इसे window बनाता है, और `Super + W` इसे बंद करता है।
+Game Vibes, एप्लिकेशन लॉन्चर (`Super + Space`) में, वह जगह है जहाँ Omarchy के छोटे गेम रहते हैं: Checkmate, किसी दोस्त या अंतर्निहित प्रतिद्वंद्वी के ख़िलाफ़ एक 3D शतरंज गेम; Cards, Klondike सॉलिटेयर; Death Wish, कीलों और आरियों से भरे दस कमरों का पिक्सेल-सटीक प्लेटफ़ॉर्मर; और Neon Swarm, एक आर्केड शूटर। हर एक एक अकेला वेब पेज है जो आपकी थीम का पालन करता है। तीरों और `Enter` से एक चुनें, और किसी गेम की टाइटल स्क्रीन से `Esc` या उसके रुके होने पर `Q` से सूची पर वापस आएँ। यह फ़ुल स्क्रीन खुलता है: `Super + F` इसे विंडो बनाता है, और `Super + W` इसे बंद करता है।
 
-किसी agent के साथ बनाए गए games भी यहाँ दिखते हैं: agents panel में _Make something cool → Game_ चुनें और किसी एक का वर्णन करें, या Game Vibes में पहले से मौजूद किसी game का नाम लेकर उस पर काम जारी रखें। Agent उसे `~/Games/vibes` में copy करता है, जहाँ वह बदलने के लिए आपका है, और काम पूरा होने पर उसे खोलता है। आप `omarchy games vibes copy <game>` के साथ वह copy खुद बना सकते हैं। किसी दूसरे द्वारा share किया गया game theme की तरह install होता है: _Install > Gaming > Game Vibes_ चुनें और उसका git address paste करें, या `omarchy games vibes install <git-repo-url>` चलाएँ। _Remove > Gaming_ किसी एक को फिर से हटाता है, और _Update > Game Vibes Games_ नए versions लाता है। Games web से three.js load करते हैं, इसलिए उन्हें शुरू होने के लिए connection चाहिए।
+आप एजेंट के साथ जो गेम बनाते हैं वे भी यहाँ दिखते हैं: एजेंट पैनल में _Make something cool → Game_ चुनें और एक गेम का वर्णन करें, या Game Vibes में पहले से मौजूद किसी गेम का नाम लें ताकि उस पर काम जारी रखा जा सके। एजेंट उसे `~/Games/vibes` में कॉपी करता है, जहाँ वह बदलने के लिए आपका होता है, और काम पूरा होने पर उसे खोलता है। आप `omarchy games vibes copy <game>` के साथ वह कॉपी खुद बना सकते हैं। कोई गेम जो कोई और शेयर करता है वह थीम की तरह इंस्टॉल होता है: _Install > Gaming > Game Vibes_ चुनें और उसका git पता पेस्ट करें, या `omarchy games vibes install <git-repo-url>` चलाएँ। _Remove > Gaming_ किसी गेम को फिर से हटाता है, और _Update > Game Vibes Games_ नए संस्करण लाता है। गेम वेब से three.js लोड करते हैं, इसलिए शुरू होने के लिए उन्हें कनेक्शन की ज़रूरत होती है।
 
 ## Omacalc
 
-[Omacalc](https://github.com/omacom-io/omacalc) Omarchy का अपना बेहद सरल calculator है, जो floating window में खुलता है।
+[Omacalc](https://github.com/omacom-io/omacalc) Omarchy का अपना बिल्कुल सरल कैलकुलेटर है, जो फ्लोटिंग विंडो में खुलता है।
 
-आप Omacalc को `Super + Shift + Q` से शुरू करते हैं (या calculator key से, यदि आपके keyboard में एक है)।
+आप Omacalc को `Super + Shift + Q` से शुरू करते हैं (या कैलकुलेटर कुंजी से, अगर आपके कीबोर्ड में वह है)।
 
 ## Signal
 
-[Signal](https://signal.org/) E2E encrypted messaging का अग्रणी है, और उन सभी के लिए एक बढ़िया communication विकल्प है जो किसी बड़ी tech conglomerate के ज़रिए न जाना पसंद करेंगे।
+[Signal](https://signal.org/) E2E एन्क्रिप्टेड मैसेजिंग का अग्रणी है, और उन सभी के लिए एक बढ़िया संचार विकल्प है जो किसी बड़ी टेक कंपनी के ज़रिए न जाना पसंद करें।
 
-आप Signal को `Super + Shift + G` से शुरू करते हैं। यह base install का हिस्सा नहीं है, इसलिए पहली बार जब आप वह दबाएँगे, Omarchy आपके लिए इसे install करने का प्रस्ताव देगा (यह Omarchy menu में _Install > Service_ के तहत भी है)।
+आप Signal को `Super + Shift + G` से शुरू करते हैं। यह बेस इंस्टॉल का हिस्सा नहीं है, इसलिए पहली बार जब आप वह दबाएँगे, तो Omarchy आपको इसे आपके लिए इंस्टॉल करने का प्रस्ताव देगा (यह Omarchy मेनू में _Install > Service_ के अंतर्गत भी है)।
 
 ## Omaview
 
-[Omaview](https://github.com/omacom/omaview) Omarchy का अपना बेहद सरल picture viewer और media player है: आपकी photos, videos, और music के लिए एक ही window। कोई photo खोलें और arrow keys उसके folder की बाकी चीज़ों में कदम-कदम आगे बढ़ती हैं, `N` और `P` किसी भी चीज़ के लिए यही करते हैं, और `Ctrl + M` पूरे folder को grid के रूप में दिखाता है। यह HEIC, AVIF, और JPEG XL photos भी दिखाता है, और किसी भी लंबी चीज़ में जहाँ आपने छोड़ा था वहीं से फिर शुरू होता है।
+[Omaview](https://github.com/omacom/omaview) Omarchy का अपना बिल्कुल सरल पिक्चर व्यूअर और मीडिया प्लेयर है: आपकी तस्वीरों, वीडियो और संगीत के लिए एक विंडो। कोई तस्वीर खोलें और तीर कुंजियाँ उसके फ़ोल्डर की बाकी तस्वीरों में आगे बढ़ती हैं, `N` और `P` किसी भी चीज़ के लिए ऐसा ही करते हैं, और `Ctrl + M` पूरे फ़ोल्डर को ग्रिड के रूप में दिखाता है। यह HEIC, AVIF और JPEG XL तस्वीरें भी दिखाता है, और किसी भी लंबी चीज़ में वहीं से आगे बढ़ता है जहाँ आपने छोड़ा था।
 
-Fullscreen के लिए `F`, किसी picture को Omasnap में edit करने या किसी video को Omacut में trim करने के लिए `E`, किसी picture को print करने के लिए `Ctrl + P`, और किसी file को Trash में भेजने के लिए `Delete` दबाएँ (`Ctrl + Z` उसे वापस लाता है)। हर shortcut देखने के लिए इसके अंदर `?` दबाएँ।
+फ़ुलस्क्रीन के लिए `F` दबाएँ, किसी तस्वीर को Omasnap में संपादित करने या वीडियो को Omacut में ट्रिम करने के लिए `E`, तस्वीर प्रिंट करने के लिए `Ctrl + P`, और फ़ाइल को Trash में ले जाने के लिए `Delete` दबाएँ (`Ctrl + Z` उसे वापस लाता है)। हर शॉर्टकट देखने के लिए इसके अंदर `?` दबाएँ।
 
-आप Omaview को application launcher (`Super + Space`) के ज़रिए _Media Viewer_ के रूप में शुरू करते हैं, या बस file manager में किसी picture, video, या song पर double-click करते हैं।
+आप Omaview को एप्लिकेशन लॉन्चर (`Super + Space`) के ज़रिए _Media Viewer_ के रूप में शुरू करते हैं, या फ़ाइल मैनेजर में बस किसी तस्वीर, वीडियो या गाने पर डबल-क्लिक करते हैं।
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) Omarchy का अपना बेहद सरल video trimmer है। जब आपको बस किसी clip का शुरू और अंत काटना हो, तो यह पूरा video editor चलाने से बेहतर है।
+[Omacut](https://github.com/omacom-io/omacut) Omarchy का अपना बिल्कुल सरल वीडियो ट्रिमर है। जब आपको बस किसी क्लिप की शुरुआत और अंत काटना हो, तो यह पूरा वीडियो एडिटर चलाने से बेहतर है।
 
-आप Omacut को application launcher (`Super + Space`) के ज़रिए शुरू करते हैं।
+आप Omacut को एप्लिकेशन लॉन्चर (`Super + Space`) के ज़रिए शुरू करते हैं।
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) Omarchy का अपना बेहद सरल webcam recorder है। अपना camera और microphone एक बार चुनें, फिर record करने के लिए `Space` दबाएँ, और उसी take को pause और resume करने के लिए फिर से दबाएँ। यह हमेशा आपके camera के उच्चतम resolution पर record करता है, live microphone meter के साथ ताकि आप शुरू करने से पहले अपने levels जाँच सकें।
+[Monologue](https://github.com/omacom/monologue) Omarchy का अपना बिल्कुल सरल वेबकैम रिकॉर्डर है। अपना कैमरा और माइक्रोफ़ोन एक बार चुनें, फिर रिकॉर्ड करने के लिए `Space` दबाएँ, और उसी टेक को रोकने और फिर से शुरू करने के लिए फिर दबाएँ। यह हमेशा आपके कैमरे के उच्चतम रिज़ॉल्यूशन पर रिकॉर्ड करता है, लाइव माइक्रोफ़ोन मीटर के साथ ताकि आप शुरू करने से पहले अपने लेवल जाँच सकें।
 
-Take रोकें और यह तुरंत built-in editor में खुल जाता है। किसी clip को split करने के लिए उस पर double-click करें, हर टुकड़े को trim करने के लिए handles को drag करें, और जो हिस्से आप नहीं चाहते उन्हें हटा दें। फिर उसे MP4 के रूप में save करें। आपकी मूल recording तब तक रखी जाती है जब तक आप उसे discard न करें, इसलिए आप हमेशा वापस आकर उसे अलग तरह से काट सकते हैं।
+टेक रोकें और यह बिल्ट-इन एडिटर में तुरंत खुल जाता है। किसी क्लिप को विभाजित करने के लिए उस पर डबल-क्लिक करें, हर हिस्से को ट्रिम करने के लिए हैंडल खींचें, और जो हिस्से आप नहीं चाहते उन्हें हटाएँ। फिर उसे MP4 के रूप में सहेजें। आपकी मूल रिकॉर्डिंग तब तक रखी जाती है जब तक आप उसे हटा न दें, इसलिए आप हमेशा वापस आकर उसे अलग तरह से काट सकते हैं।
 
-आप Monologue को application launcher (`Super + Space`) के ज़रिए शुरू करते हैं।
+आप Monologue को एप्लिकेशन लॉन्चर (`Super + Space`) के ज़रिए शुरू करते हैं।

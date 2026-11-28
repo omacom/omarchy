@@ -6,12 +6,13 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 # Resume device: the real command, with every system path it writes moved into
 # a scratch directory, so these cases run without hibernation on the machine.
+# The kernel parameters go through the real omarchy-boot-cmdline and
+# omarchy-boot-rebuild on a Limine machine, pointed at the scratch directory.
 rtmp=$(mktemp -d)
 trap 'rm -rf "$rtmp"' EXIT
 mkdir -p "$rtmp/bin" "$rtmp/sys" "$rtmp/sleep"
 sed -e "s|/sys/power/|$rtmp/sys/|g" \
   -e "s|/etc/mkinitcpio.conf.d|$rtmp/mkinitcpio.conf.d|g" \
-  -e "s|/etc/limine-entry-tool.d|$rtmp/limine-entry-tool.d|g" \
   -e "s|/etc/fstab|$rtmp/fstab|g" \
   -e "s|/swap/swapfile|$rtmp/swapfile|g" \
   -e "s|/usr/lib/systemd/system-sleep|$rtmp/sleep|g" \
@@ -21,6 +22,7 @@ sed -e "s|/sys/power/|$rtmp/sys/|g" \
 for command in omarchy-hw-aarch64-apple omarchy-hw-aarch64 omarchy-sleep-disabled omarchy-cmd-missing gum; do
   printf '#!/bin/bash\nexit 1\n' >"$rtmp/bin/$command"
 done
+printf '#!/bin/bash\necho limine\n' >"$rtmp/bin/omarchy-boot-backend"
 printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/swaplabel"
 printf '#!/bin/bash\n[[ $1 == --show ]] && echo "$SWAP_FILE_PATH"\nexit 0\n' >"$rtmp/bin/swapon"
 printf '#!/bin/bash\nif [[ $1 == inspect-internal ]]; then [[ ${LOOKUP:-} == fail ]] && exit 1; echo 4242; fi\nexit 0\n' >"$rtmp/bin/btrfs"
@@ -43,8 +45,8 @@ exec "$@"
 SH
 
 # Records the drop-in each build reads. limine-mkinitcpio 1.40 reports a kernel
-# whose image failed to build and still exits 0; "interrupt" kills setup in the
-# middle of the build, as closing the update terminal does.
+# whose image failed to build and still exits 0; "interrupt" kills the rebuild
+# midway, as closing the update terminal does.
 cat >"$rtmp/bin/limine-mkinitcpio" <<'SH'
 #!/bin/bash
 case ${REBUILD_RESULT:-ok} in
@@ -79,7 +81,8 @@ machine() {
 }
 
 setup() {
-  env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swapfile" SWAP_SOURCE="$SWAP_SOURCE" SWAP_UUID="${SWAP_UUID-$uuid}" \
+  env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swapfile" SWAP_SOURCE="$SWAP_SOURCE" SWAP_UUID="${SWAP_UUID-$uuid}" \
+    OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
     DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" REBUILD_RESULT="${REBUILD_RESULT:-ok}" \
     bash "$rtmp/setup" "$@" >"$rtmp/out" 2>&1
 }
@@ -171,10 +174,9 @@ SWAP_SOURCE="/dev/mapper/root[/@]" setup --force --no-rebuild || fail "setup on 
 printf '#!/bin/bash\nexit 1\n' >"$rtmp/bin/omarchy-hw-aarch64"
 pass "an ARM computer gets hibernation when its owner asks"
 
-# Removing hibernation must also drop the Limine resume drop-in and pending
-# rebuild marker so a later setup writes a fresh offset for the new swapfile.
+# Removing hibernation must also drop the resume parameters (Limine's drop-in
+# here, through omarchy-boot-cmdline) and pending rebuild marker so a later setup writes a fresh offset for the new swapfile.
 sed -e "s|/etc/mkinitcpio.conf.d|$rtmp/mkinitcpio.conf.d|g" \
-  -e "s|/etc/limine-entry-tool.d|$rtmp/limine-entry-tool.d|g" \
   -e "s|/etc/fstab|$rtmp/fstab|g" \
   -e "s|SWAP_SUBVOLUME=\"/swap\"|SWAP_SUBVOLUME=\"$rtmp/swap\"|g" \
   -e "s|/var/lib/omarchy|$rtmp/var-lib|g" \
@@ -185,7 +187,8 @@ chmod +x "$rtmp/bin/gum" "$rtmp/bin/swapoff"
 machine "$uuid_line"
 mkdir -p "$rtmp/var-lib"
 : >"$rtmp/var-lib/hibernation-resume-rebuild"
-env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
   bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove succeeds" "$(<"$rtmp/out")"
 [[ ! -e $rtmp/mkinitcpio.conf.d/omarchy_resume.conf && ! -e $drop_in && ! -e $rtmp/var-lib/hibernation-resume-rebuild ]] ||
   fail "hibernation remove deletes resume hook, Limine drop-in, and pending rebuild marker"
@@ -197,7 +200,8 @@ pass "hibernation remove cleans up the Limine resume drop-in and rebuild marker"
 machine
 mkdir -p "$rtmp/limine-entry-tool.d"
 printf '%s\n' "$uuid_line" >"$drop_in"
-env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
   bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove repairs a half-removed machine" "$(<"$rtmp/out")"
 [[ ! -e $drop_in && $(<"$rtmp/rebuilds") == "built-without-drop-in" ]] ||
   fail "hibernation remove deletes a leftover resume.conf before rebuilding" "$(<"$rtmp/rebuilds")"
@@ -213,7 +217,8 @@ done
 exec /usr/bin/rm "$@"
 SH
 chmod +x "$rtmp/bin/rm"
-if env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+if env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
   bash "$rtmp/remove" >"$rtmp/out" 2>&1; then
   rm -f "$rtmp/bin/rm"
   fail "hibernation remove reports failure when resume.conf cannot be deleted"
@@ -227,7 +232,8 @@ pass "hibernation remove stops before rebuilding if resume.conf deletion fails"
 machine
 mkdir -p "$rtmp/var-lib"
 : >"$rtmp/var-lib/hibernation-resume-rebuild"
-env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
   bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove retries when only rebuild marker remains" "$(<"$rtmp/out")"
 [[ ! -e $rtmp/var-lib/hibernation-resume-rebuild && $(<"$rtmp/rebuilds") == "built-without-drop-in" ]] ||
   fail "hibernation remove clears a leftover rebuild marker and rebuilds" "$(<"$rtmp/rebuilds")"
@@ -239,7 +245,8 @@ machine
 mkdir -p "$rtmp/swap"
 : >"$rtmp/swap/swapfile"
 printf '# Btrfs swapfile for system hibernation\n%s none swap defaults,pri=0 0 0\n' "$rtmp/swap/swapfile" >"$rtmp/fstab"
-env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swap/swapfile" DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" \
+  OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
   bash "$rtmp/remove" >"$rtmp/out" 2>&1 || fail "hibernation remove cleans up partial swapfile/fstab setup" "$(<"$rtmp/out")"
 [[ ! -e $rtmp/swap/swapfile && ! -s $rtmp/rebuilds ]] ||
   fail "hibernation remove deletes partial swapfile without unnecessary rebuild" "$(<"$rtmp/out")"
@@ -257,11 +264,11 @@ tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 mkdir -p "$tmpdir/bin"
 
-cat >"$tmpdir/bin/omarchy-cmd-missing" <<'EOF'
+cat >"$tmpdir/bin/omarchy-boot-backend" <<'EOF'
 #!/bin/bash
-exit 1
+echo limine
 EOF
-cp "$tmpdir/bin/omarchy-cmd-missing" "$tmpdir/bin/omarchy-hw-aarch64"
+printf '#!/bin/bash\nexit 1\n' >"$tmpdir/bin/omarchy-hw-aarch64"
 
 cat >"$tmpdir/bin/grep" <<'EOF'
 #!/bin/bash

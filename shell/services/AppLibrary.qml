@@ -38,6 +38,8 @@ Item {
   readonly property string home: Quickshell.env("HOME")
   readonly property string userIconsPath: (Quickshell.env("XDG_DATA_HOME") || home + "/.local/share") + "/icons/"
   property int themeRevision: 0
+  property string lastLinksRevision: ""
+  property bool iconsRevisionInitialized: false
 
   // Maps a desktop id to the version of the package that owns it. Rescanned
   // each time the app grid opens, since upgrades leave desktop entries alone.
@@ -202,11 +204,12 @@ Item {
   }
 
   function iconIndexScanCommand() {
-    // List app/device icons across the XDG icon dirs and /usr/share/pixmaps as
-    // "<path>" lines. Some desktop entries, such as Print Settings, use device
-    // icons like "printer" instead of app icons. SVGs are emitted before PNGs
-    // so the parser, which keeps the first hit per name, prefers scalable icons.
-    // Within each icon dir, PNGs go largest size first, so a 256x256 beats a 32x32.
+    // List one winning app/device icon per basename across the XDG icon dirs
+    // and /usr/share/pixmaps as "<path>" lines. Some desktop entries, such as
+    // Print Settings, use device icons like "printer" instead of app icons.
+    // Deduplicating in awk keeps SVG ahead of PNG, preserves XDG directory
+    // precedence, picks the largest PNG size within a directory, and avoids
+    // streaming thousands of shadowed duplicates into QML.
     return [
       'dirs=("$HOME/.icons" "${XDG_DATA_HOME:-$HOME/.local/share}/icons");',
       'IFS=":" read -ra xdg_dirs <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}";',
@@ -217,8 +220,26 @@ Item {
       '    echo;',
       '  done;',
       '  find /usr/share/pixmaps -maxdepth 1 \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null;',
-      '} | awk -v OFS="\\t" \'!length { dir++; next } /\\.svg$/ { print 0, 0, 0, $0; next } { print 1, dir, (match($0, /\\/[0-9]+x[0-9]+[@\\/]/) ? substr($0, RSTART + 1) + 0 : 0), $0 }\'',
-      '  | sort -s -t $\'\\t\' -k1,1n -k2,2n -k3,3nr | cut -f 4-'
+      '} | awk \'',
+      '!length { dir++; next }',
+      '{',
+      '  name = $0; sub(/^.*\\//, "", name); sub(/\\.[^.]+$/, "", name);',
+      '  if (!length(name)) next;',
+      '  is_png = !/\\.svg$/;',
+      '  sz = is_png && match($0, /\\/[0-9]+x[0-9]+[@\\/]/) ? substr($0, RSTART + 1) + 0 : 0;',
+      '  if (!(name in best)) {',
+      '    order[++count] = name;',
+      '    best[name] = $0; best_png[name] = is_png; best_dir[name] = dir; best_sz[name] = sz;',
+      '  } else if (!is_png) {',
+      '    if (best_png[name]) { best[name] = $0; best_png[name] = 0; best_dir[name] = dir; best_sz[name] = 0 }',
+      '  } else if (best_png[name] && (dir < best_dir[name] || (dir == best_dir[name] && sz > best_sz[name]))) {',
+      '    best[name] = $0; best_dir[name] = dir; best_sz[name] = sz;',
+      '  }',
+      '}',
+      'END {',
+      '  for (i = 1; i <= count; i++) if (!best_png[order[i]]) print best[order[i]];',
+      '  for (i = 1; i <= count; i++) if (best_png[order[i]]) print best[order[i]];',
+      '}\''
     ].join(' ')
   }
 
@@ -331,12 +352,26 @@ Item {
   FileView {
     path: root.home + "/.local/state/omarchy/current/icons.revision"
     watchChanges: true
-    preload: false
+    preload: true
     printErrors: false
-    onFileChanged: {
-      reload()
+    onFileChanged: reload()
+    onLoadFailed: root.iconsRevisionInitialized = true
+    onLoaded: {
+      var parts = String(text() || "").trim().split(/\s+/)
+      var linksRev = parts.length >= 2 ? parts[1] : ""
+      if (!root.iconsRevisionInitialized) {
+        root.iconsRevisionInitialized = true
+        root.lastLinksRevision = linksRev
+        return
+      }
       root.themeRevision++
-      root.refreshIcons()
+      // Theme switches redraw existing icon files in place; only rescan the
+      // icon tree when the link-change revision advances (or if an older writer
+      // omitted it, or the index has not been populated yet).
+      if (linksRev === "" || linksRev !== root.lastLinksRevision || Object.keys(root.iconIndex).length === 0) {
+        root.lastLinksRevision = linksRev
+        root.refreshIcons()
+      }
     }
   }
 

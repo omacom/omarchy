@@ -548,6 +548,61 @@ navi_args=$(recorder_args_for_amd_gpu 73df)
 [[ -n $navi_args && $navi_args != *-encoder* ]] || fail "other AMD GPUs keep hardware encoding" "$navi_args"
 pass "only a Polaris GPU records on the CPU"
 
+# Large regions on 5K/6K displays would exceed GPU H.264 limits and fall back
+# to HEVC; capping regions above 4K keeps hardware H.264 while leaving smaller
+# regions at native pixels without upscaling.
+multi_bin="$tmp_dir/multi-bin"
+mkdir -p "$multi_bin"
+cat >"$stub_bin/omarchy-capture-region" <<'SH'
+#!/bin/bash
+printf '%s\n' "$OMARCHY_TEST_CAPTURE_TARGET"
+SH
+cat >"$multi_bin/hyprctl" <<'SH'
+#!/bin/bash
+if [[ $1 == "monitors" ]]; then
+  cat <<'JSON'
+[
+  {"id":1,"name":"DP-1","x":0,"y":0,"width":1920,"height":1080,"scale":1,"transform":0,"focused":true},
+  {"id":2,"name":"DP-2","x":1920,"y":0,"width":6016,"height":3384,"scale":2,"transform":0,"focused":false}
+]
+JSON
+fi
+SH
+chmod +x "$stub_bin/omarchy-capture-region" "$multi_bin/hyprctl"
+
+recorder_args_for_target() {
+  local run="$tmp_dir/res-$1"
+  local target=$2
+  shift 2
+  mkdir -p "$run/recordings"
+  PATH="$multi_bin:$PATH" XDG_RUNTIME_DIR="$run" OMARCHY_SCREENRECORD_DIR="$run/recordings" \
+    OMARCHY_TEST_CAPTURE_TARGET="$target" OMARCHY_TEST_GSR_ARGS="$run/args" \
+    "$ROOT/bin/omarchy-capture-screenrecording" "$@" >/dev/null 2>&1
+  pkill -f "$stub_bin/gpu-screen-recorder" 2>/dev/null || true
+  cat "$run/args" 2>/dev/null || true
+}
+
+large_region_args=$(recorder_args_for_target large-5k "2000,100 2560x1408")
+[[ $large_region_args == *$'\n-s\n3840x2160\n'* ]] ||
+  fail "a region exceeding 4K physical pixels on a scaled monitor is capped to 3840x2160" "$large_region_args"
+
+small_region_args=$(recorder_args_for_target small-5k "2000,100 800x600")
+[[ -n $small_region_args && $small_region_args != *$'\n-s\n'* ]] ||
+  fail "a region within 4K omits -s so it is not upscaled" "$small_region_args"
+
+portrait_region_args=$(recorder_args_for_target portrait-5k "2000,100 1200x2000")
+[[ $portrait_region_args == *$'\n-s\n2160x3840\n'* ]] ||
+  fail "a portrait region exceeding 4K is capped to 2160x3840" "$portrait_region_args"
+
+override_region_args=$(recorder_args_for_target override-5k "2000,100 2560x1408" --resolution=0x0)
+[[ $override_region_args == *$'\n-s\n0x0\n'* ]] ||
+  fail "explicit --resolution overrides the region cap" "$override_region_args"
+
+unfocused_monitor_args=$(recorder_args_for_target monitor-6k "monitor:DP-2")
+[[ $unfocused_monitor_args == *$'\n-s\n3840x2160\n'* ]] ||
+  fail "selecting an unfocused 6K monitor caps to 3840x2160" "$unfocused_monitor_args"
+pass "regions and monitors above 4K are capped to stay on hardware H.264"
+
 # gpu-screen-recorder aborts before recording on a GPU it does not know, such
 # as Apple Silicon's. wf-recorder takes over when it is installed, on the same
 # monitor, and its pid is the one stop and status act on.

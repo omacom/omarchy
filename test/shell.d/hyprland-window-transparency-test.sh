@@ -214,3 +214,33 @@ if command -v script >/dev/null; then
 else
   skip "script is not installed"
 fi
+
+# Signal-based app reloaders must match exact process names (never substring
+# pkill) and tolerate processes that are absent or exit mid-signal (exit 1).
+sig_bin="$tmpdir/sig-bin"
+sig_log="$tmpdir/pkill.log"
+mkdir -p "$sig_bin"
+cat >"$sig_bin/pgrep" <<'FAKE'
+#!/bin/bash
+exit 0
+FAKE
+cat >"$sig_bin/killall" <<'FAKE'
+#!/bin/bash
+exit 1
+FAKE
+cat >"$sig_bin/pkill" <<'FAKE'
+#!/bin/bash
+printf '%s\n' "$*" >>"$SIG_LOG"
+exit 1
+FAKE
+chmod +x "$sig_bin/pgrep" "$sig_bin/killall" "$sig_bin/pkill"
+for cmd in omarchy-restart-helix omarchy-restart-opencode omarchy-restart-terminal; do
+  : >"$sig_log"
+  HOME="$home_dir" SIG_LOG="$sig_log" PATH="$sig_bin:$ROOT/bin:$PATH" "$ROOT/bin/$cmd" ||
+    fail "$cmd succeeds when no matching process is running or exits mid-signal"
+  [[ -s $sig_log ]] || fail "$cmd invokes pkill directly"
+  while IFS= read -r args; do
+    [[ " $args " == *" -x "* ]] || fail "$cmd passes -x to pkill (got: $args)"
+  done <"$sig_log"
+done
+pass "signal reloaders use exact pkill -x and tolerate absent/exiting processes"

@@ -1,19 +1,19 @@
 # Hardvérová autentifikácia
 
-### Autentifikácia odtlačkom prsta
+### Overovanie odtlačkom prsta
 
-Veľa notebookov má snímač odtlačkov prstov na autentifikáciu. V Omarchy ho môžeš použiť spustením _Nastavenie > Zabezpečenie > Odtlačok prsta_ v menu Omarchy (`Super + Space`).
+Mnoho notebookov má snímač odtlačkov prstov na overovanie. V Omarchy ho môžete použiť spustením _Setup > Security > Fingerprint_ v ponuke Omarchy (`Super + Space`).
 
-Tým sa nainštaluje balík pre odtlačky prstov, nasníma sa tvoj odtlačok, overí sa a budeš môcť odtlačok prsta používať na odomykanie zo zamykacej obrazovky (ktorú vyvoláš stlačením `Super + Ctrl + L`), na vstup do režimu sudo a na autorizáciu systémových výziev.
+Otvorí sa odtlačok prsta na celú obrazovku, ktorý sa postupne zapĺňa, ako sa dotýkate snímača. Omarchy medzitým nainštaluje balík pre odtlačky prstov, zaznamená váš odtlačok, overí ho a budete pripravení používať svoj odtlačok prsta na odomykanie zo zamknutej obrazovky (ktorú môžete vyvolať pomocou `Super + Ctrl + L`), na vstup do režimu sudo a na autorizáciu systémových výziev.
 
-Keď zamykacia obrazovka vypne displej, snímač odpočíva, aby šetril energiu, takže pred jeho dotykom prebuď obrazovku ľubovoľnou klávesou alebo touchpadom.
+Keď zamknutá obrazovka vypne displej, snímač odpočíva, aby šetril energiu, takže pred dotykom snímača zobuďte obrazovku ľubovoľnou klávesou alebo touchpadom.
 
-Keď je veko notebooku zatvorené, výzva na odtlačok prsta sa automaticky preskočí, takže prejdeš rovno na výzvu na zadanie hesla namiesto čakania na snímač, na ktorý nedočiahneš. Ak inak potrebuješ pracovať na externej klávesnici, ktorá snímač nemá, stačí stlačiť `CTRL + C`, keď ťa počas `sudo` vyzve na odtlačok prsta.
+Keď je veko notebooku zatvorené, výzva na odtlačok prsta sa automaticky preskočí, takže prejdete rovno na výzvu na zadanie hesla namiesto čakania na snímač, ku ktorému sa nedostanete. Ak inak potrebujete pracovať na externej klávesnici, ktorá snímač nemá, pri výzve na odtlačok prsta počas `sudo` jednoducho stlačte `CTRL + C`.
 
-Autentifikáciu odtlačkom prsta môžeš odstrániť v menu Omarchy pod _Odstrániť > Zabezpečenie > Odtlačok prsta_.
+Overovanie odtlačkom prsta môžete odstrániť v ponuke Omarchy pod _Remove > Security > Fingerprint_.
 
-### Autentifikácia Fido2
+### Overovanie pomocou Fido2
 
-Ak používaš zariadenie Fido2, môžeš ho nastaviť na autentifikáciu pre `sudo` pomocou _Nastavenie > Zabezpečenie > Fido2_ v menu Omarchy (`Super + Space`). Vzťahuje sa však na výzvy pre `sudo` a systémovú autorizáciu, nie na odomykanie počítača.
+Ak používate zariadenie Fido2, môžete ho nastaviť na overovanie `sudo` pomocou _Setup > Security > Fido2_ v ponuke Omarchy (`Super + Space`). Pokrýva však výzvy `sudo` a systémovej autorizácie, nie odomykanie počítača.
 
-Autentifikáciu fido2 môžeš odstrániť v menu Omarchy pod _Odstrániť > Zabezpečenie > Fido2_.
+Overovanie fido2 môžete odstrániť v ponuke Omarchy pod _Remove > Security > Fido2_.

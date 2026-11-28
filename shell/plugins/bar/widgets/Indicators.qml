@@ -8,12 +8,13 @@ BarWidget {
   id: root
   moduleName: "omarchy.indicators"
 
-  readonly property var defaultIndicatorEntries: [ "PasswordlessSudo", "ScreenRecording", "RemoteSession", "Reminder", "NightLight", "Dnd", "StayAwake" ]
+  readonly property var defaultIndicatorEntries: [ "PasswordlessSudo", "PasswordlessLogin", "ScreenRecording", "RemoteSession", "Reminder", "NightLight", "Dnd", "StayAwake" ]
   readonly property var indicatorEntries: indicatorEntriesFromSettings(settings)
   property var activeIndicatorIds: []
   property var indicatorActiveStates: ({})
   property bool indicatorAreaHovered: false
-  property bool indicatorItemHovered: false
+  property var hoveredIndicatorItems: []
+  readonly property bool indicatorItemHovered: hoveredIndicatorItems.length > 0
   // Held a moment after the pointer leaves, so crossing between icons, or a
   // frame where the widget moves under a still pointer, doesn't flicker them.
   property bool hoverRevealHeld: false
@@ -83,8 +84,10 @@ BarWidget {
     syncHoverReveal()
   }
 
-  function setIndicatorItemHovered(hovered) {
-    indicatorItemHovered = hovered
+  function setIndicatorItemHovered(hovered, item) {
+    var items = hoveredIndicatorItems.filter(function(hoveredItem) { return hoveredItem !== item })
+    if (hovered) items.push(item)
+    hoveredIndicatorItems = items
     syncHoverReveal()
   }
 
@@ -241,9 +244,11 @@ BarWidget {
   // half that reach: in the centered box the widget slides half its growth
   // back the other way as the box re-centers, and a zone that stopped at the
   // widget's edge would lose the pointer that opened it, closing and
-  // reopening in a loop. Above the icons, which a hover handler doesn't block.
+  // reopening in a loop. Below the icons so their mouse areas receive hover;
+  // the icons themselves keep the inactive block revealed while hovered.
   Item {
     objectName: "hiddenBlockZone"
+    z: -1
 
     readonly property real reach: (orientationLoader.item ? orientationLoader.item.inactiveLength : 0) * (root.revealInactiveIndicators ? 0.5 : 1)
     readonly property real alongStart: root.fixedAtStart ? 0 : -reach

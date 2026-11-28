@@ -91,8 +91,15 @@ PATH="$add_bin:$ROOT/bin:$PATH" TEST_TMP="$test_tmp" OMARCHY_PKG_QUEUE_FILE="$qu
   "$ROOT/bin/omarchy-pkg-add" pkg-b pkg-c
 [[ ! -e $test_tmp/pkg-add-calls ]] || fail "deferred pkg-add must not invoke pacman immediately"
 
+# Calling omarchy-pkg-add without OMARCHY_PKG_DEFER=1 for already-installed
+# packages must not flush the deferred queue early.
 PATH="$add_bin:$ROOT/bin:$PATH" TEST_TMP="$test_tmp" OMARCHY_PKG_QUEUE_FILE="$queue_file" \
-  "$ROOT/bin/omarchy-pkg-add" pkg-d
+  "$ROOT/bin/omarchy-pkg-add" already-installed
+[[ ! -e $test_tmp/pkg-add-calls ]] || fail "already-installed immediate pkg-add must not flush deferred queue early"
+[[ -s $queue_file ]] || fail "already-installed immediate pkg-add must keep deferred queue intact"
+
+PATH="$add_bin:$ROOT/bin:$PATH" TEST_TMP="$test_tmp" OMARCHY_PKG_QUEUE_FILE="$queue_file" \
+  "$ROOT/bin/omarchy-pkg-add" already-installed pkg-d
 [[ $(<"$test_tmp/pkg-add-calls") == "-S --noconfirm --needed -- pkg-a pkg-b pkg-c pkg-d" ]] ||
   fail "immediate pkg-add flushes deduplicated missing queued packages in one transaction" "$(<"$test_tmp/pkg-add-calls")"
 [[ ! -s $queue_file ]] || fail "queue file must be empty after flush"
@@ -166,15 +173,19 @@ PATH="$add_bin:$ROOT/bin:$PATH" TEST_TMP="$test_tmp" \
 [[ ! -s $queue_file && ! -s $service_queue ]] || fail "both queues are cleared when packages were already installed"
 pass "flush-packages.sh enables queued services when packages are already installed"
 
-# run_logged skips strictly ARM-only leaves on x86_64 at execution time while
-# running all leaves on aarch64 and keeping hardware/all.sh pure run_logged lines
-# so image builds enumerate the full ordered list.
-hw_x86_bin="$test_tmp/uname-x86"
-hw_arm_bin="$test_tmp/uname-arm"
-mkdir -p "$hw_x86_bin" "$hw_arm_bin"
+# run_logged skips leaves belonging to other platforms at execution time while
+# keeping hardware/all.sh pure run_logged lines so image builds enumerate the
+# full ordered list.
+hw_x86_bin="$test_tmp/platform-x86"
+hw_n1x_bin="$test_tmp/platform-n1x"
+hw_qcom_bin="$test_tmp/platform-qcom"
+mkdir -p "$hw_x86_bin" "$hw_n1x_bin" "$hw_qcom_bin"
 printf '#!/bin/bash\n[[ ${1:-} == -m ]] && { echo x86_64; exit 0; }\nexec /usr/bin/uname "$@"\n' >"$hw_x86_bin/uname"
-printf '#!/bin/bash\n[[ ${1:-} == -m ]] && { echo aarch64; exit 0; }\nexec /usr/bin/uname "$@"\n' >"$hw_arm_bin/uname"
-chmod +x "$hw_x86_bin/uname" "$hw_arm_bin/uname"
+printf '#!/bin/bash\n[[ ${1:-} == -m ]] && { echo aarch64; exit 0; }\nexec /usr/bin/uname "$@"\n' >"$hw_n1x_bin/uname"
+printf '#!/bin/bash\necho aarch64-n1x\n' >"$hw_n1x_bin/omarchy-hw-platform"
+printf '#!/bin/bash\n[[ ${1:-} == -m ]] && { echo aarch64; exit 0; }\nexec /usr/bin/uname "$@"\n' >"$hw_qcom_bin/uname"
+printf '#!/bin/bash\necho aarch64-qualcomm\n' >"$hw_qcom_bin/omarchy-hw-platform"
+chmod +x "$hw_x86_bin/uname" "$hw_n1x_bin/uname" "$hw_n1x_bin/omarchy-hw-platform" "$hw_qcom_bin/uname" "$hw_qcom_bin/omarchy-hw-platform"
 
 list_hw_executed() {
   local bin_dir=$1
@@ -196,18 +207,32 @@ list_hw_enumerated() {
 }
 
 hw_x86=$(list_hw_executed "$hw_x86_bin")
-hw_arm=$(list_hw_executed "$hw_arm_bin")
+hw_n1x=$(list_hw_executed "$hw_n1x_bin")
+hw_qcom=$(list_hw_executed "$hw_qcom_bin")
 hw_enum=$(list_hw_enumerated "$hw_x86_bin")
 
-[[ $hw_arm == "$hw_enum" ]] || fail "aarch64 execution and image enumeration must match the full ordered hardware leaf list"
 ! grep -qx 'hardware/qualcomm/firmware.sh' <<<"$hw_x86" || fail "x86 execution must skip Qualcomm leaves"
+! grep -qx 'hardware/qualcomm/hibernation.sh' <<<"$hw_x86" || fail "x86 execution must skip Qualcomm hibernation leaf"
 ! grep -qx 'hardware/gb10/sleep.sh' <<<"$hw_x86" || fail "x86 execution must skip GB10 leaves"
 ! grep -qx 'hardware/n1x.sh' <<<"$hw_x86" || fail "x86 execution must skip N1x leaf"
 grep -qx 'hardware/nvidia.sh' <<<"$hw_x86" || fail "x86 execution must keep mixed nvidia.sh leaf"
 grep -qx 'hardware/fix-fkeys.sh' <<<"$hw_x86" || fail "x86 execution must keep fix-fkeys.sh"
-grep -qx 'hardware/apple/fix-brcmfmac-supplicant.sh' <<<"$hw_x86" || fail "x86 execution must keep mixed Apple Broadcom leaf"
+grep -qx 'hardware/apple/fix-brcmfmac-supplicant.sh' <<<"$hw_x86" || fail "x86 execution must keep Intel Apple Broadcom leaf"
 grep -qx 'hardware/qualcomm/firmware.sh' <<<"$hw_enum" || fail "image enumeration on x86 must include ARM leaves"
-pass "run_logged skips strictly ARM-only leaves on x86 while preserving full image enumeration"
+
+grep -qx 'hardware/n1x.sh' <<<"$hw_n1x" || fail "N1x execution must keep N1x leaf"
+grep -qx 'hardware/dell-xps-touchpad-haptics.sh' <<<"$hw_n1x" || fail "N1x execution must keep Dell XPS haptic touchpad leaf"
+! grep -qx 'hardware/intel/lpmd.sh' <<<"$hw_n1x" || fail "N1x execution must skip Intel leaves"
+! grep -qx 'hardware/apple/fix-t2.sh' <<<"$hw_n1x" || fail "N1x execution must skip Intel Apple leaves"
+! grep -qx 'hardware/qualcomm/firmware.sh' <<<"$hw_n1x" || fail "N1x execution must skip Qualcomm leaves"
+! grep -qx 'hardware/gb10/sleep.sh' <<<"$hw_n1x" || fail "N1x execution must skip GB10 leaves"
+! grep -qx 'hardware/raspberrypi/raspberry-pi-4.sh' <<<"$hw_n1x" || fail "N1x execution must skip Raspberry Pi leaves"
+
+grep -qx 'hardware/qualcomm/firmware.sh' <<<"$hw_qcom" || fail "Qualcomm execution must keep Qualcomm leaves"
+grep -qx 'hardware/qualcomm/hibernation.sh' <<<"$hw_qcom" || fail "Qualcomm execution must keep Qualcomm hibernation leaf"
+! grep -qx 'hardware/n1x.sh' <<<"$hw_qcom" || fail "Qualcomm execution must skip N1x leaves"
+! grep -qx 'hardware/intel/lpmd.sh' <<<"$hw_qcom" || fail "Qualcomm execution must skip Intel leaves"
+pass "run_logged skips non-matching platform leaves while preserving full image enumeration"
 
 # install/hardware/network.sh batches systemctl disable and falls back per-unit on error.
 # Copy the script with /etc/systemd/network pointed at test_tmp so host files are never touched.

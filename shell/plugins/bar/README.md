@@ -67,6 +67,7 @@ Example `shell.json` (bar subtree only shown):
 | `omarchy.microphone` | Mic icon + scroll volume | left = mute toggle · middle = audio panel · scroll = source volume |
 
 | `omarchy.audio` | Volume icon + popup with master slider, output-device picker, per-app mixer | left = popup · right = mute · middle = popup · scroll = volume |
+| `omarchy.mv7plus` | Shure MV7+ onboard DSP panel (auto-shown when connected): gain, tone, HPF, denoiser, popper stopper, limiter, compressor, reverb, monitor mix | left = popup · right/middle = hardware mute |
 | `omarchy.network` | Wi-Fi/Ethernet icon + popup with Wi-Fi scan, signal, connect, DNS provider selection | left = popup |
 | `omarchy.tailscale` | Tailscale status, connection switcher, machine browser, and copy actions | left = popup · right = toggle · middle = refresh |
 | `omarchy.agents` | AI coding agent limits with pace, today, last week, and all-time model breakdown | left = panel · right = launch agent · middle = next subscription |

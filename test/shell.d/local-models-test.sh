@@ -24,6 +24,9 @@ parse('{"models":{}}')
 assertDeepEqual(state.localModel.models, {}, 'an empty models map clears the local lines')
 parse('{"models":{"model-a":{"recipe":"model-a","unit":"installing","install":{"phase":"downloading","done_bytes":5,"total_bytes":10}}}}')
 assertEqual(state.localModel.models['model-a'].unit, 'installing', 'a setup in progress loads, so its download shows')
+state.handingOff = ['model-a', 'model-b']
+parse('{"models":{"model-a":{"recipe":"model-a","unit":"installing","install":{"phase":"downloading","done_bytes":5,"total_bytes":10}}}}')
+assertDeepEqual(state.handingOff, ['model-b'], 'handing off clears once status.json lists the model')
 JS
 
 # The tailnet survey can be rewritten under the agents panel; models whose host is
@@ -141,7 +144,7 @@ const scope = { I18n: { t: key => key }, setupProcess: {} }
 for (const name of names)
   scope[name] = new Function('scope', 'with (scope) { return ' + source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0] + ' }')(scope)
 const start = id => {
-  Object.assign(scope, { settingUp: null, setupFailure: null, setupQueue: [], setupOutput: '' })
+  Object.assign(scope, { settingUp: null, setupFailure: null, setupQueue: [], handingOff: [], setupOutput: '' })
   scope.setUp({ id, name: id.toUpperCase(), vendor: 'v' })
 }
 const phases = () => scope.setupRows().map(row => row.recipe + ':' + row.install.phase)
@@ -164,6 +167,11 @@ assertEqual(failed.error, "Couldn't install podman crun", 'with the reason the c
 start('m')
 assertEqual(scope.finishSetup(0), null, 'a setup handed to the background starts nothing more')
 assertDeepEqual(phases(), [], 'and leaves its line to status.json')
+assertDeepEqual(scope.handingOff, ['m'], 'and stays marked as handing off until status.json reloads with it')
+
+start('m')
+scope.finishSetup(126)
+assertDeepEqual(scope.handingOff, [], 'a dismissed password dialog is not marked as handing off')
 
 start('m')
 scope.setUp({ id: 'n' })

@@ -6,7 +6,7 @@
 if omarchy-hw-elgato-camlink-4k; then
   _camlink_sole_linux_omarchy() {
     local found=0 pkgbase
-    omarchy-hw-x86 && omarchy-pkg-present linux-omarchy || return 1
+    omarchy-pkg-present linux-omarchy || return 1
     for pkgbase in /usr/lib/modules/*/pkgbase; do
       [[ -f $pkgbase ]] || continue
       [[ $(<"$pkgbase") == "linux-omarchy" ]] || return 1

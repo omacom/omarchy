@@ -145,14 +145,51 @@ cleanup_webcam() {
   rm -f "$REGION_FILE"
 }
 
-default_resolution() {
-  local width height
-  read -r width height < <(hyprctl monitors -j | jq -r '.[] | select(.focused == true) | "\(.width) \(.height)"')
-  if ((width > 3840 || height > 2160)); then
+cap_resolution() {
+  local width=$1 height=$2
+  [[ $width =~ ^[0-9]+$ && $height =~ ^[0-9]+$ ]] || return
+
+  if ((height > width)); then
+    if ((width > 2160 || height > 3840)); then
+      echo "2160x3840"
+    fi
+  elif ((width > 3840 || height > 2160)); then
     echo "3840x2160"
-  else
-    echo "0x0"
   fi
+}
+
+default_resolution() {
+  local monitor=${1:-} width height capped
+  read -r width height < <(hyprctl monitors -j | jq -r --arg name "$monitor" '
+    first(.[] | select(if $name != "" then .name == $name else .focused == true end)) |
+    if ((.transform // 0) % 2) == 1 then "\(.height) \(.width)" else "\(.width) \(.height)" end
+  ')
+  capped=$(cap_resolution "$width" "$height")
+  echo "${capped:-0x0}"
+}
+
+# Cap a region whose physical pixel size exceeds 4K so gpu-screen-recorder stays
+# on its hardware H.264 encoder instead of switching to HEVC (which Chromium on
+# Linux and many chat players cannot play). Smaller regions omit -s so they are
+# recorded at native pixels and never upscaled.
+region_resolution() {
+  [[ $1 =~ ^([0-9]+)x([0-9]+)\+(-?[0-9]+)\+(-?[0-9]+)$ ]] || return
+  local rw=${BASH_REMATCH[1]} rh=${BASH_REMATCH[2]} rx=${BASH_REMATCH[3]} ry=${BASH_REMATCH[4]}
+  local width height
+  read -r width height < <(hyprctl monitors -j | jq -r \
+    --argjson rw "$rw" --argjson rh "$rh" --argjson rx "$rx" --argjson ry "$ry" '
+    . as $monitors |
+    [ $monitors[] |
+      select((.mirrorOf // "none") == "none") |
+      (((.transform // 0) % 2) == 1) as $rot |
+      (if $rot then .height else .width end / (.scale // 1)) as $mw |
+      (if $rot then .width else .height end / (.scale // 1)) as $mh |
+      select(.x < ($rx + $rw) and (.x + $mw) > $rx and .y < ($ry + $rh) and (.y + $mh) > $ry) |
+      (.scale // 1)
+    ] | (max // ([ $monitors[] | select(.focused == true) | (.scale // 1) ] | first) // 1) as $s |
+    "\($rw * $s | round) \($rh * $s | round)"
+  ')
+  cap_resolution "$width" "$height"
 }
 
 screenrecording_needs_cpu_encoder() {
@@ -340,18 +377,20 @@ start_screenrecording() {
     capture_args=(-w portal -s "${RESOLUTION:-$(default_resolution)}")
   elif [[ $FULLSCREEN == "true" ]]; then
     target="monitor:$(omarchy-hyprland-monitor-focused)"
-    capture_args=(-w "${target#monitor:}" -s "${RESOLUTION:-$(default_resolution)}")
+    capture_args=(-w "${target#monitor:}" -s "${RESOLUTION:-$(default_resolution "${target#monitor:}")}")
   else
     target=$(select_capture_target) || return 1
     start_cancelled && return 1
 
     case $target in
     monitor:*)
-      capture_args=(-w "${target#monitor:}" -s "${RESOLUTION:-$(default_resolution)}")
+      capture_args=(-w "${target#monitor:}" -s "${RESOLUTION:-$(default_resolution "${target#monitor:}")}")
       ;;
     region:*)
-      capture_args=(-w "${target#region:}")
-      [[ -n $RESOLUTION ]] && capture_args+=(-s "$RESOLUTION")
+      local region=${target#region:}
+      local res="${RESOLUTION:-$(region_resolution "$region")}"
+      capture_args=(-w "$region")
+      [[ -n $res ]] && capture_args+=(-s "$res")
       ;;
     esac
   fi
@@ -567,8 +606,9 @@ finalize_recording() {
     video_codec=(-c:v libx264 -preset veryfast -crf 20)
   fi
 
-  # Trim the first frame, and normalize audio to -14 LUFS if present, in a single pass
-  local args=(-y -ss 0.1 -i "$latest" "${video_codec[@]}")
+  # Trim the first frame, normalize audio to -14 LUFS if present, and move the MP4 index to the
+  # front so browsers can start playing before the whole file downloads, in a single pass.
+  local args=(-y -ss 0.1 -i "$latest" "${video_codec[@]}" -movflags +faststart)
   if ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "$latest" 2>/dev/null | grep -q audio; then
     # Hard-mute the first 400ms to drop the PipeWire capture-open pop (a near-clipping
     # transient around 130-200ms that a gentle fade-in can't attenuate enough), then a

@@ -15,11 +15,11 @@ fi
 # Optional user overrides kept for compatibility with older installs.
 [ -f "$HOME/.config/uwsm/default" ] && . "$HOME/.config/uwsm/default"
 
-# Put mise shims ahead of system binaries (behind command-wrappers/bin) without
-# spawning mise on every graphical login.
+# Put mise shims ahead of system binaries, behind the account dispatchers the
+# env bootstrap put first, without spawning mise on every graphical login.
 if command -v mise >/dev/null 2>&1; then
   omarchy_mise_data_dir="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}"
-  omarchy_mise_wrappers_dir="$omarchy_mise_data_dir/command-wrappers/bin"
+  omarchy_mise_wrappers_dir="$HOME/.local/share/omarchy/agent-accounts/bin"
   omarchy_mise_shims_dir="${MISE_SHIMS_DIR:-$omarchy_mise_data_dir/shims}"
   omarchy_mise_path="$omarchy_mise_wrappers_dir:$omarchy_mise_shims_dir"
   if [ -n "${PATH:-}" ]; then

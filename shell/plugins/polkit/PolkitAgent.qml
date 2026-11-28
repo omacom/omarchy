@@ -24,7 +24,10 @@ Item {
   property int contentMargin: Style.spacing.panelPadding
   property int fieldHeight: Math.max(Style.space(42), Style.spacing.controlHeight)
 
-  property bool closing: false
+  // Set immediately on polkit auth success or cancel so the overlay drops its
+  // exclusive keyboard focus and pointer grab without waiting for polkitd to
+  // finish tearing down the D-Bus flow.
+  property bool dismissed: false
   property bool submitted: false
   property string currentMessage: ""
   // What a command asked its next prompt to say, as it knows what it's for
@@ -32,6 +35,17 @@ Item {
   // a minute. Taken by the prompt it fits, which keeps it as currentLabel.
   property var expected: null
   property string currentLabel: ""
+  // The coding agent a prompt comes from ({ mark, name, light }), whose icon
+  // in the agents plugin takes the padlock's place. Looked up per prompt, and
+  // the padlock waits for the answer so it doesn't flash before the mark.
+  property var currentAgent: null
+  property bool requesterPending: false
+  property int requestSerial: 0
+  readonly property url agentMarkSource: {
+    if (!currentAgent) return ""
+    var suffix = currentAgent.light && Util.luminance(background) >= 0.5 ? "-light.svg" : ".svg"
+    return Qt.resolvedUrl("../agents/assets/" + currentAgent.mark + suffix)
+  }
   property string currentPrompt: ""
   property string currentSupplementary: ""
   property bool responseRequired: false
@@ -44,8 +58,14 @@ Item {
   // to the password even when a sensor is enrolled. Refreshed per request.
   property bool laptopClosed: false
   property int shakeOffset: 0
+  // The encrypted drive being asked for (omarchy-drive-unlock), not polkit:
+  // the card unlocks it with the password itself, so a wrong one is asked again.
+  property string driveDevice: ""
+  property string driveLabel: ""
+  // Drives waiting their turn, as { device, label }: one card at a time.
+  property var driveQueue: []
 
-  readonly property bool dialogVisible: polkitAgent.isActive || closing
+  readonly property bool dialogVisible: (polkitAgent.isActive && !dismissed) || driveDevice !== ""
   // We show one method at a time. Fingerprint owns the dialog while PAM is
   // waiting on the reader (lid open, sensor enrolled); the moment PAM asks for
   // a password — including immediately when the lid is shut and the clamshell
@@ -56,17 +76,26 @@ Item {
   // just frames the centered sensor icon.
   readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
 
-  // A command's label never stands in for what pkexec runs: the program
-  // stays at the end, which the line keeps in view however it's cut.
+  // A pkexec prompt always shows what it runs on a dimmer second line under
+  // either the caller's reason or the default authorization heading.
   function authorizationLabel(message) {
-    if (currentLabel !== "") return currentLabel + " · " + PolkitModel.promptProgram(message)
-    return message ? PolkitModel.authorizationLabel(message, I18n.t) : I18n.t("polkit.authenticationNeeded")
+    var label = PolkitModel.singleLine(currentLabel)
+    if (label !== "") return label
+    var text = message ? PolkitModel.authorizationLabel(message, I18n.t, currentAgent ? currentAgent.name : "") : ""
+    return text !== "" ? text : I18n.t("polkit.authenticationNeeded")
   }
+
+  // The command a pkexec prompt runs, shown on the second line under the heading.
+  readonly property string labelProgram: PolkitModel.singleLine(PolkitModel.promptProgram(currentMessage))
 
   ShellIpc {
     target: "omarchy.polkit"
     function expect(program: string, label: string): string {
       root.expected = { program: program, label: label, until: Date.now() + 60000 }
+      return "ok"
+    }
+    function unlockDrive(device: string, label: string): string {
+      root.queueDrive(device, label)
       return "ok"
     }
   }
@@ -79,9 +108,19 @@ Item {
     if (!laptopClosedProc.running) laptopClosedProc.running = true
   }
 
+  function clearRequester() {
+    currentAgent = null
+    requesterPending = false
+    requesterTimeout.stop()
+    // A lookup still running is for a prompt that's gone, not for what comes
+    // next, a drive's card included.
+    requestSerial++
+  }
+
   function resetSnapshot() {
     currentMessage = ""
     currentLabel = ""
+    clearRequester()
     currentPrompt = ""
     currentSupplementary = ""
     responseRequired = false
@@ -97,13 +136,6 @@ Item {
     if (!flow) return
 
     currentMessage = String(flow.message || "")
-    if (currentLabel === "") {
-      var label = PolkitModel.expectedLabel(currentMessage, expected, Date.now())
-      if (label !== "") {
-        currentLabel = label
-        expected = null
-      }
-    }
     currentPrompt = String(flow.inputPrompt || "")
     currentSupplementary = String(flow.supplementaryMessage || "")
     responseRequired = !!flow.isResponseRequired
@@ -113,16 +145,90 @@ Item {
     if (responseRequired) submitted = false
   }
 
+  function queueDrive(device, label) {
+    if (device === driveDevice || driveQueue.some(function(d) { return d.device === device })) return
+    driveQueue = driveQueue.concat([{ device: device, label: label }])
+    nextDrive()
+  }
+
+  function nextDrive() {
+    if (driveDevice !== "" || (polkitAgent.isActive && !dismissed) || driveQueue.length === 0) return
+    var next = driveQueue[0]
+    driveQueue = driveQueue.slice(1)
+    beginDrive(next.device, next.label)
+  }
+
+  function beginDrive(device, label) {
+    resetSnapshot()
+    driveDevice = device
+    driveLabel = label
+    currentLabel = I18n.t("polkit.unlockDrive").replace("%1", label)
+    responseRequired = true
+    Qt.callLater(refocus)
+  }
+
+  function driveChecked(device, exitCode, error) {
+    if (exitCode === 0) driveQueue = driveQueue.filter(function(d) { return d.device !== device })
+    // An answer for a drive no longer asked for (cancelled, or set aside for polkit).
+    if (device !== driveDevice) return
+    if (exitCode !== 0 && /Incorrect passphrase|No passphrase/.test(error)) {
+      triggerFailureFeedback()
+      return
+    }
+    if (exitCode !== 0) console.warn("omarchy drive unlock failed: " + error.trim())
+    driveDevice = ""
+    resetSnapshot()
+    nextDrive()
+  }
+
   function beginFlow() {
-    closeTimer.stop()
-    // A request arriving while the last one's dialog closes is its own.
-    currentLabel = ""
-    closing = false
+    // Polkit's own request takes the card; a drive being asked for waits first in line.
+    if (driveDevice !== "") {
+      driveQueue = [{ device: driveDevice, label: driveLabel }].concat(driveQueue)
+      driveDevice = ""
+    }
+    // A new request starts fresh even if the previous flow is still tearing down.
+    dismissed = false
     submitted = false
     passwordInput.text = ""
     refreshLidState()
     syncFromFlow()
+    // Each request takes the label it was expected with, or none, so one
+    // arriving while the last dialog closes doesn't keep the last label. It is
+    // taken here and not in syncFromFlow, which runs first: Quickshell sets the
+    // flow, and with it isActive, before it says the request started.
+    currentLabel = PolkitModel.expectedLabel(currentMessage, expected, Date.now())
+    if (currentLabel !== "") expected = null
+    findRequester()
     Qt.callLater(refocus)
+  }
+
+  // Only a pkexec prompt names the command line its process can be found by.
+  // A lookup that hangs gives the padlock back after a second.
+  function findRequester() {
+    clearRequester()
+    requesterPending = PolkitModel.promptProgram(currentMessage) !== ""
+    if (!requesterPending) return
+    requesterTimeout.restart()
+    lookUpRequester()
+  }
+
+  // One lookup runs at a time: a prompt that starts while the last one's
+  // still runs gets its own when that ends.
+  function lookUpRequester() {
+    if (requesterProc.running) return
+    requesterProc.forSerial = requestSerial
+    requesterProc.command = ["python3", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/polkit/requester.py", PolkitModel.promptProgram(currentMessage)]
+    requesterProc.running = true
+  }
+
+  function dismissPolkit() {
+    dismissed = true
+    // A queued drive may already have taken the card if cancelRequest() ran first.
+    if (driveDevice === "") {
+      resetSnapshot()
+      nextDrive()
+    }
   }
 
   function refocus() {
@@ -134,6 +240,19 @@ Item {
   }
 
   function submitResponse() {
+    if (driveDevice !== "") {
+      if (submitted) return
+      submitted = true
+      errorFlash = false
+      driveUnlock.secret = passwordInput.text
+      driveUnlock.device = driveDevice
+      driveUnlock.command = ["udisksctl", "unlock", "--no-user-interaction", "--block-device", driveDevice, "--key-file", "/dev/stdin"]
+      driveUnlock.stdinEnabled = true
+      driveUnlock.running = true
+      passwordInput.text = ""
+      keyCatcher.forceActiveFocus()
+      return
+    }
     var flow = polkitAgent.flow
     if (!flow || !flow.isResponseRequired) return
     submitted = true
@@ -145,11 +264,12 @@ Item {
 
   function cancelRequest() {
     var flow = polkitAgent.flow
-    passwordInput.text = ""
-    submitted = false
-    closing = true
-    closeTimer.restart()
-    if (flow) flow.cancelAuthenticationRequest()
+    var hadDrive = driveDevice !== ""
+    driveDevice = ""
+    if (!hadDrive && polkitAgent.isActive) dismissed = true
+    resetSnapshot()
+    if (!hadDrive && flow) flow.cancelAuthenticationRequest()
+    nextDrive()
   }
 
   function triggerFailureFeedback() {
@@ -159,16 +279,6 @@ Item {
     errorTimer.restart()
     shakeAnimation.restart()
     Qt.callLater(refocus)
-  }
-
-  Timer {
-    id: closeTimer
-    interval: 300
-    repeat: false
-    onTriggered: {
-      closing = false
-      resetSnapshot()
-    }
   }
 
   Timer {
@@ -194,10 +304,49 @@ Item {
   }
 
   Process {
+    id: requesterProc
+    property int forSerial: 0
+    stdout: StdioCollector { id: requesterOut; waitForEnd: true }
+    onExited: {
+      if (forSerial === root.requestSerial) {
+        requesterTimeout.stop()
+        if (root.dialogVisible) root.currentAgent = PolkitModel.parseRequester(requesterOut.text)
+        root.requesterPending = false
+      } else if (root.requesterPending) {
+        Qt.callLater(root.lookUpRequester)
+      }
+    }
+  }
+
+  Timer {
+    id: requesterTimeout
+    interval: 1000
+    repeat: false
+    onTriggered: {
+      root.requestSerial++
+      root.requesterPending = false
+    }
+  }
+
+  Process {
     id: laptopClosedProc
     command: ["bash", "-c", "omarchy-hw-laptop-closed && echo closed || echo open"]
     stdout: StdioCollector { id: laptopClosedOut; waitForEnd: true }
     onExited: root.laptopClosed = String(laptopClosedOut.text || "").trim() === "closed"
+  }
+
+  // The password goes over stdin, never argv, and closing stdin ends it.
+  Process {
+    id: driveUnlock
+    property string secret: ""
+    property string device: ""
+    stderr: StdioCollector { id: driveUnlockError; waitForEnd: true }
+    onStarted: {
+      write(secret)
+      secret = ""
+      stdinEnabled = false
+    }
+    onExited: function(exitCode) { root.driveChecked(device, exitCode, String(driveUnlockError.text || "")) }
   }
 
   PolkitAgent {
@@ -207,7 +356,13 @@ Item {
     onAuthenticationRequestStarted: root.beginFlow()
     onIsActiveChanged: {
       if (isActive) root.syncFromFlow()
-      else if (!root.closing) root.resetSnapshot()
+      else {
+        root.dismissed = false
+        if (root.driveDevice === "") {
+          root.resetSnapshot()
+          root.nextDrive()
+        }
+      }
     }
     onIsRegisteredChanged: {
       if (isRegistered) console.log("omarchy polkit agent registered")
@@ -235,13 +390,11 @@ Item {
     }
 
     function onAuthenticationSucceeded() {
-      root.closing = true
-      closeTimer.restart()
+      root.dismissPolkit()
     }
 
     function onAuthenticationRequestCancelled() {
-      root.closing = true
-      closeTimer.restart()
+      root.dismissPolkit()
     }
   }
 
@@ -322,15 +475,32 @@ Item {
         anchors.leftMargin: card.contentLeftInset
         spacing: Style.space(14)
 
-        Text {
-          text: "\uf023"
-          color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.iconLarge
+        Item {
           width: Style.space(26)
           height: root.fieldHeight
-          horizontalAlignment: Text.AlignHCenter
-          verticalAlignment: Text.AlignVCenter
+
+          Image {
+            id: agentMark
+            anchors.centerIn: parent
+            width: Style.font.iconLarge
+            height: width
+            source: root.agentMarkSource
+            sourceSize.width: width * 2
+            sourceSize.height: height * 2
+            fillMode: Image.PreserveAspectFit
+            visible: status === Image.Ready
+          }
+
+          Text {
+            anchors.fill: parent
+            visible: !agentMark.visible && !root.requesterPending
+            text: "\uf023"
+            color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.iconLarge
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+          }
         }
 
         Item {
@@ -396,27 +566,63 @@ Item {
     }
 
     Rectangle {
-      width: Math.min(justificationText.implicitWidth + Style.space(24), panel.width - Style.gapsOut * 2)
-      height: Style.space(28)
+      // Waits for the agent with the mark when its line names it, unless a
+      // label is already known.
+      visible: !root.requesterPending || PolkitModel.singleLine(root.currentLabel) !== ""
+      // Measured apart from the lines, whose width follows this one.
+      width: {
+        var labelWidth = Math.max(labelMetrics.advanceWidth, labelMetrics.boundingRect.width)
+        var programWidth = root.labelProgram !== "" ? Math.max(programMetrics.advanceWidth, programMetrics.boundingRect.width) : 0
+        var naturalWidth = Math.ceil(Math.max(labelWidth, programWidth)) + Style.space(24)
+        return panel.width > 0 ? Math.min(naturalWidth, Math.max(0, panel.width - Style.gapsOut * 2)) : naturalWidth
+      }
+      height: Math.max(Style.space(28), justificationLines.implicitHeight + Style.space(root.labelProgram !== "" ? 16 : 10))
       anchors.horizontalCenter: card.horizontalCenter
       anchors.bottom: card.top
       anchors.bottomMargin: Style.space(10)
       radius: root.cornerRadius
       color: root.background
+      clip: true
 
-      Text {
-        id: justificationText
-        textFormat: Text.PlainText
-        anchors.fill: parent
+      TextMetrics { id: labelMetrics; font: justificationText.font; text: justificationText.text }
+      TextMetrics { id: programMetrics; font: programText.font; text: programText.text }
+
+      Column {
+        id: justificationLines
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
         anchors.leftMargin: Style.space(12)
         anchors.rightMargin: Style.space(12)
-        text: root.authorizationLabel(root.currentMessage)
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideMiddle
+        spacing: Style.space(3)
+
+        Text {
+          id: justificationText
+          textFormat: Text.PlainText
+          width: parent.width
+          maximumLineCount: 1
+          text: root.authorizationLabel(root.currentMessage)
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: root.labelProgram !== "" ? Style.font.body : Style.font.bodySmall
+          horizontalAlignment: Text.AlignHCenter
+          elide: root.labelProgram !== "" ? Text.ElideRight : Text.ElideMiddle
+        }
+
+        Text {
+          id: programText
+          textFormat: Text.PlainText
+          width: parent.width
+          maximumLineCount: 1
+          visible: text !== ""
+          text: root.labelProgram
+          color: root.foreground
+          opacity: 0.6
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          horizontalAlignment: Text.AlignHCenter
+          elide: Text.ElideMiddle
+        }
       }
     }
   }

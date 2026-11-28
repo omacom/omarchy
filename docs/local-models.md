@@ -10,7 +10,7 @@ Local models run open models on the machine for the coding agents. The work happ
 | `shell/plugins/local-models/Models.qml` | A service-only plugin, one for the whole shell: watches the engine's `status.json` (`localModel`), `list.json` (`localRecipes`) and the tailnet survey, runs the setups the agents panel starts, announces a coding model it set up once it's ready, keeps the launchers in step, reads the listing once at startup, and, only when a panel asks (`readMemory()`), what each running model holds (`omarchy-models memory --json`) |
 | `shell/plugins/agents/Panel.qml` | The coding models' lines in the agents panel and their offers under +; what each shows is in the plugin's [README](../shell/plugins/agents/README.md). Image, video and music models have no shell UI: Fantasi and Flowtunes manage them, as `omarchy models` does |
 | `bin/omarchy-agent` | `--local`, `--local-model <recipe>` and a default agent of `local` ask `omarchy-models overlay` for pi's launch overlay; a model that is set up but stopped is started first |
-| `shell/plugins/agents/Main.qml` | Keeps which local models were added to the panel, in `~/.local/state/omarchy/agents/local-models.json` |
+| `shell/plugins/agents/Main.qml` | Shows every coding model set up on this machine and keeps which paired-machine models were added to the panel, in `~/.local/state/omarchy/agents/local-models.json` |
 | `install/omarchy-base.packages`, `migrations/1793563475.sh` | Install `omarchy-local-ai` on every machine |
 | `manual/17-ai.md` | The user-facing guide |
 

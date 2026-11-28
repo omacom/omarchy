@@ -572,6 +572,25 @@ const summaries = rows => Array.from(rows, row => row.summary)
   assert.deepEqual(s.toasts.rows.map(row => row.key), [back], 'its deadline removes it without the scene settling')
 }
 
+{ // IPC invokeAction(n) must skip a leaving front toast and act on the newest live card.
+  const s = newCapacityScope()
+  const first = s.fakeNotification(1, 'Older'), second = s.fakeNotification(2, 'Newer')
+  let invoked = ''
+  first.actions = [{ identifier: 'reply', text: 'Reply', invoke: () => { invoked = 'older' } }]
+  second.actions = [{ identifier: 'reply', text: 'Reply', invoke: () => { invoked = 'newer' } }]
+  s.admit(first, second)
+  const [front, back] = s.toasts.rows.map(row => row.key)
+  const at = { y: 0, scale: 1, opacity: 1, height: 58 }
+  s.snapshot = () => ({ [front]: at, [back]: at })
+  s.closeToast(front, 'dismissed')
+  const ipcBlock = source.slice(source.indexOf('target: "notifications"'))
+  const ipcInvokeAction = fn('invokeAction', ipcBlock)
+    .replace(/function invokeAction\([^)]*\)/, 'function ipcInvokeAction(n)')
+  vm.runInContext(ipcInvokeAction, s)
+  assert.equal(s.ipcInvokeAction(1), 'ok')
+  assert.equal(invoked, 'older', 'invokeAction IPC skips a leaving toast and invokes the newest live card')
+}
+
 { // A sender replacing a card during its exit brings it back instead of losing the update.
   const s = newCapacityScope()
   const sender = s.fakeNotification(1, 'Expiring')
