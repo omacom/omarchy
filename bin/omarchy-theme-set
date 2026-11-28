@@ -440,6 +440,15 @@ if [[ ! -f $NEXT_THEME_PATH/colors.toml && -f $NEXT_THEME_PATH/alacritty.toml ]]
   omarchy-theme-colors-from-alacritty "$NEXT_THEME_PATH"
 fi
 
+# Without a palette, templates cannot generate the terminal configs.
+# Refuse before replacing the working theme with one that has missing includes.
+if [[ ! -f $NEXT_THEME_PATH/colors.toml ]]; then
+  echo "Theme '$THEME_NAME' has no colors.toml, so none of its theme files can be generated." >&2
+  echo "A theme needs colors.toml, or an alacritty.toml to derive one from." >&2
+  rm -rf "$NEXT_THEME_PATH"
+  exit 1
+fi
+
 # A theme with no backgrounds, its own or the user's, gets one drawn from its colors.
 if [[ -z $(find -L "$NEXT_THEME_PATH/backgrounds" "$HOME/.config/omarchy/backgrounds/$THEME_NAME" -maxdepth 1 -type f \
   \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' \
