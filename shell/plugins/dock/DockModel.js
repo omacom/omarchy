@@ -5,7 +5,7 @@ var POSITIONS = ["top", "bottom", "left", "right"]
 
 function normalizePosition(value) {
   var position = String(value || "").trim().toLowerCase()
-  return POSITIONS.indexOf(position) >= 0 ? position : "right"
+  return POSITIONS.indexOf(position) >= 0 ? position : "bottom"
 }
 
 // The screen edge a point is closest to, for the dock dragged by its apps

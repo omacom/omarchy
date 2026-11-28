@@ -14,8 +14,8 @@ const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
 
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
-assertEqual(dock.normalizePosition('diagonal'), 'right', 'dock falls back to the right')
-assertEqual(dock.normalizePosition(undefined), 'right', 'dock sits on the right by default')
+assertEqual(dock.normalizePosition('diagonal'), 'bottom', 'dock falls back to the bottom')
+assertEqual(dock.normalizePosition(undefined), 'bottom', 'dock sits at the bottom by default')
 assert(dock.isVertical('right') && !dock.isVertical('top'), 'dock runs vertically on the left and right')
 assertEqual(dock.nearestEdge(100, 500, 1600, 1000, 'top'), 'left', 'a dock dragged near the left edge moves there')
 assertEqual(dock.nearestEdge(800, 40, 1600, 1000, 'top'), 'left', "a dock dragged to the bar's edge goes to the next closest one")
@@ -163,7 +163,7 @@ printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-shell"
 chmod +x "$mock_bin/omarchy-shell"
 omarchy_dock() { HOME="$home" PATH="$mock_bin:$ROOT/bin:$PATH" omarchy-dock "$@"; }
 
-[[ $(omarchy_dock position) == "right" ]] || fail "dock position defaults to right"
+[[ $(omarchy_dock position) == "bottom" ]] || fail "dock position defaults to bottom"
 omarchy_dock position left >/dev/null
 jq -e '.dock.position == "left" and .version == 1' "$home/.config/omarchy/shell.json" >/dev/null ||
   fail "dock position is saved" "$(cat "$home/.config/omarchy/shell.json")"
