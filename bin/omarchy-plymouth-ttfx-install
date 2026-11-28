@@ -12,6 +12,7 @@ test_mode=false
 system_root=
 theme_command=/usr/bin/plymouth-set-default-theme
 rebuild_command=
+boot_sync_command=/usr/bin/omarchy-boot-sync
 lsinitcpio_command=/usr/bin/lsinitcpio
 
 if (( EUID == 0 )); then
@@ -19,6 +20,7 @@ if (( EUID == 0 )); then
     OMARCHY_PLYMOUTH_TEST_ROOT
     OMARCHY_PLYMOUTH_THEME_COMMAND
     OMARCHY_PLYMOUTH_REBUILD_COMMAND
+    OMARCHY_PLYMOUTH_BOOT_SYNC_COMMAND
     OMARCHY_PLYMOUTH_TEST_DEPENDENCIES
     OMARCHY_LSINITCPIO
     OMARCHY_PLYMOUTH_TEST_SOURCE_ROOT
@@ -38,6 +40,7 @@ else
   test_mode=true
   theme_command=${OMARCHY_PLYMOUTH_THEME_COMMAND:-$theme_command}
   rebuild_command=${OMARCHY_PLYMOUTH_REBUILD_COMMAND:-}
+  boot_sync_command=${OMARCHY_PLYMOUTH_BOOT_SYNC_COMMAND:-$boot_sync_command}
   lsinitcpio_command=${OMARCHY_LSINITCPIO:-$lsinitcpio_command}
 fi
 
@@ -92,7 +95,8 @@ store_images() {
 
 # Omarchy on Limine builds UKIs. GRUB/Asahi uses classic initramfs images.
 # Both are inspected by lsinitcpio and must be rolled back transactionally.
-# systemd-boot images are not copied back: a rollback rebuild stores new ones.
+# systemd-boot's images live in the boot store, which snapshot_boot_store
+# backs up on its own.
 boot_artifacts() {
   local -a ukis store
   mapfile -d '' -t ukis < <(limine_ukis)
@@ -136,6 +140,47 @@ snapshot_boot_artifacts() {
   done
   printf '%s\0' "${images[@]}" > "$backup/boot-artifacts.list.new" || return 1
   mv -T "$backup/boot-artifacts.list.new" "$backup/boot-artifacts.list" || return 1
+}
+
+# On systemd-boot the next boot loads what each kernel's current pointer names.
+# Records every pointer and copies the images they name, since a rebuild
+# stores new images and the sync then drops the old ones. The list is written
+# last, so it means a complete backup.
+snapshot_boot_store() {
+  local link pkgbase image
+  local -a pairs=()
+  for link in "$boot_store"/current/*; do
+    [[ -L $link ]] || continue
+    pkgbase=$(basename "$link")
+    image=$(basename "$(readlink "$link")") || return 1
+    [[ $pkgbase =~ ^[A-Za-z0-9._+-]+$ && $image =~ ^[A-Za-z0-9._+-]+$ ]] || return 1
+    [[ -d $boot_store/images/$image ]] || return 1
+    install -d -m 0700 "$backup/store-images" || return 1
+    [[ -e $backup/store-images/$image ]] ||
+      cp -a --no-dereference "$boot_store/images/$image" "$backup/store-images/$image" || return 1
+    pairs+=("$pkgbase" "$image")
+  done
+  (( ${#pairs[@]} )) || return 0
+  printf '%s\0' "${pairs[@]}" > "$backup/store-current.list.new" || return 1
+  mv -T "$backup/store-current.list.new" "$backup/store-current.list" || return 1
+}
+
+# Points each kernel back at the image it booted before, copying back any
+# image the rebuild's cleanup dropped, then publishes them with
+# omarchy-boot-sync. The sync builds the UKIs and the loader's default from
+# the stored images: nothing is rebuilt, so a broken initramfs build cannot
+# stop the previous boot from coming back.
+restore_boot_store() {
+  local pkgbase image status=0
+  while IFS= read -r -d '' pkgbase && IFS= read -r -d '' image; do
+    if [[ ! -d $boot_store/images/$image ]]; then
+      cp -a --no-dereference "$backup/store-images/$image" "$boot_store/images/$image" || { status=1; continue; }
+    fi
+    ln -sfn "../images/$image" "$boot_store/current/.$pkgbase.new" &&
+      mv -T "$boot_store/current/.$pkgbase.new" "$boot_store/current/$pkgbase" || status=1
+  done < "$backup/store-current.list"
+  "$boot_sync_command" sync || status=1
+  return "$status"
 }
 
 restore_boot_artifacts() {
@@ -470,6 +515,7 @@ install_module() {
   recovery_published=false
   descriptor_published=false
   boot_artifacts_present=false
+  boot_store_present=false
   uki_dir_present=false
   transaction_active=false
   committed=false
@@ -539,7 +585,10 @@ install_module() {
       if [[ -n $previous_theme ]]; then
         "$theme_command" "$previous_theme" || rollback_failed=1
       fi
-      if ! rebuild; then
+      if $boot_store_present; then
+        # The previous images already carry the restored theme.
+        restore_boot_store || rollback_failed=1
+      elif ! rebuild; then
         rollback_failed=1
         restore_boot_artifacts || rollback_failed=1
       elif ! $boot_artifacts_present; then
@@ -601,6 +650,13 @@ install_module() {
   fi
   if [[ -f $backup/boot-artifacts.list ]]; then
     boot_artifacts_present=true
+  fi
+  if ! snapshot_boot_store; then
+    echo "omarchy-plymouth-ttfx-install: unable to back up the boot store's current images" >&2
+    return 1
+  fi
+  if [[ -f $backup/store-current.list ]]; then
+    boot_store_present=true
   fi
   previous_theme=$($theme_command)
   transaction_active=true

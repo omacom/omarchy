@@ -41,6 +41,11 @@ else
   cat "${TEST_CURRENT_THEME:?}"
 fi
 SH
+cat >"$tmp/bin/boot-sync" <<'SH'
+#!/bin/bash
+printf 'boot-sync:%s:%s\n' "$*" "$(readlink "${TEST_ROOT:?}/var/lib/omarchy/boot/current/linux")" >>"${TEST_LOG:?}"
+SH
+chmod +x "$tmp/bin/boot-sync"
 cat >"$tmp/bin/rebuild" <<'SH'
 #!/bin/bash
 printf 'rebuild:%s:%s\n' "$(cat "${TEST_CURRENT_THEME:?}")" "$(cat "${TEST_ROOT:?}/usr/lib/plymouth/ttfx-plymouth.so")" >>"${TEST_LOG:?}"
@@ -57,6 +62,13 @@ if [[ ${TEST_BOOT_FORMAT:-uki} == "systemd-boot" ]]; then
   mkdir -p "$store/images/$image" "$store/current"
   printf 'initramfs:%s' "$(cat "${TEST_CURRENT_THEME:?}")" >"$store/images/$image/initramfs.img"
   ln -sfn "../images/$image" "$store/current/linux"
+  # Like the sync after a rebuild: images no pointer or pin needs are dropped.
+  if [[ ${TEST_SDBOOT_GC:-0} == 1 ]]; then
+    for kept in "$store"/images/*; do
+      [[ $(basename "$kept") == "$image" || $(basename "$kept") == pinned ]] || rm -rf -- "$kept"
+    done
+  fi
+  [[ ${TEST_FAIL_AFTER_STORE:-0} != 1 ]] || exit 1
   exit 0
 fi
 if [[ ${TEST_BOOT_FORMAT:-uki} == "classic" ]]; then
@@ -160,6 +172,7 @@ env_common=(
   OMARCHY_PLYMOUTH_TEST_SOURCE_ROOT="$tmp/artifacts"
   OMARCHY_PLYMOUTH_THEME_COMMAND="$tmp/bin/plymouth-set-default-theme"
   OMARCHY_PLYMOUTH_REBUILD_COMMAND="$tmp/bin/rebuild"
+  OMARCHY_PLYMOUTH_BOOT_SYNC_COMMAND="$tmp/bin/boot-sync"
   OMARCHY_LSINITCPIO="$tmp/bin/lsinitcpio"
   OMARCHY_PLYMOUTH_TEST_DEPENDENCIES=/usr/lib/libc.so.6
   TEST_ROOT="$root" TEST_CURRENT_THEME="$tmp/current-theme"
@@ -559,18 +572,32 @@ sdboot_store=$sdboot_root/var/lib/omarchy/boot
 [[ ! -e $sdboot_root/boot/EFI/Linux ]] || fail "systemd-boot install does not fabricate a Limine UKI directory"
 pass "native install verifies systemd-boot's current boot images"
 
-ln -sfn ../images/pinned "$sdboot_store/current/linux"
-printf spinner >"$tmp/sdboot-current-theme"
-rm -f "$tmp/sdboot-rebuild-count"
-if env "${sdboot_env[@]}" TEST_FAIL_FIRST_REBUILD=1 "$installer" --module "$module_source" >"$tmp/out" 2>"$tmp/err"; then
-  fail "a failed systemd-boot rebuild reports failure"
-fi
-[[ $(<"$tmp/sdboot-current-theme") == "spinner" ]] || fail "systemd-boot rollback restores the previous theme"
-[[ $(<"$sdboot_store/images/$(basename "$(readlink "$sdboot_store/current/linux")")/initramfs.img") == "initramfs:spinner" ]] ||
-  fail "systemd-boot rollback stores an image of the restored theme"
-[[ $(<"$sdboot_store/images/pinned/initramfs.img") == "kept-by-hand" ]] ||
-  fail "systemd-boot rollback leaves a snapshot's pinned image as it was"
-pass "systemd-boot rollback rebuilds the restored state"
+# A failed install points each kernel back at the image it booted before and
+# publishes it without another rebuild, even when the rebuild stored a new
+# image and its cleanup dropped the old one.
+mkdir -p "$sdboot_store/images/previous"
+printf 'initramfs:spinner' >"$sdboot_store/images/previous/initramfs.img"
+for failure in TEST_FAIL_FIRST_REBUILD TEST_FAIL_AFTER_STORE; do
+  ln -sfn ../images/previous "$sdboot_store/current/linux"
+  printf spinner >"$tmp/sdboot-current-theme"
+  rm -f "$tmp/sdboot-rebuild-count"
+  : >"$tmp/sdboot-log"
+  if env "${sdboot_env[@]}" OMARCHY_PLYMOUTH_BOOT_SYNC_COMMAND="$tmp/bin/boot-sync" TEST_SDBOOT_GC=1 "$failure=1" \
+    "$installer" --module "$module_source" >"$tmp/out" 2>"$tmp/err"; then
+    fail "$failure: a failed systemd-boot install reports failure"
+  fi
+  [[ $(<"$tmp/sdboot-current-theme") == "spinner" ]] || fail "$failure: systemd-boot rollback restores the previous theme"
+  [[ $(readlink "$sdboot_store/current/linux") == ../images/previous ]] ||
+    fail "$failure: systemd-boot rollback points the kernel back at its previous image" "$(readlink "$sdboot_store/current/linux")"
+  [[ $(<"$sdboot_store/images/previous/initramfs.img") == "initramfs:spinner" ]] ||
+    fail "$failure: systemd-boot rollback brings back a previous image the cleanup dropped"
+  [[ $(<"$tmp/sdboot-rebuild-count") == 1 ]] || fail "$failure: systemd-boot rollback needs no second rebuild" "$(cat "$tmp/sdboot-log")"
+  grep -Fxq 'boot-sync:sync:../images/previous' "$tmp/sdboot-log" ||
+    fail "$failure: systemd-boot rollback publishes the previous image" "$(cat "$tmp/sdboot-log")"
+  [[ $(<"$sdboot_store/images/pinned/initramfs.img") == "kept-by-hand" ]] ||
+    fail "$failure: systemd-boot rollback leaves a snapshot's pinned image as it was"
+done
+pass "systemd-boot rollback restores and publishes the previous images without rebuilding"
 
 # The outer installer owns the same shared lock across snapshot and commit.
 # A child must inherit the exact open file description, not just any descriptor
