@@ -527,6 +527,24 @@ cp "$NEXT_THEME/colors.toml" "$PI_TMPDIR/.config/omarchy/themes/Walk Handmade Th
 preview_output=$(OMARCHY_PATH="$ROOT" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-dev-theme-preview" "Walk Handmade Theme" --no-color --no-osc)
 assert_output_contains "theme preview finds a hand-made theme by its folder name" "$preview_output" "themes/Walk Handmade Theme/colors.toml"
 
+make_tmpdir THEME_DIR_TMPDIR
+mkdir -p "$THEME_DIR_TMPDIR/.config/omarchy/themes/My Theme"
+
+theme_dir=$(OMARCHY_PATH="$ROOT" HOME="$THEME_DIR_TMPDIR" "$ROOT/bin/omarchy-theme-dir" "Tokyo Night")
+[[ $theme_dir == "$ROOT/themes/tokyo-night" ]] || fail "omarchy-theme-dir resolves display names to bundled directories"
+pass "omarchy-theme-dir resolves display names to bundled directories"
+
+theme_dir=$(OMARCHY_PATH="$ROOT" HOME="$THEME_DIR_TMPDIR" "$ROOT/bin/omarchy-theme-dir" "My Theme")
+[[ $theme_dir == "$THEME_DIR_TMPDIR/.config/omarchy/themes/My Theme" ]] || fail "omarchy-theme-dir preserves exact custom theme directory names"
+pass "omarchy-theme-dir preserves exact custom theme directory names"
+
+for bad_theme in "No Such Theme" ".."; do
+  status=0
+  OMARCHY_PATH="$ROOT" HOME="$THEME_DIR_TMPDIR" "$ROOT/bin/omarchy-theme-dir" "$bad_theme" >/dev/null 2>&1 || status=$?
+  (( status != 0 )) || fail "omarchy-theme-dir rejects unknown or invalid theme '$bad_theme'"
+done
+pass "omarchy-theme-dir rejects unknown and invalid theme names"
+
 tokyo_fg=$(awk -F'"' '/^foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")
 tokyo_light_fg=$(awk -F'"' '/^light_foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")
 tokyo_bright_fg=$(awk -F'"' '/^bright_foreground =/ { print $2; exit }' "$ROOT/themes/tokyo-night/colors.toml")
