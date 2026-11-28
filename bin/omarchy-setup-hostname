@@ -26,9 +26,9 @@ while true; do
   name=""
 done
 
-# Chrome records the hostname in its profile lock.
-if [[ ${name,,} != "$(uname -n)" ]] && pgrep -x chrome >/dev/null; then
-  omarchy-i18n setupForm.hostnameCloseChrome >&2
+# Chromium-based browsers record the hostname in its profile lock.
+if [[ ${name,,} != "$(uname -n)" ]] && pgrep -x 'chrome|chromium' >/dev/null; then
+  omarchy-i18n setupForm.hostnameCloseBrowsers >&2
   exit 1
 fi
 

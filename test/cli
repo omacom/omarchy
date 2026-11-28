@@ -259,19 +259,21 @@ output=$(timeout 5 "$CLI" apply hardware --help)
 assert_output_contains "hidden setup plumbing still routes" "$output" "omarchy-apply-hardware"
 
 make_tmpdir HOSTNAME_STUBS
-printf '#!/bin/bash\n[[ $* == "-x chrome" && ${CHROME_RUNNING:-0} == 1 ]]\n' >"$HOSTNAME_STUBS/pgrep"
+printf '#!/bin/bash\n[[ $1 == "-x" && -n ${RUNNING_BROWSER:-} && $RUNNING_BROWSER =~ ^($2)$ ]]\n' >"$HOSTNAME_STUBS/pgrep"
 printf '#!/bin/bash\ntouch -- "$HOSTNAME_CHANGED"\n' >"$HOSTNAME_STUBS/sudo"
 printf '#!/bin/bash\nprintf "old-host\\n"\n' >"$HOSTNAME_STUBS/uname"
 chmod +x "$HOSTNAME_STUBS"/{pgrep,sudo,uname}
 
-if output=$(PATH="$HOSTNAME_STUBS:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE=/dev/null \
-  CHROME_RUNNING=1 HOSTNAME_CHANGED="$HOSTNAME_STUBS/changed" "$CLI" setup hostname new-host 2>&1); then
-  fail "hostname change is refused while Chrome is running"
-fi
-[[ ! -e $HOSTNAME_STUBS/changed ]] || fail "hostname change never reaches sudo while Chrome is running"
-assert_output_contains "hostname setup explains how to continue" "$output" "Quit Google Chrome"
+for browser in chrome chromium; do
+  if output=$(PATH="$HOSTNAME_STUBS:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE=/dev/null \
+    RUNNING_BROWSER="$browser" HOSTNAME_CHANGED="$HOSTNAME_STUBS/changed" "$CLI" setup hostname new-host 2>&1); then
+    fail "hostname change is refused while $browser is running"
+  fi
+  [[ ! -e $HOSTNAME_STUBS/changed ]] || fail "hostname change never reaches sudo while $browser is running"
+  assert_output_contains "hostname setup explains how to continue while $browser is running" "$output" "Quit Google Chrome and Chromium"
+done
 
-PATH="$HOSTNAME_STUBS:$PATH" CHROME_RUNNING=0 HOSTNAME_CHANGED="$HOSTNAME_STUBS/changed" \
+PATH="$HOSTNAME_STUBS:$PATH" RUNNING_BROWSER= HOSTNAME_CHANGED="$HOSTNAME_STUBS/changed" \
   "$CLI" setup hostname new-host
 [[ -e $HOSTNAME_STUBS/changed ]] || fail "hostname change proceeds once Chrome is closed"
 pass "hostname change proceeds once Chrome is closed"
