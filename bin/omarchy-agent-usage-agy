@@ -215,10 +215,10 @@ def email_of(id_token):
 # Which Google account a sign-in belongs to, so the limits kept for it are
 # its own: the email when the sign-in names one, otherwise its refresh token,
 # which outlives the access tokens it mints. Only a digest of either names
-# the cache file.
+# the cache file. Answers from before Gemini was requested stay separate.
 def limits_cache(entry):
   identity = entry.get("email") or entry.get("refresh") or entry.get("accessToken")
-  return LimitsCache(AGENT_ID, identity) if identity else None
+  return LimitsCache(AGENT_ID, "gemini-quota:" + identity) if identity else None
 
 
 def token_fresh(entry, now):
@@ -292,7 +292,7 @@ def listed(data, key):
 
 
 # The Gemini group's 5-hour and weekly buckets are the plan's own limits; the
-# other groups (Claude and GPT models) are scoped allowances, shown once
+# other groups (Claude/GPT and Argon) are scoped allowances, shown once
 # they have been touched. An answer that lists its buckets without groups
 # lists the Gemini ones. One without a Gemini group (Ultra's summary lists only
 # Claude and GPT) never lets those groups stand in for Gemini — collect_limits
@@ -308,7 +308,9 @@ def extract_limits(data):
     groups = [{"displayName": "Gemini", "buckets": data["buckets"]}]
   if not groups:
     return []
-  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), None)
+  gemini = next((g for g in groups if str(g.get("displayName") or "").strip().lower() in ("gemini models", "gemini")), None)
+  if gemini is None:
+    gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower() and "argon" not in str(g.get("displayName") or "").lower()), None)
   if gemini and not listed(gemini, "buckets"):
     return None
 
@@ -374,15 +376,21 @@ def extract_model_limits(data):
 
 # The bearer token goes wherever CLOUD_CODE_URL points, so a destination
 # named there is taken only over https, and anything else is Google's own.
+# Google includes Gemini quota for a versioned CLI client; the IDE metadata
+# in load_code_assist also lets the plan lookup return its paid tier.
 def post(endpoint, token, body=None):
   base = (os.environ.get("CLOUD_CODE_URL") or DEFAULT_CLOUD_CODE_URL).rstrip("/")
   if not base.startswith("https://"):
     base = DEFAULT_CLOUD_CODE_URL
   request = urllib.request.Request(
     f"{base}/v1internal:{endpoint}", data=json.dumps(body or {}).encode(),
-    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "antigravity"},
+    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "antigravity/cli/1.5.0 (aidev_client)"},
   )
   return open_json(request, timeout=8)
+
+
+def load_code_assist(token):
+  return post("loadCodeAssist", token, {"metadata": {"ideType": "ANTIGRAVITY"}})
 
 
 def kept_tier(entry):
@@ -456,7 +464,7 @@ def collect_limits(entries, force):
   refused, failure = [], None
   for entry in fresh:
     try:
-      assist = post("loadCodeAssist", entry["accessToken"])
+      assist = load_code_assist(entry["accessToken"])
       tier = extract_tier(assist)
       body = project_body(assist)
       limits = extract_limits(post("retrieveUserQuotaSummary", entry["accessToken"], body))
@@ -571,7 +579,7 @@ def omp_answer(omp, entries):
   tier = ""
   if token_fresh(entry, time.time()):
     try:
-      tier = extract_tier(post("loadCodeAssist", entry["accessToken"]))
+      tier = extract_tier(load_code_assist(entry["accessToken"]))
     except HttpError:
       pass
   return entry, tier, extract_limits(quota)
