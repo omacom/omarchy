@@ -1,0 +1,401 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Factory Droid usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Local Droid session totals and Factory billing limits.
+
+Credentials are read from FACTORY_API_KEY or Droid's encrypted login, never
+renewed or written back. The plan comes from Factory's account answer, or
+Droid's managed-settings cache when that can't be read.
+"""
+
+import argparse
+import base64
+import ctypes
+import ctypes.util
+import json
+import math
+import os
+import re
+import subprocess
+import sys
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import NamedTuple
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (HttpError, LimitsCache, Stats, account_key, base_record, cached_scan, emit,
+                        local_day, obj, open_json, read_json, scan_max_age, token_count,
+                        token_lapsed, trusted_endpoint, warn)
+
+AGENT_ID = "droid"
+UNALLOCATED = "Droid (unallocated)"
+TOKEN_FIELDS = ("inputTokens", "outputTokens", "cacheReadTokens", "cacheCreationTokens")
+PROMPT_SOURCES = ("cli_tui", "desktop", "web")
+AUTH_HELP = "Run `droid` to sign in again, or update FACTORY_API_KEY."
+PAUSED_HELP = "Start `droid` to see its limits; signing in again is not needed."
+INSECURE_HELP = "FACTORY_API_BASE_URL must use HTTPS or loopback HTTP."
+UNREACHABLE_HELP = "Couldn't reach Factory's limits service. Retrying shortly."
+UNREADABLE_HELP = "Factory's limits service sent an answer that couldn't be read."
+TIERS = {"team": "Pro", "team_annual": "Pro Annual", "pro_plus": "Plus",
+         "max": "Max", "ultra": "Ultra", "teams": "Teams"}
+
+
+def decrypt_login(raw, encoded_key):
+  key = base64.b64decode(encoded_key.strip(), validate=True)
+  iv, tag, ciphertext = (base64.b64decode(part, validate=True) for part in raw.strip().split(":"))
+  if len(key) != 32 or len(iv) != 16 or len(tag) != 16:
+    raise ValueError("invalid encrypted login")
+  crypto = ctypes.CDLL(ctypes.util.find_library("crypto") or "libcrypto.so")
+  pointer, integer = ctypes.c_void_p, ctypes.c_int
+  signatures = {
+    "EVP_CIPHER_CTX_new": (pointer, []),
+    "EVP_CIPHER_CTX_free": (None, [pointer]),
+    "EVP_aes_256_gcm": (pointer, []),
+    "EVP_DecryptInit_ex": (integer, [pointer, pointer, pointer, pointer, pointer]),
+    "EVP_CIPHER_CTX_ctrl": (integer, [pointer, integer, integer, pointer]),
+    "EVP_DecryptUpdate": (integer, [pointer, pointer, ctypes.POINTER(integer), pointer, integer]),
+    "EVP_DecryptFinal_ex": (integer, [pointer, pointer, ctypes.POINTER(integer)]),
+  }
+  for name, (result, arguments) in signatures.items():
+    function = getattr(crypto, name)
+    function.restype, function.argtypes = result, arguments
+  context = crypto.EVP_CIPHER_CTX_new()
+  if not context:
+    raise ValueError("cipher unavailable")
+  try:
+    output = ctypes.create_string_buffer(len(ciphertext) + 16)
+    length, final = integer(), integer()
+    if (crypto.EVP_DecryptInit_ex(context, crypto.EVP_aes_256_gcm(), None, None, None) != 1
+        or crypto.EVP_CIPHER_CTX_ctrl(context, 0x9, len(iv), None) != 1
+        or crypto.EVP_DecryptInit_ex(context, None, None, key, iv) != 1
+        or crypto.EVP_DecryptUpdate(context, output, ctypes.byref(length), ciphertext, len(ciphertext)) != 1
+        or crypto.EVP_CIPHER_CTX_ctrl(context, 0x11, len(tag), tag) != 1
+        or crypto.EVP_DecryptFinal_ex(context, ctypes.byref(output, length.value), ctypes.byref(final)) != 1):
+      raise ValueError("invalid encrypted login")
+    return obj(json.loads(output.raw[:length.value + final.value]))
+  finally:
+    crypto.EVP_CIPHER_CTX_free(context)
+
+
+def login():
+  key = os.environ.get("FACTORY_API_KEY", "").strip()
+  if key and key.isascii() and not any(ord(char) < 32 or ord(char) == 127 for char in key):
+    return key, "", key, False
+  root = Path.home() / ".factory"
+  sources = []
+  if (root / "auth.v2.keyring").is_file():
+    try:
+      encoded = subprocess.check_output(
+        ["secret-tool", "lookup", "service", "Factory CLI", "account", "auth-encryption-key"],
+        text=True, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, timeout=3,
+      )
+      sources.append(("auth.v2.keyring", encoded))
+    except (OSError, subprocess.SubprocessError, UnicodeError):
+      pass
+  try:
+    sources.append(("auth.v2.file", (root / "auth.v2.key").read_text(encoding="utf-8")))
+  except (OSError, UnicodeError):
+    pass
+  for filename, encoded in sources:
+    try:
+      data = decrypt_login((root / filename).read_text(encoding="utf-8"), encoded)
+      token, org = data.get("access_token"), data.get("active_organization_id", "")
+      if (isinstance(token, str) and token and isinstance(org, str)
+          and token.isascii() and org.isascii()
+          and not any(ord(char) < 32 or ord(char) == 127 for char in token + org)):
+        return token, org, account_key(token), token_lapsed(token)
+    except (OSError, ValueError, UnicodeError, AttributeError):
+      pass
+  return None
+
+
+def tier_label():
+  tier = read_json(Path.home() / ".factory" / "org-managed-settings.cache.json").get("factoryTier")
+  return TIERS.get(tier, "") if isinstance(tier, str) else ""
+
+
+WINDOWS = (("fiveHour", "Session (5-hour)", "Session"), ("weekly", "Weekly (7-day)", "Weekly"),
+           ("monthly", "Monthly", "Monthly"))
+
+
+def pool_windows(pool, prefix=""):
+  limits = []
+  for key, label, title in WINDOWS:
+    window = pool.get(key)
+    if window is None:
+      continue
+    if not isinstance(window, dict):
+      raise HttpError()
+    reset = window.get("windowEnd")
+    percent = window.get("usedPercent")
+    if reset is None:
+      percent, reset = 0.0, ""
+    else:
+      try:
+        parsed = datetime.fromisoformat(reset.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+          parsed = parsed.replace(tzinfo=timezone.utc)
+        reset = parsed.isoformat()
+      except (AttributeError, TypeError, ValueError):
+        raise HttpError() from None
+      if parsed <= datetime.now(timezone.utc):
+        percent, reset = 0.0, ""
+    if isinstance(percent, bool) or not isinstance(percent, (int, float)) or not math.isfinite(percent):
+      raise HttpError()
+    entry = {"label": prefix + label, "percent": max(0.0, min(1.0, percent / 100)), "resetsAt": reset}
+    if prefix:
+      # "Core Session" attaches to the Standard Session row as a scoped window.
+      entry["title"] = prefix + title
+    limits.append(entry)
+  return limits
+
+
+def extract_limits(data):
+  if not isinstance(data, dict) or not isinstance(data.get("hasActiveSubscription"), bool):
+    raise HttpError()
+  if not data["hasActiveSubscription"]:
+    return [], None
+  pools = obj(data.get("limits"))
+  limits = []
+  for name, prefix in (("standard", ""), ("core", "Core ")):
+    pool = pools.get(name)
+    if pool is None:
+      continue
+    if not isinstance(pool, dict):
+      raise HttpError()
+    windows = pool_windows(pool, prefix)
+    # An unused Core pool answers all zeros with no reset; drawn, it would only
+    # repeat each Standard row as an empty tick.
+    if not prefix or any(window["percent"] or window["resetsAt"] for window in windows):
+      limits += windows
+  cents = data.get("extraUsageBalanceCents")
+  balance = None
+  if (data.get("extraUsageAllowed") is True and not isinstance(cents, bool)
+      and isinstance(cents, (int, float)) and math.isfinite(cents) and cents > 0):
+    balance = {"remaining": round(cents / 100, 2), "funded": 0, "spent": 0, "currency": "USD", "estimated": False}
+  return limits, balance
+
+
+def account_tier(base, headers):
+  try:
+    me = open_json(urllib.request.Request(f"{base}/api/app/auth/me", headers=headers))
+  except HttpError:
+    return ""
+  subscription = obj(obj(obj(me).get("organization")).get("subscription"))
+  name = obj(obj(subscription.get("orbSubscription")).get("plan")).get("name")
+  if isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ()+./_-]{0,79}", name.strip()):
+    return name.strip()
+  tier = subscription.get("factoryTier")
+  return TIERS.get(tier, "") if isinstance(tier, str) else ""
+
+
+def collect_limits(entry, force):
+  if not entry:
+    return {"usageStatusText": "Waiting for auth", "authHelpText": AUTH_HELP}
+  token, org, identity, lapsed = entry
+  base = (os.environ.get("FACTORY_API_BASE_URL") or "https://api.factory.ai").rstrip("/")
+  cache = LimitsCache(AGENT_ID, base, identity, org)
+  limits, fetched = cache.kept()
+  result = {"limits": limits, "limitsFetchedAt": fetched, "limitsStale": bool(limits),
+            "balance": cache.data.get("balance"), "tierLabel": str(cache.data.get("tierLabel") or "")}
+  if lapsed:
+    return dict(result, usageStatusText="Limits paused", authHelpText=PAUSED_HELP)
+  if not trusted_endpoint(base):
+    return dict(result, usageStatusText="" if limits else "Factory Droid limits unavailable",
+                authHelpText=INSECURE_HELP)
+  if cache.fresh(force, allow_empty=True):
+    return dict(result, limitsStale=False, limitsFetchedAt=cache.fetched_at)
+  headers = {"Authorization": f"Bearer {token}"}
+  if org:
+    headers["X-Factory-Org-Id"] = org
+  try:
+    limits, balance = extract_limits(open_json(urllib.request.Request(f"{base}/api/billing/limits", headers=headers)))
+  except HttpError as error:
+    if error.status in (401, 403):
+      return dict(result, usageStatusText="Sign-in expired", authHelpText=AUTH_HELP)
+    return dict(result, usageStatusText="" if result["limits"] else "Factory Droid limits unavailable",
+                authHelpText=UNREACHABLE_HELP if error.transport else UNREADABLE_HELP,
+                retryAdvised=error.transport)
+  tier = account_tier(base, headers) or tier_label()
+  fetched = cache.save(limits, balance=balance, tierLabel=tier)
+  return {"limits": limits, "limitsFetchedAt": fetched, "limitsStale": False, "balance": balance, "tierLabel": tier}
+
+
+class Session(NamedTuple):
+  id: str
+  parent: str | None
+  fork: str | None
+  day: str | None
+  model: str
+  tokens: tuple[int, int, int, int]
+  prompts: dict[str, str]
+
+
+def identifier(value):
+  return value if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value) else None
+
+
+def model_label(value):
+  # Model ids are displayed in rich-text surfaces elsewhere in the panel.
+  if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/() -]{0,119}", value):
+    return value
+  return UNALLOCATED
+
+
+def message_day(value):
+  return local_day(value) if value is not None else None
+
+
+def is_prompt(message):
+  if message.get("role") != "user" or message.get("visibility") in ("llm_only", "user_only"):
+    return False
+  if "sender" in message:
+    return False
+  source = message.get("userMessageSource")
+  if source is not None and source not in PROMPT_SOURCES:
+    return False
+  content = message.get("content")
+  if isinstance(content, list):
+    if any(obj(block).get("type") == "tool_result" for block in content):
+      return False
+    return any(obj(block).get("type") == "text" and isinstance(obj(block).get("text"), str)
+               and obj(block)["text"].strip() for block in content)
+  return isinstance(content, str) and bool(content.strip())
+
+
+def parse_session(path):
+  settings = json.loads(path.with_suffix(".settings.json").read_text(encoding="utf-8"))
+  if not isinstance(settings, dict) or not isinstance(settings.get("tokenUsage"), dict):
+    raise ValueError("missing own counters")
+  start = None
+  prompts = {}
+  models = set()
+  last_day = None
+  with path.open("rb") as handle:
+    for raw in handle:
+      if not raw.strip():
+        continue
+      if not raw.endswith(b"\n"):
+        raise ValueError("partial transcript")
+      row = json.loads(raw)
+      if not isinstance(row, dict):
+        raise ValueError("invalid transcript row")
+      if row.get("type") == "session_start":
+        if start is None:
+          start = row
+        continue
+      if row.get("type") != "message":
+        continue
+      message = obj(row.get("message"))
+      day = message_day(row.get("timestamp"))
+      if day is not None:
+        last_day = max(last_day or day, day)
+      if message.get("role") == "assistant" and message.get("modelId") is not None:
+        models.add(model_label(message["modelId"]))
+      if is_prompt(message):
+        prompt = identifier(row.get("id"))
+        if prompt is not None and day is not None:
+          prompts[prompt] = min(prompts.get(prompt, day), day)
+  if start is None or identifier(start.get("id")) is None:
+    raise ValueError("missing session start")
+  # The settings pin is not history. Without an observed assistant model,
+  # or after a switch, no per-model split can be recovered from these totals.
+  model = next(iter(models)) if len(models) == 1 else UNALLOCATED
+  return Session(start["id"], identifier(start.get("callingSessionId")), identifier(start.get("parent")),
+                 last_day or message_day(start.get("timestamp")), model,
+                 tuple(token_count(settings["tokenUsage"].get(key)) for key in TOKEN_FIELDS), prompts)
+
+
+def root_session(session, sessions):
+  seen = set()
+  while session.parent in sessions:
+    if session.id in seen:
+      return min(seen)
+    seen.add(session.id)
+    session = sessions[session.parent]
+  return session.parent or session.id
+
+
+def scan_sessions(root):
+  stats = Stats()
+  sessions = {}
+  complete = True
+  def unreadable(error):
+    raise error
+  try:
+    # Archived sessions remain under this tree and are still lifetime usage.
+    paths = []
+    settings_paths = []
+    root.stat()
+    for directory, _, files in os.walk(root, onerror=unreadable):
+      paths.extend(Path(directory) / name for name in files if name.endswith(".jsonl"))
+      settings_paths.extend(Path(directory) / name for name in files if name.endswith(".settings.json"))
+  except FileNotFoundError:
+    return stats.snapshot(), True
+  except OSError:
+    warn("Droid session directory unreadable")
+    return stats.snapshot(), False
+  transcript_paths = set(paths)
+  if any(path.with_name(path.name.removesuffix(".settings.json") + ".jsonl") not in transcript_paths for path in settings_paths):
+    warn("Droid session transcript missing")
+    complete = False
+  for path in sorted(paths):
+    try:
+      session = parse_session(path)
+    except (OSError, ValueError, UnicodeError):
+      # Paths include project names, and parse errors can include transcript text.
+      warn("Droid session source unreadable or incomplete")
+      complete = False
+      continue
+    if session.id in sessions:
+      previous = sessions[session.id]
+      # A moved or archived copy has the same session id and own counters.
+      sessions[session.id] = Session(session.id, previous.parent or session.parent, previous.fork or session.fork,
+                                     max(filter(None, (previous.day, session.day)), default=None),
+                                     previous.model if previous.model == session.model else UNALLOCATED,
+                                     tuple(max(a, b) for a, b in zip(previous.tokens, session.tokens)),
+                                     {**session.prompts, **previous.prompts})
+    else:
+      sessions[session.id] = session
+  prompts = {}
+  for session in sessions.values():
+    owner = root_session(session, sessions)
+    stats.add(session.day, owner, session.model, *session.tokens, prompts=0)
+    if session.parent:
+      continue
+    for prompt, day in session.prompts.items():
+      # Forks keep prompt ids. Prefer the original over a copy on the same day.
+      candidate = (day, bool(session.fork), session.id)
+      prompts[prompt] = min(prompts.get(prompt, candidate), candidate)
+  for day, _, session_id in prompts.values():
+    stats.add_prompts(day, session_id)
+  return stats.snapshot(), complete
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Print the Factory Droid usage record as JSON")
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+  root = Path.home() / ".factory" / "sessions"
+  stats = cached_scan(AGENT_ID, [Path.home(), root], scan_max_age(args.force, args.limits_only),
+                      lambda: scan_sessions(root))
+  used = stats["totalSessions"] > 0
+  entry = login()
+  ready = used or bool(entry)
+  record = base_record(AGENT_ID, "Factory Droid", ready=ready, hasLocalStats=used, retryAdvised=False)
+  if ready:
+    record.update(collect_limits(entry, args.force))
+    record["tierLabel"] = record.get("tierLabel") or tier_label()
+    if record.get("balance") is None:
+      record.pop("balance", None)
+  record.update(stats)
+  emit(record)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

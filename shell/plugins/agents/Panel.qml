@@ -1735,6 +1735,16 @@ Panel {
       return Commons.I18n.t("agents.helpNotInPath").arg("codex")
     case "Fireworks usage scan failed":
       return Commons.I18n.t("agents.helpScanFailed").arg("Fireworks")
+    case "Run `droid` to sign in again, or update FACTORY_API_KEY.":
+      return Commons.I18n.t("agents.helpRunOrUpdateKey").arg("`droid`").arg("FACTORY_API_KEY")
+    case "Start `droid` to see its limits; signing in again is not needed.":
+      return Commons.I18n.t("agents.helpStartToSeeLimits").arg("`droid`")
+    case "FACTORY_API_BASE_URL must use HTTPS or loopback HTTP.":
+      return Commons.I18n.t("agents.helpInsecureBaseUrl").arg("FACTORY_API_BASE_URL")
+    case "Couldn't reach Factory's limits service. Retrying shortly.":
+      return Commons.I18n.t("agents.helpLimitsServiceUnreachable").arg("Factory")
+    case "Factory's limits service sent an answer that couldn't be read.":
+      return Commons.I18n.t("agents.helpLimitsServiceUnreadable").arg("Factory")
     }
     return value
   }
