@@ -10,6 +10,10 @@ echo "Switch Chromium browsers that never chose a frame to the system title bar"
 # repair, so declining is fine: those browsers keep their own frame, the
 # migration is done, and the setting is the browser's own to change later.
 until running=$(omarchy-install-chromium-system-title-bar); do
+  # It names the running browsers when they are why it failed. Failing with
+  # none named is a write that did not go through, which stays pending.
+  [[ -n $running ]] || exit 1
+
   echo "Still running:"
   echo "$running"
   # An unattended update asks nothing, so it skips. gum draws the prompt on
