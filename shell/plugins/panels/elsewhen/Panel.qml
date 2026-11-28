@@ -1110,6 +1110,7 @@ Panel {
 
         Column {
           id: scrollContent
+          anchors.left: parent.left
           width: scroller.width - Style.space(12)
           spacing: Style.spacing.panelGap
 
@@ -1184,6 +1185,7 @@ Panel {
 
               Column {
                 id: listWrap
+                anchors.left: parent.left
                 y: Style.space(12)
                 width: stage.width
                 spacing: Style.spacing.panelGap
