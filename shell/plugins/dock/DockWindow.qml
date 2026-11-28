@@ -61,6 +61,8 @@ PanelWindow {
   // Room inward of the dock for its menus: the tallest, the apps button's,
   // has five rows.
   readonly property int popupRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
+  // A submenu opens beside the menu, which a vertical dock needs the width for.
+  readonly property int submenuRoom: Style.space(140) + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap
   // Icons pop away from the screen edge.
   readonly property int popOrigin: position === "top" ? Item.Top
     : position === "left" ? Item.Left
@@ -138,10 +140,10 @@ PanelWindow {
   property var menuItem: null
   property Item menuSlot: null
   // The apps button's menu: where the dock sits, the workspace's layout, and
-  // whether the dock hides. Position and Layout open their choices in place of
-  // the top level, with a row back to it.
+  // whether the dock hides. Position and Layout open their choices in a
+  // submenu beside it, on hover as a menu bar's do, or on a click.
   property bool settingsMenu: false
-  property string settingsPage: ""
+  property string openSubmenu: ""
   readonly property string workspaceMode: dock && dock.modes[workspaceId] ? dock.modes[workspaceId] : "dwindle"
 
   onWorkspaceIdChanged: if (dock) dock.readMode(workspaceId)
@@ -160,7 +162,7 @@ PanelWindow {
 
   function openSettingsMenu(slot) {
     window.menuItem = null
-    window.settingsPage = ""
+    window.openSubmenu = ""
     window.settingsMenu = true
     window.menuSlot = slot
   }
@@ -195,7 +197,7 @@ PanelWindow {
   function closeMenu() {
     window.menuItem = null
     window.settingsMenu = false
-    window.settingsPage = ""
+    window.openSubmenu = ""
     window.menuSlot = null
     if (window.autohide) hideTimer.restart()
   }
@@ -207,6 +209,27 @@ PanelWindow {
     if (window.position === "left") return body.x + body.width + window.gap
     if (window.position === "right") return body.x - window.gap - popup.width
     return Math.max(window.gap, Math.min(window.width - popup.width - window.gap, center - popup.width / 2))
+  }
+
+  // A submenu sits beside the menu, away from the dock, with its first row
+  // level with the row that opened it, as far as the room inward of the dock
+  // allows.
+  function submenuX(popup) {
+    var after = menu.x + menu.width + window.gap / 2
+    var before = menu.x - window.gap / 2 - popup.width
+    if (window.position === "left") return after
+    if (window.position === "right") return before
+    var preferBefore = Commons.I18n.rightToLeft
+    if (preferBefore) return before >= window.gap ? before : after
+    return after + popup.width <= window.width - window.gap ? after : before
+  }
+
+  function submenuY(row, popup) {
+    if (!row) return 0
+    var top = row.mapToItem(window.contentItem, 0, 0).y - popup.padding
+    var low = window.position === "top" ? body.y + body.height + window.gap : window.gap
+    var high = window.position === "bottom" ? body.y - window.gap - popup.height : window.height - popup.height - window.gap
+    return Math.max(low, Math.min(high, top))
   }
 
   function popupY(slot, popup) {
@@ -233,7 +256,7 @@ PanelWindow {
     right: window.position !== "left"
   }
 
-  implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupRoom : 0
+  implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupRoom + window.submenuRoom : 0
   implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + window.popupRoom
 
   mask: Region {
@@ -241,6 +264,7 @@ PanelWindow {
 
     Region { item: window.shown && window.autohide ? edgeTrigger : null }
     Region { item: menu.visible ? menu : null }
+    Region { item: submenu.visible ? submenu : null }
   }
 
   onAutohideChanged: window.revealed = false
@@ -664,68 +688,35 @@ PanelWindow {
       width: menu.width - menu.contentLeftInset - menu.contentRightInset
 
       PopupMenuRow {
-        visible: window.settingsMenu && window.settingsPage === ""
+        id: positionRow
+        visible: window.settingsMenu
         text: Commons.I18n.t("dock.position")
         submenu: true
-        onTriggered: window.settingsPage = "position"
+        highlighted: window.openSubmenu === "position"
+        onHoveredChanged: if (hovered) window.openSubmenu = "position"
+        onTriggered: window.openSubmenu = "position"
       }
 
       PopupMenuRow {
-        visible: window.settingsMenu && window.settingsPage === ""
+        id: layoutRow
+        visible: window.settingsMenu
         text: Commons.I18n.t("dock.layout")
         submenu: true
-        onTriggered: window.settingsPage = "layout"
+        highlighted: window.openSubmenu === "layout"
+        onHoveredChanged: if (hovered) window.openSubmenu = "layout"
+        onTriggered: window.openSubmenu = "layout"
       }
 
       // A tiled workspace always hides the dock; the setting is the floating
       // workspaces' one.
       PopupMenuRow {
-        visible: window.settingsMenu && window.settingsPage === ""
+        visible: window.settingsMenu
         text: Commons.I18n.t("dock.autoHide")
         checked: !!window.dock && window.dock.autohide
+        onHoveredChanged: if (hovered) window.openSubmenu = ""
         onTriggered: {
           Util.execDetached("omarchy-dock autohide " + (window.dock.autohide ? "off" : "on"))
           window.closeMenu()
-        }
-      }
-
-      PopupMenuRow {
-        visible: window.settingsMenu && window.settingsPage !== ""
-        text: window.settingsPage === "layout" ? Commons.I18n.t("dock.layout") : Commons.I18n.t("dock.position")
-        back: true
-        onTriggered: window.settingsPage = ""
-      }
-
-      Repeater {
-        model: [["top", Commons.I18n.t("dock.positionTop")], ["bottom", Commons.I18n.t("dock.positionBottom")], ["left", Commons.I18n.t("dock.positionLeft")], ["right", Commons.I18n.t("dock.positionRight")]]
-
-        // Each row acts, then closes the menu: the actions read its item.
-        delegate: PopupMenuRow {
-          required property var modelData
-
-          visible: window.settingsMenu && window.settingsPage === "position"
-          text: modelData[1]
-          checked: window.position === modelData[0]
-          onTriggered: {
-            Util.execDetached("omarchy-dock position " + modelData[0])
-            window.closeMenu()
-          }
-        }
-      }
-
-      Repeater {
-        model: [["dwindle", Commons.I18n.t("dock.layoutTiling")], ["scrolling", Commons.I18n.t("dock.layoutScrolling")], ["floating", Commons.I18n.t("dock.layoutFloating")]]
-
-        delegate: PopupMenuRow {
-          required property var modelData
-
-          visible: window.settingsMenu && window.settingsPage === "layout"
-          text: modelData[1]
-          checked: window.workspaceMode === modelData[0]
-          onTriggered: {
-            window.setLayout(modelData[0])
-            window.closeMenu()
-          }
         }
       }
 
@@ -753,6 +744,62 @@ PanelWindow {
         onTriggered: {
           window.dock.quit(menu.item)
           window.closeMenu()
+        }
+      }
+    }
+  }
+
+  BorderSurface {
+    id: submenu
+
+    readonly property Item row: window.openSubmenu === "position" ? positionRow : window.openSubmenu === "layout" ? layoutRow : null
+
+    visible: menu.visible && window.settingsMenu && !!row
+    width: Math.max(Style.space(140), submenuColumn.implicitWidth) + padding * 2
+    height: submenuColumn.implicitHeight + padding * 2
+    x: window.submenuX(submenu)
+    y: window.submenuY(row, submenu)
+    radius: Style.cornerRadius
+    color: Commons.Color.popups.background
+    borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Style.normalBorderWidth)
+    padding: Style.spacing.sm
+
+    Column {
+      id: submenuColumn
+      x: submenu.contentLeftInset
+      y: submenu.contentTopInset
+      width: submenu.width - submenu.contentLeftInset - submenu.contentRightInset
+
+      Repeater {
+        model: [["top", Commons.I18n.t("dock.positionTop")], ["bottom", Commons.I18n.t("dock.positionBottom")], ["left", Commons.I18n.t("dock.positionLeft")], ["right", Commons.I18n.t("dock.positionRight")]]
+
+        // Each row acts, then closes the menu: the actions read its item.
+        delegate: PopupMenuRow {
+          required property var modelData
+
+          visible: window.openSubmenu === "position"
+          text: modelData[1]
+          checked: window.position === modelData[0]
+          onTriggered: {
+            Util.execDetached("omarchy-dock position " + modelData[0])
+            window.closeMenu()
+          }
+        }
+      }
+
+      Repeater {
+        model: [["dwindle", Commons.I18n.t("dock.layoutTiling")], ["scrolling", Commons.I18n.t("dock.layoutScrolling")], ["floating", Commons.I18n.t("dock.layoutFloating")]]
+
+        delegate: PopupMenuRow {
+          required property var modelData
+
+          visible: window.openSubmenu === "layout"
+          text: modelData[1]
+          checked: window.workspaceMode === modelData[0]
+          onTriggered: {
+            window.setLayout(modelData[0])
+            window.closeMenu()
+          }
         }
       }
     }

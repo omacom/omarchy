@@ -5,8 +5,8 @@ import qs.Commons as Commons
 // One row of a small popup menu, like the dock's right-click menu: a label,
 // a checkmark when `checked`, and `triggered()` on click. The menu owning it
 // closes itself in its handler. `highlighted` lights it as hover does, for a
-// menu walked with the keyboard. A row that opens more choices in place of
-// the menu is marked `submenu`, and the row leading back from them `back`.
+// menu walked with the keyboard. A row that opens a submenu is marked
+// `submenu`; `hovered` lets the menu open it as the pointer arrives.
 Rectangle {
   id: row
 
@@ -14,7 +14,7 @@ Rectangle {
   property bool checked: false
   property bool highlighted: false
   property bool submenu: false
-  property bool back: false
+  readonly property bool hovered: rowMouse.containsMouse
   signal triggered()
 
   width: parent ? parent.width : 0
@@ -27,7 +27,7 @@ Rectangle {
     anchors.left: parent.left
     anchors.leftMargin: Style.spacing.controlPaddingX
     textFormat: Text.PlainText
-    text: row.back ? (Commons.I18n.rightToLeft ? "› " : "‹ ") + row.text : row.text
+    text: row.text
     color: Commons.Color.popups.text
     font.family: Style.font.family
     font.pixelSize: Style.font.body
