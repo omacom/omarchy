@@ -185,6 +185,24 @@ ShellRoot {
       check(retry.running && retry.interval === 250 && sleepWatch.running, "a wake arms the next attempt and the sleep watch")
       retry.stop()
 
+      var activity = null
+      var objects = service.data || []
+      for (var a = 0; a < objects.length; a++) {
+        if (objects[a].respectInhibitors !== undefined) activity = objects[a]
+      }
+      check(activity && activity.enabled && !activity.respectInhibitors, "the locked service watches input even with idle inhibitors")
+      check(activity.timeout > 0 && activity.timeout * 1000 < 5000, "input becomes idle before the blank countdown expires")
+      // Signal the real monitor's initial active state without a LockView event.
+      service.pauseFingerprint()
+      service.fingerprintRetryDueMs = Date.now() - 1000
+      activity.isIdleChanged()
+      timer(service, 5000, false).stop()
+      check(!service.fingerprintPaused && retry.running && retry.interval === 250, "compositor-only wake resumes the reader at the fast interval")
+      retry.stop()
+      activity.isIdleChanged()
+      timer(service, 5000, false).stop()
+      check(!retry.running, "activity while unblanked does not start another retry")
+
       for (var j = 0; j < 8; j++) {
         service.fingerprintAuthenticating = true
         service.fingerprintAttemptReachedDevice = false

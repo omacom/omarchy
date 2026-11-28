@@ -778,6 +778,21 @@ Item {
     command: ["bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
   }
 
+  // Locked compositor bindings (including the power key) can wake DPMS
+  // without delivering input to LockView. Input-idle ignores inhibitors.
+  IdleMonitor {
+    id: lockActivity
+    enabled: root.lockRequested
+    timeout: 1
+    respectInhibitors: false
+    onIsIdleChanged: {
+      if (!isIdle && root.lockRequested) {
+        if (root.fingerprintPaused) root.runWake()
+        else root.armBlankTimer(idleBlankTimer.interval)
+      }
+    }
+  }
+
   Timer {
     id: idleBlankTimer
     readonly property int idleMs: 5000
@@ -794,6 +809,12 @@ Item {
       // exposes the gap: take a fresh run-up instead of blanking.
       if (Date.now() - armedAt > interval + 2000) {
         root.armBlankTimer(resumeMs)
+        return
+      }
+      // Do not blank before the input monitor is idle: otherwise a wake
+      // during its active window would have no idle-to-active transition.
+      if (lockActivity.enabled && !lockActivity.isIdle) {
+        root.armBlankTimer(interval)
         return
       }
       // Only a password check in flight should hold the display up. The
