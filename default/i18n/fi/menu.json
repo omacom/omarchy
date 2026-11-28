@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Telakka"
   },
-  "appearance.dock.autohide": {
-    "label": "Piilota Dock automaattisesti"
-  },
-  "appearance.dock.always-on": {
-    "label": "Dock aina näkyvissä"
-  },
   "appearance.dock.position": {
     "label": "Dockin sijainti"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock laatoituksessa"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock vain kelluvassa"
   }
 }

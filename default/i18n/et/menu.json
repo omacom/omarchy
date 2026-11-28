@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dokk"
   },
-  "appearance.dock.autohide": {
-    "label": "Doki autopeitmine"
-  },
-  "appearance.dock.always-on": {
-    "label": "Alati nähtav dokk"
-  },
   "appearance.dock.position": {
     "label": "Doki asukoht"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dokk plaatmisel"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dokk ainult hõljumisel"
   }
 }

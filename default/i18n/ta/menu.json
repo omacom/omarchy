@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "டாக்"
   },
-  "appearance.dock.autohide": {
-    "label": "தானாக மறையும் Dock"
-  },
-  "appearance.dock.always-on": {
-    "label": "எப்போதும் தெரியும் Dock"
-  },
   "appearance.dock.position": {
     "label": "Dock நிலை"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock அடுக்கில்"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock மிதவையில் மட்டும்"
   }
 }

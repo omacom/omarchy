@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Dockni avto-yashirish"
-  },
-  "appearance.dock.always-on": {
-    "label": "Doim koʻrinadigan Dock"
-  },
   "appearance.dock.position": {
     "label": "Dock joyi"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock plitkali rejimda"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock faqat suzuvchi rejimda"
   }
 }

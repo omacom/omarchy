@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "ඩොක්"
   },
-  "appearance.dock.autohide": {
-    "label": "Dock ස්වයං-සඟවන්න"
-  },
-  "appearance.dock.always-on": {
-    "label": "සැමවිට පෙනෙන Dock"
-  },
   "appearance.dock.position": {
     "label": "Dock පිහිටුම"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "ටයිල් කළ සැකසුමේ Dock"
+  },
+  "appearance.dock.floating-only": {
+    "label": "පාවෙන සැකසුමේ පමණක් Dock"
   }
 }

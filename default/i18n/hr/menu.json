@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dok"
   },
-  "appearance.dock.autohide": {
-    "label": "Auto-sakrij dock"
-  },
-  "appearance.dock.always-on": {
-    "label": "Uvijek vidljiv dock"
-  },
   "appearance.dock.position": {
     "label": "Položaj docka"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock u popločanom načinu"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock samo u plutajućem načinu"
   }
 }

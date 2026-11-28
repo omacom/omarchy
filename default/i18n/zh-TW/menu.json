@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "自動隱藏 Dock"
-  },
-  "appearance.dock.always-on": {
-    "label": "Dock 常駐"
-  },
   "appearance.dock.position": {
     "label": "Dock 位置"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "平鋪時顯示 Dock"
+  },
+  "appearance.dock.floating-only": {
+    "label": "僅在浮動時顯示 Dock"
   }
 }

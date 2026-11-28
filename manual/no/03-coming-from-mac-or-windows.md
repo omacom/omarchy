@@ -1,39 +1,39 @@
 # Kommer du fra Mac eller Windows
 
-Hvis du har brukt årevis på macOS eller Windows, kan fingrene dine hundre ting hjernen din har glemt at den noen gang lærte. Dette kapittelet er oversettelseslaget: hvor de instinktene hører hjemme i Omarchy. Selve funksjonene er dekket grundig andre steder — dette er bare kartet.
+Hvis du har tilbrakt år på macOS eller Windows, kan fingrene dine hundre ting som hjernen din har glemt at den noen gang lærte. Dette kapittelet er oversettelseslaget: hvor de instinktene hører hjemme i Omarchy. Selve funksjonene er dekket i dybden andre steder — dette er bare kartet.
 
 ### Super er sentrum for alt
 
-Alt muskelminnet du har bygd opp rundt Cmd eller Windows-tasten overføres til én tast: Super. Det er Windows-tasten på et PC-tastatur, og den er ankeret for nesten alle hurtigtaster i Omarchy.
+All muskelhukommelsen du har bygd opp rundt Cmd eller Windows-tasten, overføres til én tast: Super. Det er Windows-tasten på et PC-tastatur, og den er ankeret for nesten hver eneste hurtigtast i Omarchy.
 
-Refleksen din med Spotlight, Raycast eller Start-menyen blir til `Super + Space`. Det åpner Omarchy-menyen, som starter apper, endrer innstillinger, installerer programvare, tar skjermbilder — omtrent alt. Begynn å skrive for å filtrere. `Super + Alt + Space` viser alle apper i ett rutenett, slik Launchpad gjør. Se [navigasjon](04-navigation.md).
+Refleksen din med Spotlight eller Raycast eller Start-menyen blir til `Super + Space`. Det åpner Omarchy-menyen, som starter apper, endrer innstillinger, installerer programvare, fanger skjermen — omtrent alt. Begynn å skrive for å filtrere. `Super + Alt + Space` viser alle apper i ett rutenett, slik Launchpad gjør. Se [navigasjon](04-navigation.md).
 
-### Ingen skrivebordsikoner, og dokken dukker bare opp når du flyter
+### Ingen skrivebordsikoner, og dokken holder seg unna
 
-Ingen ikoner å ordne på skrivebordet, og ingen dokk på et flislagt arbeidsområde — dokken dukker bare opp på et flytende arbeidsområde (se [navigasjon](04-navigation.md)). Apper starter fra en hurtigtast (`Super + Return` for terminalen, `Super + Shift + Return` for nettleseren og `Super + K` for en liste over alt som er tilordnet) eller fra menyen. Den eneste faste delen av brukergrensesnittet er [topplinjen](05-the-top-bar.md), som dekker det menylinjen, systemstatusfeltet og Notification Center gjorde for deg før — og nesten alle widgeter på den gjør noe ved venstre-, høyre- og midtklikk.
+Ingen ikoner å ordne på skrivebordet, og dokken skjuler seg så snart et arbeidsområde har et vindu, helt til du skyver pekeren til kanten av skjermen der den er, den høyre med mindre du flytter den (se [navigasjon](04-navigation.md)). Apper starter fra en hurtigtast (`Super + Return` for terminalen, `Super + Shift + Return` for nettleseren og `Super + K` for en liste over alt som er tilordnet) eller fra menyen. Den ene faste delen av brukergrensesnittet er [topplinjen](05-the-top-bar.md), som dekker det menylinjen, systemstatusfeltet og Notification Center gjorde for deg før — og nesten hver eneste widget på den gjør noe ved venstre-, høyre- og midtklikk.
 
 ### Vinduer plasserer seg selv
 
-Den største mentale omstillingen: du drar ikke vinduer rundt eller fester dem til skjermhalvdeler. Åpne et vindu, og det tar hele skjermen. Åpne et til, og de deler den. Du fisker aldri frem et vindu fra under et annet, fordi vinduer ikke overlapper.
+Den største endringen i tankegang: du drar ikke vinduer rundt eller fester dem til halve skjermen. Åpne et vindu, og det tar hele skjermen. Åpne et til, og de deler den. Du fisker aldri et vindu frem fra under et annet, fordi vinduer ikke overlapper.
 
-Når du virkelig trenger et flytende vindu, veksler `Super + T` det aktive vinduet ut av flisleggingen (og tilbake). Men gi flisleggingen en reell sjanse først — den er hjertet i hele greia. [Navigasjon](04-navigation.md) leder deg gjennom det.
+Når du virkelig trenger et flytende vindu, veksler `Super + T` det aktive vinduet ut av flisleggingen (og tilbake igjen). Men gi flisleggingen en reell sjanse først — det er selve hjertet i det hele. [Navigasjon](04-navigation.md) leder deg gjennom det.
 
 Arbeidsområder vil føles kjente: de er macOS Spaces eller virtuelle skrivebord i Windows, bortsett fra at du faktisk kommer til å bruke dem, fordi `Super + 1/2/3/4` hopper rett til ett og `Super + Shift + 1/2/3/4` sender det aktive vinduet dit. Ingen animasjonsforsinkelse, bare umiddelbare hopp. Det betyr at du kanskje ikke engang trenger flere skjermer, hvis du var vant til det før.
 
 ### Kopier og lim inn bare fungerer
 
-På Mac hadde du Cmd + C overalt. På Windows hadde du Ctrl + C overalt — unntatt i terminalen, der den dreper programmet ditt. Omarchy gir deg `Super + C`, `Super + X` og `Super + V`, og de fungerer overalt, også i terminalen. Ingen egen refleks å lære for skallet.
+På Mac hadde du Cmd + C overalt. På Windows hadde du Ctrl + C overalt — bortsett fra i terminalen, der den dreper programmet ditt. Omarchy gir deg `Super + C`, `Super + X` og `Super + V`, og de fungerer overalt, også i terminalen. Ingen egen refleks å lære for skallet.
 
-Folk fra Windows: utklippshistorikken din fra Win + V bor på `Super + Ctrl + V`, og den tar vare på bilder så vel som tekst. Se [samlet utklippstavle og historikk](08-unified-clipboard-history.md).
+Windows-folk: utklippshistorikken din fra Win + V ligger på `Super + Ctrl + V`, og den inneholder bilder så vel som tekst. Se [samlet utklippstavle og historikk](08-unified-clipboard-history.md).
 
 ### Oversettelsestabellen
 
-| Du leter etter | I Omarchy |
+| Du strekker deg etter | I Omarchy |
 | ------------- | ---------- |
-| Spotlight / Raycast / Start-meny | `Super + Space` — Omarchy-menyen |
+| Spotlight / Raycast / Start menu | `Super + Space` — Omarchy-menyen |
 | AirDrop | LocalSend, via `Super + Ctrl + S` — se [GUI-er](22-guis.md) |
 | Cmd + Shift + 4 / Win + Shift + S | `Super + Ctrl + Alt + C` eller `Print Screen` — se [skjermbilder og opptak](12-screenshots-recording.md) |
-| Notification Center | Varselhistorikk på `Super + Shift + Alt + ,` |
+| Notification Center | Varslingshistorikk på `Super + Shift + Alt + ,` |
 | Time Machine (for systemet) | Automatiske [systemøyeblikksbilder](47-system-snapshots.md) ved hver oppdatering |
 | App Store / å laste ned et installasjonsprogram | _Install_ i menyen, eller `omarchy pkg add` — se [andre pakker](29-other-packages.md) |
 | System Settings / Control Panel | _Setup_ i menyen, som redigerer vanlige konfigurasjonsfiler — se [dotfiles](31-dotfiles.md) |
@@ -44,7 +44,7 @@ Folk fra Windows: utklippshistorikken din fra Win + V bor på `Super + Ctrl + V`
 
 ### Noen ting er faktisk annerledes
 
-Mange innstillinger bor i tekstfiler du redigerer, ikke i paneler du klikker deg gjennom. Det høres primitivt ut, helt til du skjønner at det betyr at hver eneste justering kan ses, kopieres til din neste maskin og legges i versjonskontroll. _Setup_-menyen slipper deg rett inn i riktig fil og starter det som må startes på nytt når du er ferdig.
+Mange innstillinger bor i tekstfiler du redigerer, ikke i paneler du klikker deg gjennom. Det høres primitivt ut helt til du innser at det betyr at hver eneste justering kan ses, kopieres til din neste maskin og legges i versjonskontroll. _Setup_-menyen slipper deg rett inn i riktig fil og starter på nytt det som må startes på nytt når du er ferdig.
 
 Oppdateringer kommer gjennom én kommando — _Update > Omarchy_ — som oppdaterer selve Omarchy og hver eneste pakke på systemet, og tar et øyeblikksbilde først. Ingen oppdateringsprogrammer per app som maser på deg i tide og utide. Se [oppdateringer](30-updates.md).
 
@@ -54,8 +54,8 @@ Og når du lukker et vindu, avsluttes appen faktisk. Det finnes ingen macOS-limb
 
 ### På Mac-maskinvare
 
-Omarchy kjører bra på Intel-Macer, og på M1-, M2- og M3-Macer med Omarchy for Apple Silicon. Se [Mac-støtte](44-mac-support.md). Og tastaturet er snilt mot deg: Omarchy tilordner ingenting på nytt, og Linux behandler Command-tasten som Super, så Super sitter akkurat der Cmd alltid var. Tommelen din vil ikke merke flyttingen.
+Omarchy kjører godt på Intel-Mac-er, og på M1-, M2- og M3-Mac-er med Omarchy for Apple Silicon. Se [Mac-støtte](44-mac-support.md). Og tastaturet er snilt mot deg: Omarchy omdefinerer ingenting, og Linux behandler Command-tasten som Super, så Super sitter akkurat der Cmd alltid var. Tommelen din vil ikke merke flyttingen.
 
 ### Gi det to uker
 
-Instinktene overføres raskere enn du skulle tro. Skumles kapittelet om [hurtigtaster](07-hotkeys.md) én gang, og hver gang du står fast på en tilordning, trykk `Super + K` — den viser deg alle sammen. Det er den eneste hurtigtasten du faktisk må lære utenat.
+Instinktene overføres raskere enn du skulle tro. Skumles [hurtigtaster](07-hotkeys.md)-kapittelet én gang, og hver gang du står fast på en binding, trykk `Super + K` — den viser deg alle sammen. Det er den eneste hurtigtasten du faktisk må memorere.

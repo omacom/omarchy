@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Duga"
   },
-  "appearance.dock.autohide": {
-    "label": "Uathfholaigh duga"
-  },
-  "appearance.dock.always-on": {
-    "label": "Duga i gcónaí air"
-  },
   "appearance.dock.position": {
     "label": "Suíomh duga"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Duga ar tíleáil"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Duga ar snámh amháin"
   }
 }

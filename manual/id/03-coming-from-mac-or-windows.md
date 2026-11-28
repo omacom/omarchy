@@ -1,30 +1,30 @@
 # Beralih dari Mac atau Windows
 
-Jika Anda sudah bertahun-tahun menggunakan macOS atau Windows, jari-jari Anda tahu seratus hal yang otak Anda sudah lupa pernah dipelajarinya. Bab ini adalah lapisan penerjemahnya: ke mana insting-insting itu pergi di Omarchy. Fitur-fiturnya sendiri dibahas secara mendalam di tempat lain — ini hanya petanya.
+Jika Anda telah menghabiskan bertahun-tahun di macOS atau Windows, jari-jari Anda tahu ratusan hal yang otak Anda sudah lupa pernah dipelajari. Bab ini adalah lapisan penerjemahnya: ke mana insting-insting itu pergi di Omarchy. Fitur-fiturnya sendiri dibahas secara mendalam di tempat lain — ini hanyalah petanya.
 
-### Super adalah pusat segalanya
+### Super adalah pusat dari segalanya
 
-Semua memori otot yang telah Anda bangun di sekitar Cmd atau tombol Windows beralih ke satu tombol: Super. Itu adalah tombol Windows pada keyboard PC, dan tombol ini menjadi jangkar untuk hampir setiap hotkey di Omarchy.
+Seluruh memori otot yang telah Anda bangun di sekitar Cmd atau tombol Windows berpindah ke satu tombol: Super. Itu adalah tombol Windows pada keyboard PC, dan itu adalah jangkar untuk hampir setiap hotkey di Omarchy.
 
-Refleks Spotlight atau Raycast atau menu Start Anda menjadi `Super + Space`. Itu membuka menu Omarchy, yang meluncurkan aplikasi, mengubah pengaturan, menginstal perangkat lunak, menangkap layar — hampir semuanya. Mulai mengetik untuk memfilter. `Super + Alt + Space` menampilkan setiap aplikasi dalam satu kisi, seperti cara Launchpad bekerja. Lihat [navigasi](04-navigation.md).
+Refleks Spotlight atau Raycast atau menu Start Anda menjadi `Super + Space`. Itu membuka menu Omarchy, yang meluncurkan aplikasi, mengubah pengaturan, menginstal perangkat lunak, menangkap layar — hampir segalanya. Mulai mengetik untuk memfilter. `Super + Alt + Space` menampilkan setiap aplikasi dalam satu kisi, seperti yang dilakukan Launchpad. Lihat [navigasi](04-navigation.md).
 
-### Tidak ada ikon desktop, dan dock hanya muncul saat Anda mengambang
+### Tidak ada ikon desktop, dan dock tetap tidak menghalangi
 
-Tidak ada ikon untuk diatur di desktop, dan tidak ada dock pada workspace tiling — dock hanya muncul pada workspace floating (lihat [navigasi](04-navigation.md)). Aplikasi dimulai dari hotkey (`Super + Return` untuk terminal, `Super + Shift + Return` untuk browser, dan `Super + K` untuk daftar semua yang dipetakan) atau dari menu. Satu-satunya bagian UI yang tetap ada adalah [bilah atas](05-the-top-bar.md), yang mencakup apa yang sebelumnya dilakukan oleh menu bar, system tray, dan Notification Center untuk Anda — dan hampir setiap widget di dalamnya melakukan sesuatu saat diklik kiri, kanan, dan tengah.
+Tidak ada ikon untuk diatur di desktop, dan dock bersembunyi begitu sebuah workspace memiliki jendela, sampai Anda mendorong penunjuk ke tepi layarnya, tepi kanan kecuali Anda memindahkannya (lihat [navigasi](04-navigation.md)). Aplikasi dimulai dari hotkey (`Super + Return` untuk terminal, `Super + Shift + Return` untuk browser, dan `Super + K` untuk daftar semua yang dipetakan) atau dari menu. Satu-satunya bagian UI yang persisten adalah [bilah atas](05-the-top-bar.md), yang mencakup apa yang sebelumnya dilakukan bilah menu, system tray, dan Notification Center untuk Anda — dan hampir setiap widget di dalamnya melakukan sesuatu saat klik kiri, kanan, dan tengah.
 
-### Jendela menempatkan diri sendiri
+### Jendela menempatkan dirinya sendiri
 
-Pergeseran pola pikir terbesar: Anda tidak menyeret jendela ke sana kemari atau menempelkannya ke separuh layar. Buka satu jendela dan jendela itu memenuhi seluruh layar. Buka yang kedua dan keduanya membagi layar. Anda tidak pernah harus memancing satu jendela keluar dari bawah jendela lain, karena jendela tidak tumpang tindih.
+Pergeseran pola pikir terbesar: Anda tidak menyeret jendela ke sana kemari atau menempelkannya ke separuh layar. Buka sebuah jendela dan jendela itu memenuhi seluruh layar. Buka yang kedua dan keduanya membagi layar. Anda tidak pernah memancing jendela keluar dari bawah jendela lain, karena jendela tidak tumpang tindih.
 
-Saat Anda benar-benar membutuhkan jendela floating, `Super + T` mengeluarkan jendela aktif dari tiling (dan mengembalikannya). Tapi beri tiling kesempatan yang sungguh-sungguh terlebih dahulu — itulah jantung dari segalanya. [Navigasi](04-navigation.md) akan memandu Anda melewatinya.
+Ketika Anda benar-benar membutuhkan jendela mengambang, `Super + T` mengalihkan jendela aktif keluar dari tiling (dan kembali). Tetapi beri tiling kesempatan yang sungguh-sungguh terlebih dahulu — itulah inti dari semuanya. [Navigasi](04-navigation.md) memandu Anda melaluinya.
 
-Workspace akan terasa familier: mereka seperti macOS Spaces atau desktop virtual Windows, kecuali Anda benar-benar akan menggunakannya, karena `Super + 1/2/3/4` langsung melompat ke salah satunya dan `Super + Shift + 1/2/3/4` mengirim jendela aktif ke sana. Tidak ada jeda animasi, hanya lompatan instan. Ini berarti Anda mungkin bahkan tidak membutuhkan banyak monitor, jika sebelumnya Anda terbiasa seperti itu.
+Workspace akan terasa akrab: mereka adalah Spaces di macOS atau desktop virtual di Windows, kecuali Anda benar-benar akan menggunakannya, karena `Super + 1/2/3/4` langsung melompat ke salah satunya dan `Super + Shift + 1/2/3/4` mengirim jendela aktif ke sana. Tanpa penundaan animasi, hanya lompatan instan. Ini berarti Anda bahkan mungkin tidak memerlukan banyak monitor, jika Anda terbiasa dengan itu sebelumnya.
 
-### Salin dan tempel langsung berfungsi
+### Salin dan tempel langsung bekerja
 
-Di Mac Anda punya Cmd + C di mana-mana. Di Windows Anda punya Ctrl + C di mana-mana — kecuali terminal, di mana tombol itu membunuh program Anda. Omarchy memberi Anda `Super + C`, `Super + X`, dan `Super + V`, dan semuanya berfungsi di mana-mana, termasuk terminal. Tidak ada refleks terpisah yang harus dipelajari untuk shell.
+Di Mac Anda memiliki Cmd + C di mana-mana. Di Windows Anda memiliki Ctrl + C di mana-mana — kecuali terminal, di mana itu membunuh program Anda. Omarchy memberi Anda `Super + C`, `Super + X`, dan `Super + V`, dan semuanya bekerja di mana-mana, termasuk terminal. Tidak ada refleks terpisah yang harus dipelajari untuk shell.
 
-Pengguna Windows: riwayat clipboard Win + V Anda kini ada di `Super + Ctrl + V`, dan riwayat itu menyimpan gambar maupun teks. Lihat [clipboard & riwayat terpadu](08-unified-clipboard-history.md).
+Para pengguna Windows: riwayat clipboard Win + V Anda ada di `Super + Ctrl + V`, dan itu menyimpan gambar maupun teks. Lihat [clipboard terpadu & riwayat](08-unified-clipboard-history.md).
 
 ### Tabel penerjemahan
 
@@ -44,18 +44,18 @@ Pengguna Windows: riwayat clipboard Win + V Anda kini ada di `Super + Ctrl + V`,
 
 ### Beberapa hal memang benar-benar berbeda
 
-Banyak pengaturan tinggal di file teks yang Anda edit, bukan panel yang Anda klik-klik. Itu terdengar primitif sampai Anda menyadari bahwa itu berarti setiap penyesuaian dapat dilihat, disalin ke mesin Anda berikutnya, dan dimasukkan ke dalam version control. Menu _Setup_ langsung membawa Anda ke file yang tepat dan memulai ulang apa pun yang perlu dimulai ulang setelah Anda selesai.
+Banyak pengaturan berada di file teks yang Anda edit, bukan panel yang Anda klik. Itu terdengar primitif sampai Anda menyadari itu berarti setiap penyesuaian dapat dilihat, disalin ke mesin Anda berikutnya, dan dimasukkan ke version control. Menu _Setup_ langsung membawa Anda ke file yang tepat dan memulai ulang apa pun yang perlu dimulai ulang ketika Anda selesai.
 
-Pembaruan datang melalui satu perintah — _Update > Omarchy_ — yang memperbarui Omarchy itu sendiri dan setiap paket pada sistem, dengan mengambil snapshot terlebih dahulu. Tidak ada updater per aplikasi yang mengganggu Anda secara acak. Lihat [pembaruan](30-updates.md).
+Pembaruan datang melalui satu perintah — _Update > Omarchy_ — yang memperbarui Omarchy itu sendiri dan setiap paket di sistem, mengambil snapshot terlebih dahulu. Tidak ada updater per aplikasi yang mengganggu Anda secara acak. Lihat [pembaruan](30-updates.md).
 
 Perangkat lunak berasal dari package manager, bukan dari installer yang diunduh.
 
-Dan saat Anda menutup sebuah jendela, aplikasinya benar-benar berhenti. Tidak ada limbo macOS di mana program tetap berjalan tanpa jendela. `Super + W` — atau `Super + Q`, jika itu memori jari yang Anda bawa — berarti hilang.
+Dan ketika Anda menutup jendela, aplikasinya benar-benar berhenti. Tidak ada limbo macOS di mana program terus berjalan tanpa jendela. `Super + W` — atau `Super + Q`, jika itu memori jari yang Anda bawa — berarti hilang.
 
-### Pada perangkat keras Mac
+### Di perangkat keras Mac
 
-Omarchy berjalan dengan baik pada Mac Intel, dan pada Mac M1, M2 dan M3 dengan Omarchy for Apple Silicon. Lihat [dukungan Mac](44-mac-support.md). Dan keyboard bersikap baik kepada Anda: Omarchy tidak memetakan ulang apa pun, dan Linux memperlakukan tombol Command sebagai Super, jadi Super berada tepat di tempat Cmd selalu berada. Ibu jari Anda tidak akan menyadari perpindahan itu.
+Omarchy berjalan dengan baik di Mac Intel, dan di Mac M1, M2 dan M3 dengan Omarchy for Apple Silicon. Lihat [dukungan Mac](44-mac-support.md). Dan keyboard bersikap baik kepada Anda: Omarchy tidak memetakan ulang apa pun, dan Linux memperlakukan tombol Command sebagai Super, jadi Super berada tepat di tempat Cmd selalu berada. Ibu jari Anda tidak akan menyadari perpindahannya.
 
 ### Beri waktu dua minggu
 
-Insting-insting itu beralih lebih cepat dari yang Anda kira. Baca sekilas bab [hotkeys](07-hotkeys.md) sekali, dan setiap kali Anda lupa sebuah binding, tekan `Super + K` — tombol itu menampilkan semuanya kepada Anda. Itulah satu-satunya hotkey yang benar-benar harus Anda hafal.
+Insting berpindah lebih cepat dari yang Anda kira. Baca sekilas bab [hotkeys](07-hotkeys.md) sekali, dan kapan pun Anda lupa sebuah binding, tekan `Super + K` — itu menampilkan semuanya kepada Anda. Itu satu-satunya hotkey yang benar-benar harus Anda hafalkan.

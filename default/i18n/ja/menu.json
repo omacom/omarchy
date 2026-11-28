@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "ドック"
   },
-  "appearance.dock.autohide": {
-    "label": "ドックを自動で隠す"
-  },
-  "appearance.dock.always-on": {
-    "label": "ドックを常に表示"
-  },
   "appearance.dock.position": {
     "label": "ドックの位置"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "タイリング時の Dock"
+  },
+  "appearance.dock.floating-only": {
+    "label": "フローティングのみ Dock"
   }
 }

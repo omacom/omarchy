@@ -212,12 +212,6 @@
   "appearance.dock": {
     "label": "Dok"
   },
-  "appearance.dock.autohide": {
-    "label": "Dok Auto-sembunyi"
-  },
-  "appearance.dock.always-on": {
-    "label": "Dok Sentiasa Papar"
-  },
   "appearance.dock.position": {
     "label": "Kedudukan Dok"
   },
@@ -1447,5 +1441,11 @@
   },
   "remove.browser.ladybird": {
     "label": "Ladybird"
+  },
+  "appearance.dock.tiling": {
+    "label": "Dock pada Jubin"
+  },
+  "appearance.dock.floating-only": {
+    "label": "Dock Sahaja pada Terapung"
   }
 }
