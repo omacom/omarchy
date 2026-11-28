@@ -1,0 +1,8 @@
+signed() {
+  if [[ ${1:-} == "render-pdf" ]]; then
+    shift
+    command signed render "$@"
+  else
+    command signed "$@"
+  fi
+}

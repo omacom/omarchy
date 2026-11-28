@@ -128,6 +128,7 @@ plocate
 # Silicon's); omarchy-splash draws it in the busybox one.
 plymouth
 podman
+poppler
 postgresql-libs
 python-gobject
 python-poetry-core
