@@ -37,8 +37,19 @@ fi'
 # Reports a portal for the first TEST_NMCLI_PORTAL_CHECKS checks (two by
 # default), then full connectivity. Like the real nmcli it answers in the
 # session's language, so only the C locale reads "full".
-stub nmcli 'count=$(( $(cat "$TEST_NMCLI_COUNT" 2>/dev/null || echo 0) + 1 )); echo "$count" > "$TEST_NMCLI_COUNT"
-if [[ ${LC_ALL:-} != "C" ]]; then echo vollständig; elif (( count > ${TEST_NMCLI_PORTAL_CHECKS:-2} )); then echo full; else echo portal; fi'
+stub nmcli 'count=$(cat "$TEST_NMCLI_COUNT" 2>/dev/null || echo 0)
+if [[ $* == *"device show" ]]; then
+  if [[ -n ${TEST_OTHER_LINK_ONLINE:-} ]]; then
+    wifi=2
+    if (( count > 2 )); then wifi=4; fi
+    printf "GENERAL.CON-PATH:/ethernet\nGENERAL.IP4-CONNECTIVITY:4 (full)\nGENERAL.IP6-CONNECTIVITY:4 (full)\n\n"
+    printf "GENERAL.CON-PATH:/wifi\nGENERAL.IP4-CONNECTIVITY:%s (state)\nGENERAL.IP6-CONNECTIVITY:4 (full)\n" "$wifi"
+  fi
+  exit 0
+fi
+(( count += 1 ))
+echo "$count" > "$TEST_NMCLI_COUNT"
+if [[ ${LC_ALL:-} != "C" ]]; then echo vollständig; elif [[ -n ${TEST_OTHER_LINK_ONLINE:-} ]] || (( count > ${TEST_NMCLI_PORTAL_CHECKS:-2} )); then echo full; else echo portal; fi'
 
 # Runs in a session locale other than C, where the nmcli stub answers in
 # translation, so every run below only finishes if the command reads C.
@@ -72,6 +83,11 @@ portal_opened && [[ $(<"$stage/log") == "$expected" ]] || fail "pauses the exit 
 pass "pauses the exit node, opens the portal window, then closes it and restores the node once online"
 [[ $(<"$stage/count") == 3 ]] || fail "re-checks until connectivity is full, then stops" "$(<"$stage/count")"
 pass "re-checks until connectivity is full, then stops"
+
+TEST_OTHER_LINK_ONLINE=1 run_portal '{"ExitNodeStatus":{"ID":"node","Online":true}}'
+portal_opened && [[ $(<"$stage/count") == 3 && $(<"$stage/log") == "$expected" ]] ||
+  fail "keeps the portal open until its own connection is online" "$(<"$stage/log")"
+pass "keeps the portal open until its own connection is online"
 
 run_portal '{"ExitNodeStatus":null}'
 portal_opened && [[ $(<"$stage/log") == "$close" ]] || fail "leaves Tailscale alone without an exit node" "$(<"$stage/log")"
