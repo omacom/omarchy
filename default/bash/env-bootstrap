@@ -21,22 +21,30 @@ export OMARCHY_PATH
 omarchy_bin_dir=${OMARCHY_PATH%/}/bin
 omarchy_remaining_path=${PATH:-}
 omarchy_command_path=
-while :; do
-  omarchy_path_entry=${omarchy_remaining_path%%:*}
-  if [ "$omarchy_path_entry" != "$omarchy_bin_dir" ]; then
-    if [ -n "$omarchy_command_path" ]; then
-      omarchy_command_path="$omarchy_command_path:$omarchy_path_entry"
-    else
-      omarchy_command_path=$omarchy_path_entry
+omarchy_have_path_entry=0
+if [ -n "$omarchy_remaining_path" ]; then
+  while :; do
+    omarchy_path_entry=${omarchy_remaining_path%%:*}
+    if [ "$omarchy_path_entry" != "$omarchy_bin_dir" ]; then
+      if (( omarchy_have_path_entry )); then
+        omarchy_command_path="$omarchy_command_path:$omarchy_path_entry"
+      else
+        omarchy_command_path=$omarchy_path_entry
+        omarchy_have_path_entry=1
+      fi
     fi
-  fi
-  case "$omarchy_remaining_path" in
-    *:*) omarchy_remaining_path=${omarchy_remaining_path#*:} ;;
-    *) break ;;
-  esac
-done
-PATH=$omarchy_bin_dir${omarchy_command_path:+:$omarchy_command_path}
-unset omarchy_bin_dir omarchy_remaining_path omarchy_command_path omarchy_path_entry
+    case "$omarchy_remaining_path" in
+      *:*) omarchy_remaining_path=${omarchy_remaining_path#*:} ;;
+      *) break ;;
+    esac
+  done
+fi
+if (( omarchy_have_path_entry )); then
+  PATH=$omarchy_bin_dir:$omarchy_command_path
+else
+  PATH=$omarchy_bin_dir
+fi
+unset omarchy_bin_dir omarchy_remaining_path omarchy_command_path omarchy_path_entry omarchy_have_path_entry
 
 # The subscription account dispatchers for claude, codex and grok must precede
 # real tool directories inherited from a parent shell, so scripts follow account

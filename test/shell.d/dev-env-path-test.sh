@@ -85,6 +85,12 @@ stale_checkout_path=${stale_checkout_result[1]}
 [[ ${stale_checkout_path#*:} == "$tmpdir/active/bin:"* ]] || fail "env-bootstrap puts the configured checkout ahead of stale checkout commands" "actual PATH: $stale_checkout_path"
 pass "env-bootstrap puts the configured checkout ahead of stale checkout commands"
 
+mapfile -t empty_field_result < <(run_bootstrap bash "$bootstrap" "$home" ":$tmpdir/unrelated/bin:/usr/bin")
+empty_field_path=${empty_field_result[1]}
+[[ $empty_field_path == "$home/.local/share/omarchy/agent-accounts/bin:$tmpdir/active/bin::$tmpdir/unrelated/bin:$home/.local/share/mise/shims:/usr/bin:"* ]] ||
+  fail "env-bootstrap preserves current-directory lookup from an empty PATH field" "actual PATH: $empty_field_path"
+pass "env-bootstrap preserves current-directory lookup from an empty PATH field"
+
 # An empty PATH must not produce empty entries (a bare ":" means the cwd)
 mapfile -t empty_path_result < <(run_bootstrap bash "$bootstrap" "$home" "")
 empty_path=${empty_path_result[1]}
