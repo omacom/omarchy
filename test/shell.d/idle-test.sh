@@ -33,3 +33,20 @@ HOME="$test_home" "$ROOT/bin/omarchy-toggle-idle" allow-idle >/dev/null
 [[ ! -f $test_home/.local/state/omarchy/indicators/stay-awake ]] || fail "Stay Awake toggle persists disabled state"
 
 pass "Stay Awake toggle persists state"
+
+require_quickshell "idle lock-pending test"
+
+qml_fixture_scratch
+trap 'rm -rf "$test_tmp"; qml_fixture_cleanup' EXIT
+printf '#!/bin/bash\nsleep 1.5\n' >"$QML_FIXTURE_TMP/bin/omarchy-system-lock"
+printf '#!/bin/bash\n[[ $* == "lock isLocked" ]] && echo false\nexit 0\n' >"$QML_FIXTURE_TMP/bin/omarchy-shell"
+printf '#!/bin/bash\nexit 0\n' >"$QML_FIXTURE_TMP/bin/omarchy-launch-screensaver"
+printf '#!/bin/bash\nexit 0\n' >"$QML_FIXTURE_TMP/bin/omarchy-system-wake"
+# The service runs its commands under `bash -lc`, and a login shell would put the real commands back ahead of these stubs.
+printf '#!/bin/bash\n[[ ${1:-} == "-lc" ]] && shift && set -- -c "$@"\nexec /bin/bash "$@"\n' >"$QML_FIXTURE_TMP/bin/bash"
+chmod +x "$QML_FIXTURE_TMP"/bin/*
+
+resolved=$(env HOME="$QML_FIXTURE_TMP/home" PATH="$QML_FIXTURE_TMP/bin:$ROOT/bin:$PATH" bash -lc 'command -v omarchy-system-lock')
+[[ $resolved == "$QML_FIXTURE_TMP/bin/omarchy-system-lock" ]] || fail "a login shell finds the stub lock command" "It found $resolved."
+
+run_qml_fixture idle-lock-pending "idle starts no cycle on top of a lock still on its way" Commons
