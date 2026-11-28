@@ -119,6 +119,19 @@ fi
 [[ ! -e $layout_file ]] || fail "a refused direction changes nothing" "saved: $(cat "$layout_file")"
 pass "the layout cycles backwards too"
 
+# A named layout is gone to directly, as the dock's Layout menu asks, and one
+# the workspace already has applies nothing.
+toggle_back floating
+[[ $(saved_mode) == "floating" ]] || fail "a named layout is set directly" "saved: $(cat "$layout_file")"
+: >"$log_file"
+toggle_back floating
+if grep -q "eval o.workspace_mode" "$log_file"; then
+  fail "the layout a workspace already has is not applied again" "$(cat "$log_file")"
+fi
+toggle_back dwindle
+[[ ! -e $layout_file ]] || fail "a named layout that is the default is followed, not saved" "saved: $(cat "$layout_file")"
+pass "a named layout is set directly"
+
 # Cycling onto the default forgets the workspace's own layout, so it follows a
 # later change of the default too; any other layout is saved as its own.
 printf 'o.workspace_mode({ default = "floating" })\n' >"${layout_file%/*}/default.lua"
@@ -225,6 +238,7 @@ hl = {
   get_active_workspace = function() return { id = 3 } end,
   get_config = function() end,
   config = function() end,
+  plugin = { load = function() end },
 }
 
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")

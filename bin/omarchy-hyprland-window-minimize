@@ -14,8 +14,11 @@ fi
 
 [[ -n $ADDRESS && $WORKSPACE =~ ^[0-9]+$ ]] || exit 1
 
-# Only floating workspaces have the dock to bring a window back from.
-[[ $(omarchy-hyprland-workspace-layout-current "$WORKSPACE") == "floating" ]] || exit 0
+# Only a workspace with a dock has somewhere to bring a window back from: every
+# floating one, and tiled ones unless their dock is turned off.
+if [[ $(omarchy-dock tiling) == "off" && $(omarchy-hyprland-workspace-layout-current "$WORKSPACE") != "floating" ]]; then
+  exit 0
+fi
 
 remember_minimized_from() {
   local address=$1 workspace=$2 clients tag

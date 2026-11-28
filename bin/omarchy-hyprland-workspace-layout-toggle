@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# omarchy:summary=Cycle the current active workspace through the dwindle, scrolling, and floating layouts
-# omarchy:args=[back]
+# omarchy:summary=Cycle the current active workspace through the dwindle, scrolling, and floating layouts, or set one
+# omarchy:args=[back|dwindle|scrolling|floating]
 
 # Layout changes replace one notification instead of stacking a new one for
 # each press, so cycling through the layouts leaves a single, current one.
@@ -14,9 +14,9 @@ notify_layout() {
   fi
 }
 
-DIRECTION=${1:-next}
-if [[ $DIRECTION != "next" && $DIRECTION != "back" ]]; then
-  echo "Usage: omarchy-hyprland-workspace-layout-toggle [back]" >&2
+TARGET=${1:-next}
+if [[ ! $TARGET =~ ^(next|back|dwindle|scrolling|floating)$ ]]; then
+  echo "Usage: omarchy-hyprland-workspace-layout-toggle [back|dwindle|scrolling|floating]" >&2
   exit 1
 fi
 
@@ -30,18 +30,25 @@ MODE_FILE="$MODES_DIR/$ACTIVE_WORKSPACE.lua"
 
 CURRENT_MODE=$(omarchy-hyprland-workspace-layout-current)
 
-if [[ $DIRECTION == "back" ]]; then
+if [[ $TARGET == "back" ]]; then
   case "$CURRENT_MODE" in
     dwindle) NEW_MODE=floating ;;
     floating) NEW_MODE=scrolling ;;
     *) NEW_MODE=dwindle ;;
   esac
-else
+elif [[ $TARGET == "next" ]]; then
   case "$CURRENT_MODE" in
     dwindle) NEW_MODE=scrolling ;;
     scrolling) NEW_MODE=floating ;;
     *) NEW_MODE=dwindle ;;
   esac
+else
+  NEW_MODE=$TARGET
+fi
+
+# A workspace asked for the layout it has is left alone.
+if [[ $NEW_MODE == "$CURRENT_MODE" ]]; then
+  exit 0
 fi
 
 APPLY="o.workspace_mode({ workspace = \"$ACTIVE_WORKSPACE\", mode = \"$NEW_MODE\" })"
@@ -84,15 +91,14 @@ else
   notify_layout "$UNSAVED_MESSAGE"
 fi
 
-# The bar shows the focused workspace's layout, and the dock shows on floating ones.
+# The bar shows the focused workspace's layout, and the dock follows it.
 if (( APPLIED )); then
   omarchy-shell -q omarchy.workspaces refresh
   omarchy-shell -q omarchy.dock refresh
 fi
 
-# A workspace starting to float sets up its titlebars as the mode applies. The
-# titlebar plugin itself is only loaded while the config loads, so the first
-# floating workspace of a session still needs a reload to bring it in.
+# The titlebar plugin is loaded while the config loads, so a session whose config
+# predates that, or that could not load it then, needs a reload to bring it in.
 if (( APPLIED )) && [[ $NEW_MODE == "floating" ]] && ! hyprctl plugin list -j 2>/dev/null | jq -e 'any(.[]?; .name == "hyprbars")' >/dev/null 2>&1; then
   omarchy-restart-hyprctl
 fi

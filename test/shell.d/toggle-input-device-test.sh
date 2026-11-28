@@ -133,9 +133,11 @@ hl = {
   end,
   -- toggles.lua goes on to restore workspace layouts, which looks at the open
   -- windows; these reloads have none. It also loads the saved monitor
-  -- settings, which listen for monitors arriving.
+  -- settings, which listen for monitors arriving, and asks for the titlebar
+  -- plugin, which every config load does.
   get_windows = function() return {} end,
   on = function() end,
+  plugin = { load = function() end },
 }
 
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
@@ -169,6 +171,7 @@ hl = {
   end,
   get_windows = function() return {} end,
   on = function() end,
+  plugin = { load = function() end },
 }
 os.execute = function()
   executed = true
@@ -250,6 +253,7 @@ hl = {
   device = function(opts) table.insert(disabled, opts) end,
   get_windows = function() return {} end,
   on = function() end,
+  plugin = { load = function() end },
 }
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
 require("default.hypr.toggles")

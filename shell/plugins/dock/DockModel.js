@@ -5,7 +5,20 @@ var POSITIONS = ["top", "bottom", "left", "right"]
 
 function normalizePosition(value) {
   var position = String(value || "").trim().toLowerCase()
-  return POSITIONS.indexOf(position) >= 0 ? position : "bottom"
+  return POSITIONS.indexOf(position) >= 0 ? position : "right"
+}
+
+// The screen edge a point is closest to, for the dock dragged by its apps
+// button. The bar's edge is left out: the dock would sit on top of the bar.
+function nearestEdge(x, y, width, height, excluded) {
+  var distances = { left: x, right: width - x, top: y, bottom: height - y }
+  var best = ""
+  for (var i = 0; i < POSITIONS.length; i++) {
+    var edge = POSITIONS[i]
+    if (edge === excluded) continue
+    if (!best || distances[edge] < distances[best]) best = edge
+  }
+  return best
 }
 
 function isVertical(position) {
@@ -212,6 +225,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     normalizePosition: normalizePosition,
     isVertical: isVertical,
+    nearestEdge: nearestEdge,
     normalizeId: normalizeId,
     pinnedIds: pinnedIds,
     isDockWindow: isDockWindow,

@@ -325,9 +325,6 @@ hl = {
     table.insert(subscriptions[event], callback)
   end,
   timer = function(callback) callback() end,
-  get_loaded_plugins = function()
-    return os.getenv("HYPRBARS_RESIDENT") == "1" and { { name = "hyprbars" } } or {}
-  end,
   get_active_workspace = function() return active end,
   get_config = function(key) return config[key] end,
   config = function(values)
@@ -393,12 +390,13 @@ run_lua() {
 
 rm -rf "$modes_dir"
 
-# Nothing floats: the titlebar plugin stays out and nothing changes.
+# Nothing floats: no window changes. The titlebar plugin still loads, since a
+# dialog or a window floated with Super + T on a tiled workspace gets a titlebar.
 if ! run_lua '
 local tiled = window("0x1", 1)
 require("default.hypr.workspace-layouts")
 local s = state()
-assert(s.plugin_loads == 0, "the titlebar plugin was loaded with nothing floating")
+assert(s.plugin_loads == 1, "the titlebar plugin was not loaded with nothing floating")
 assert(not tiled.floating, "a window floated with nothing floating")
 assert(#s.rules == 0, "window rules were added with nothing floating")
 ' TITLEBARS_INSTALLED=1; then
@@ -700,38 +698,32 @@ assert(bar.col.text == "rgb(ddeeff)", "titlebar text does not follow the theme f
 fi
 pass "titlebars load when a workspace floats and follow the theme"
 
-# A workspace that starts floating after the config loaded, with Super + L,
-# gets titlebars at once rather than on the next reload, and only once however
-# many workspaces start floating after it.
+# Every floating window gets a titlebar, so titlebars are on with no workspace
+# floating, and keyed to a tag every window carries rather than the mode's. A
+# workspace that starts floating with Super + L does not set them up again.
 rm -f "$modes_dir"/*.lua
 if ! run_lua '
 window("0x1", 3)
 require("default.hypr.workspace-layouts")
-assert(state().plugin_loads == 0, "the titlebar plugin was loaded with nothing floating")
-o.workspace_mode({ workspace = "3", mode = "floating" })
 local s = state()
-assert(s.plugin_loads == 1, "a workspace that started floating did not load the titlebar plugin")
-assert(s.titlebar_config and s.titlebar_config.enabled, "a workspace that started floating did not turn titlebars on")
+assert(s.plugin_loads == 1, "the titlebar plugin was not loaded with nothing floating")
+assert(s.titlebar_config and s.titlebar_config.enabled, "titlebars were not turned on with nothing floating")
+local tag = s.titlebar_config.workspace_tag
+assert(tag ~= "omarchy-floating-workspace", "titlebars are limited to floating workspaces")
+local tagged = false
+for _, rule in ipairs(s.rules) do
+  if rule.match.class == ".*" and rule.tag == "+" .. tag then
+    tagged = true
+  end
+end
+assert(tagged, "not every window carries the titlebar tag")
 local buttons = #s.buttons
-o.workspace_mode({ workspace = "4", mode = "floating" })
-assert(state().plugin_loads == 1 and #state().buttons == buttons, "titlebars were set up again for a second floating workspace")
+o.workspace_mode({ workspace = "3", mode = "floating" })
+assert(state().plugin_loads == 1 and #state().buttons == buttons, "titlebars were set up again for a floating workspace")
 ' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1; then
-  fail "a workspace that starts floating gets titlebars without a reload"
+  fail "floating windows get titlebars on any workspace"
 fi
-pass "a workspace that starts floating gets titlebars without a reload"
-
-# Hyprland unloads a plugin the config stops asking for, and loading it again
-# costs a cascade of reloads, so a session that has loaded titlebars keeps them.
-if ! run_lua '
-window("0x1", 3)
-require("default.hypr.workspace-layouts")
-local s = state()
-assert(s.plugin_loads == 1, "the loaded titlebar plugin was not asked for with nothing floating")
-assert(not s.titlebar_config, "titlebars were turned on with nothing floating")
-' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1 HYPRBARS_RESIDENT=1; then
-  fail "a session that loaded titlebars keeps the plugin when nothing floats"
-fi
-pass "a session that loaded titlebars keeps the plugin when nothing floats"
+pass "floating windows get titlebars on any workspace"
 printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
 
 # A theme whose raised surface is its background would hide the titlebar again,

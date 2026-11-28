@@ -249,11 +249,11 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Auto-hide Dock"
+  "appearance.dock.tiling": {
+    "label": "Dock on Tiling"
   },
-  "appearance.dock.always-on": {
-    "label": "Always-on Dock"
+  "appearance.dock.floating-only": {
+    "label": "Dock Only on Floating"
   },
   "appearance.dock.position": {
     "label": "Dock Position"
