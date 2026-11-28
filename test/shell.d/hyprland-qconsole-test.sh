@@ -57,7 +57,11 @@ handlers["workspace.created"]({ name = "special:qconsole", is_empty = false })
 handlers["workspace.created"]({ name = "special:scratchpad", is_empty = true })
 assert(#spawned == 0, "only an empty console is seeded")
 handlers["workspace.created"]({ name = "special:qconsole", is_empty = true })
-assert(#spawned == 1 and spawned[1].cmd == "omarchy-agent --pick", "console is seeded with the default agent")
+assert(#spawned == 1, "an empty console is seeded, once")
+assert(spawned[1].cmd:find("herdr %-%-session qconsole"),
+  "console is seeded with its dedicated Herdr session")
+assert(spawned[1].cmd:find("herdr/qconsole%.toml"),
+  "the seed points Herdr at the qconsole profile")
 assert(spawned[1].rules.workspace == "special:qconsole silent",
   "the seed is pinned to the console rather than trusting the spawn to inherit it")
 
@@ -284,3 +288,69 @@ assert(left == 435 and right == 435, "moving it back off recenters the panel")
 assert(handlers["window.close"] == nil, "window.close counts the window on its way out")
 LUA
 pass "the console is a centered panel until a second app joins it"
+
+# The qconsole profile makes bin/omarchy-qconsole-agent the shell of every Herdr
+# pane, so the launcher is where a pane gets its name and its agent. Herdr, the
+# agent and the user's shell are stubs, because the launcher runs all three as
+# commands; only the launcher itself is real.
+launcher_dir=$(mktemp -d)
+trap 'rm -rf -- "$launcher_dir"' EXIT
+launcher_bin="$launcher_dir/bin"
+agent_log="$launcher_dir/agent.log"
+shell_log="$launcher_dir/shell.log"
+rename_log="$launcher_dir/rename.log"
+mkdir -p "$launcher_bin" "$launcher_dir/home"
+
+cat >"$launcher_bin/herdr" <<'SH'
+#!/bin/bash
+[[ $1 == "workspace" && $2 == "rename" ]] &&
+  printf '%s %s\n' "$3" "$4" >"$QC_RENAME_LOG"
+exit 0
+SH
+
+cat >"$launcher_bin/omarchy-agent" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$QC_AGENT_LOG"
+[[ ${QC_AGENT_FAILS:-false} == "true" ]] && exit 1
+exit 0
+SH
+
+cat >"$launcher_bin/test-shell" <<'SH'
+#!/bin/bash
+printf 'started\n' >"$QC_SHELL_LOG"
+SH
+
+chmod +x "$launcher_bin"/*
+
+agent_fails=false
+run_qconsole_launcher() {
+  HOME="$launcher_dir/home" PATH="$launcher_bin:$PATH" HERDR_WORKSPACE_ID=workspace \
+    SHELL="$launcher_bin/test-shell" QC_AGENT_FAILS="$agent_fails" \
+    QC_AGENT_LOG="$agent_log" QC_SHELL_LOG="$shell_log" QC_RENAME_LOG="$rename_log" \
+    "$ROOT/bin/omarchy-qconsole-agent"
+}
+
+run_qconsole_launcher
+
+# --pick offers the agent choice instead of an error on a fresh install, so a
+# console opened before an agent was chosen still leads somewhere.
+[[ $(<"$agent_log") == "--inline --pick" ]] ||
+  fail "a qconsole pane starts the default agent inline" "$(<"$agent_log")"
+pass "a qconsole pane starts the default agent inline"
+
+# Herdr names a workspace after the pane's cwd, which would be whatever directory
+# the console happened to open in.
+[[ $(<"$rename_log") == "workspace qconsole" ]] ||
+  fail "a qconsole pane names its Herdr workspace after the console" "$(<"$rename_log")"
+pass "a qconsole pane names its Herdr workspace after the console"
+
+# The pane is already the agent, so a shell on top of it would be a second
+# prompt in a console that has no room for one.
+[[ ! -e $shell_log ]] || fail "a pane whose agent starts leaves no shell behind"
+pass "a pane whose agent starts leaves no shell behind"
+
+# An account with no agent configured has to leave the user a usable shell.
+agent_fails=true
+run_qconsole_launcher
+[[ -e $shell_log ]] || fail "a pane falls back to a shell when its agent does not start"
+pass "a pane falls back to a shell when its agent does not start"
