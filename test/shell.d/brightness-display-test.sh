@@ -47,7 +47,20 @@ Display 1
 EOF
 elif [[ $* == *" getvcp 10 "* ]]; then
   [[ ${DDC_READ_FAIL:-0} == "1" ]] && exit 1
-  printf 'VCP 10 C %s %s\n' "${DDC_CURRENT:-40}" "${DDC_MAXIMUM:-80}"
+  current="${DDC_CURRENT:-40}"
+  # DDC_STATE models a monitor whose first read after a write still returns
+  # the value from before it: the file holds "<value> <stale value>".
+  if [[ -n ${DDC_STATE:-} && -s $DDC_STATE ]]; then
+    read -r current stale <"$DDC_STATE"
+    if [[ -n $stale ]]; then
+      printf '%s\n' "$current" >"$DDC_STATE"
+      current="$stale"
+    fi
+  fi
+  printf 'VCP 10 C %s %s\n' "$current" "${DDC_MAXIMUM:-80}"
+elif [[ $* == *" setvcp 10 "* && -n ${DDC_STATE:-} ]]; then
+  read -r previous _ <"$DDC_STATE"
+  printf '%s %s\n' "${@: -1}" "$previous" >"$DDC_STATE"
 fi
 SH
 
@@ -84,7 +97,8 @@ pass "external percentage is converted to the monitor VCP range"
 
 get_count=$(grep -c ' getvcp 10 ' "$call_log")
 run_brightness --no-osd --monitor DP-1 30%
-(( $(grep -c ' getvcp 10 ' "$call_log") == get_count )) || \
+# The one read is the throwaway read after the write, not a range refresh.
+(( $(grep -c ' getvcp 10 ' "$call_log") == get_count + 1 )) || \
   fail "absolute external brightness reuses the cached VCP range"
 grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 24' "$call_log" >/dev/null || \
   fail "absolute external brightness skips write verification"
@@ -153,7 +167,8 @@ rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
 printf '7 80 0\n' >"$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
 get_count=$(grep -c ' getvcp 10 ' "$call_log")
 DDC_MAXIMUM=100 run_brightness --no-osd --monitor DP-1 50%
-(( $(grep -c ' getvcp 10 ' "$call_log") == get_count + 1 )) || \
+# The range refresh before the write, and the throwaway read after it.
+(( $(grep -c ' getvcp 10 ' "$call_log") == get_count + 2 )) || \
   fail "expired external brightness range is refreshed"
 grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 50' "$call_log" >/dev/null || \
   fail "expired external brightness range uses the refreshed maximum"
@@ -164,6 +179,14 @@ DDC_CURRENT=4 DDC_MAXIMUM=100 run_brightness --no-osd --monitor DP-1 +5%
 grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 5' "$call_log" >/dev/null || \
   fail "external low brightness writes the one-percent target"
 pass "external low brightness uses a one-percent step"
+
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
+printf '80\n' >"$test_tmp/ddc-state"
+DDC_STATE="$test_tmp/ddc-state" DDC_MAXIMUM=100 run_brightness --no-osd --monitor DP-1 10% >/dev/null
+brightness=$(DDC_STATE="$test_tmp/ddc-state" DDC_MAXIMUM=100 run_brightness --monitor DP-1)
+[[ $brightness == "10" ]] || \
+  fail "a read after a write shows the new brightness on a monitor that answers late" "actual: $brightness"
+pass "a read after a write shows the new brightness on a monitor that answers late"
 
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
