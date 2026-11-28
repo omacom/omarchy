@@ -40,6 +40,8 @@ That gives you a Tailscale panel in the bar, which connects and disconnects the 
 
 Installing it also adds a web app for the Tailscale admin console.
 
+Files are only saved for you on an Omarchy desktop that someone is logged in to, since the service that receives them runs with the graphical session. A headless machine on your tailnet, such as a server or an exit node, still accepts what you send it, but the files wait in its Taildrop inbox until you collect them on that machine with `sudo tailscale file get --conflict=rename <directory>`.
+
 ## When it stops working
 
 Before rebooting, try restarting the offending piece on its own. _Update > Hardware_ has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up most "it worked five minutes ago" situations. See [troubleshooting](45-troubleshooting.md).
