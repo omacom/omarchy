@@ -18,6 +18,21 @@ Then select a drive for your installation, and sit back and watch the installati
 
 Now you're ready to Omarchy!
 
+### Hardware requirements
+
+Omarchy supports 64-bit x86 CPUs at the v2 microarchitecture level and above. That means a CPU with SSE4.2 and POPCNT. The level does not include AVX2 or AVX-512, so CPUs without those instruction sets are supported.
+
+The core system runs on that floor. Some applications are built for a higher level, and those are the ones that fail on a supported machine. Before installing a prebuilt package that may be built above the baseline, check which of the two flags your CPU has:
+
+```
+grep -q avx2 /proc/cpuinfo && echo "AVX2 present" || echo "no AVX2"
+grep -q avx512f /proc/cpuinfo && echo "AVX-512 present" || echo "no AVX-512"
+```
+
+`lscpu` shows the same in the Flags row. Match the reported flags to the actual build requirements. A build targeting x86-64-v3 needs the full v2 set plus AVX, AVX2, BMI1, BMI2, F16C, FMA, LZCNT and MOVBE, with AVX state enabled by the operating system. A v4 build additionally needs `avx512f`, `avx512dq`, `avx512cd`, `avx512bw` and `avx512vl`. The two commands above report individual extensions, not a complete ISA level; virtual machines can expose AVX2 while masking another required feature. A package built above your CPU's level faults with an illegal instruction (SIGILL) the first time it runs an instruction your CPU does not have.
+
+Third-party builds that assume AVX2 break the floor. `dettivo-linux` compiles its ggml speech and model engines for a fixed AVX2 and BMI2 baseline (`.cargo/config.toml` sets `GGML_AVX2=ON` and `GGML_BMI2=ON`), so its engine process dies with SIGILL on a v2 CPU such as an AMD FX-8350. 1password has been reported to fault with SIGILL on CPUs without AVX-512 (#10158); that report remains unconfirmed. The investigation by omarchybot did not establish that an AVX-512 instruction executed and identified a previously fixed shutdown abort as a plausible alternative, pending the reporter's crash details. Bun needs only SSE4.2, so it runs on a v2 machine, though its runtime selects AVX2 and AVX-512 paths when present; agents below SSE4.2 are not supported (#7881).
+
 ### Use a wired or 2.4ghz keyboard!
 
 The full-disk encryption won't allow you to enter the password from a Bluetooth keyboard at startup. Just like you can't use a Bluetooth keyboard to enter the BIOS on a PC. You'll need a keyboard that either uses a 2.4ghz dongle or a cable (which is much nicer for latency anyway!). I personally love the [Lofree Flow84](https://www.lofree.co/products/lofree-flow-the-smoothest-mechanical-keyboard)!
