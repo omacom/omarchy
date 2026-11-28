@@ -224,6 +224,14 @@ const vbox = { x: 0, y: 400, width: 26, height: 50 }
 const vclock = { slot: boxClock, region: 'center', x: 0, y: 400, width: 26, height: 50 }
 assertDeepEqual(bar.centerDropTarget([vclock], vbox, { x: 13, y: 440 }, true), { slot: boxClock, after: true }, 'vertical bars drop into the box along y')
 assertDeepEqual(bar.centerDropTarget([vclock], vbox, { x: 13, y: 380 }, true), { region: 'centerBegin', after: true }, 'vertical bars drop above the box into centerBegin')
+// A notch bar whose left group was dragged out (menu + workspaces now in
+// centerBegin): a drop at the far left, where left used to be, must offer
+// left again — otherwise the widgets can never be dragged home.
+const goneMenu = { slot: menuSlot, region: 'centerBegin', x: 860, y: 0, width: 28, height: 26 }
+const goneWs = { slot: { id: 'workspaces' }, region: 'centerBegin', x: 900, y: 0, width: 140, height: 26 }
+const notchInd = { slot: indicatorsSlot, region: 'centerBegin', x: 1040, y: 0, width: 128, height: 26 }
+const notchBox = { x: 1168, y: 0, width: 0, height: 26 }
+assertDeepEqual(bar.centerDropTarget([goneMenu, goneWs, notchInd], notchBox, { x: 20, y: 16 }, false), { region: 'left', after: true }, 'a drop where the emptied left group was offers left again')
 assertDeepEqual(bar.centerDropTarget([vclock], vbox, { x: 13, y: 470 }, true), { region: 'centerEnd', after: false }, 'vertical bars drop below the box into centerEnd')
 assertDeepEqual(bar.centerDropTarget(full, null, { x: 345 }, false), bar.nearestDropTarget(full, { x: 345 }, false), 'a bar without a center box resolves drops as before')
 assertEqual(bar.centerDropTarget(full, box, {}, false), null, 'an unreadable pointer resolves to no drop')

@@ -648,7 +648,13 @@ Item {
 
   function finishBarMove() {
     var edge = barMoveCandidate
+    // A plugin reload tears the bar down mid-gesture: a stale candidate must
+    // never reach shell.json. Only an actively-dragged move commits.
     if (!barMoveActive || !edge || edge === position) {
+      clearBarMove()
+      return
+    }
+    if (typeof shell !== "undefined" && shell && shell.pluginReloading) {
       clearBarMove()
       return
     }

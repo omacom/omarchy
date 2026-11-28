@@ -306,6 +306,22 @@ ShellRoot {
         root.check(root.surface.settle === "" && root.surface.surfaceEdge === "top" && root.surface.surfaceThickness === root.surface.thickness, "a settle whose frames stop finishes at the current thickness: " + root.surface.settle + " " + root.surface.surfaceThickness + " against " + root.surface.thickness)
         root.check(root.settles.join(",") === "clearing,", "with no frames it never reveals, the watchdog finishes it: " + root.settles.join(","))
         root.surface.visible = true
+      }, 100],
+      [function() {
+        // Reload-during-drag: a stale bar-move must never reach shell.json.
+        // A drag began (candidate left over from updateBarMove), then the host
+        // set pluginReloading while reloadPlugins() tears the bar down.
+        root.bar.beginBarMove(root.bar.targetWindow(root.surface))
+        root.bar.barMoveCandidate = "left"
+        var wroteDuringReload = false
+        var realShell = root.bar.shell
+        root.bar.shell = { pluginReloading: true, mutateShellConfig: function(mutator) {
+          wroteDuringReload = true
+        } }
+        root.bar.finishBarMove()
+        root.check(wroteDuringReload === false, "no shell.json write during a plugin reload")
+        root.check(root.bar.barMoveActive === false, "the stale move is dropped, not committed")
+        root.bar.shell = realShell
       }, 300]
     ]
     stepper.start()
