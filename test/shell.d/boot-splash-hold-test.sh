@@ -40,7 +40,7 @@ pidof() {
 # moves into init.scope as it starts, has both GPUs open (one twice) and a
 # render node; a sway some unit started has the third card.
 process 200 "0::/system.slice/kiosk.service" 3 "$dri/card2"
-for cgroup in "0::/" "0::/init.scope"; do
+for cgroup in "0::/" "0::/init.scope" $'1:net_cls:/\n0::/init.scope'; do
   process 100 "$cgroup" 3 "$dri/card1" 4 "$dri/card0" 5 "$dri/card1" 6 "$dri/renderD128" 7 "$test_tmp/other"
   found=$(splash_devices | tr '\n' ' ')
   [[ $found == "$dri/card0 $dri/card1 " ]] ||
