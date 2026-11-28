@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Captures the current clipboard as a JSON entry on stdout. In watch mode,
-# wl-paste invokes this with the payload on stdin and the mime as $1. Without
-# arguments, it snapshots the current selection itself.
+# wl-paste invokes this with the payload on stdin and a type as $1 (text, image,
+# or an explicit MIME type). Without arguments, it snapshots the selection itself.
 
 set -o pipefail
 umask 077
@@ -32,12 +32,23 @@ emit_image() {
   local ext hash file meta inode gen
   shift
 
+  tmp=$(mktemp --tmpdir="$IMAGE_DIR" clipboard.XXXXXX) || return 0
+  read_copy "$@" || return
+
+  if [[ $mime == "image" ]]; then
+    # The clipboard may have changed since wl-paste handed us this copy.
+    # Identify its bytes, not the types offered by the current selection.
+    mime=$(file --brief --mime-type -- "$tmp") || return
+    [[ $mime == "image/x-ms-bmp" ]] && mime="image/bmp"
+    if [[ " ${image_types[*]} " != *" $mime "* ]]; then
+      rm -f -- "$tmp" || return 1
+      return 2 # Unsupported format: try a supported representation instead.
+    fi
+  fi
+
   ext=${mime#image/}
   [[ $ext == "jpeg" ]] && ext=jpg
   [[ $ext =~ ^[A-Za-z0-9]+$ ]] || return 0
-
-  tmp=$(mktemp --tmpdir="$IMAGE_DIR" clipboard.XXXXXX) || return 0
-  read_copy "$@" || return
 
   hash=$(sha256sum "$tmp" | awk '{print $1}')
   file="$IMAGE_DIR/$hash.$ext"
@@ -109,12 +120,22 @@ emit_text() {
   ' <"$tmp"
 }
 
+image_types=(image/png image/jpeg image/webp image/gif image/bmp image/tiff)
+
 case "${1:-}" in
 text) emit_text cat; exit 0 ;;
 image/*) emit_image "$1" cat; exit 0 ;;
+image)
+  emit_image image cat
+  # Only an unsupported format (e.g. SVG) needs a second read. Drop an empty
+  # or stalled copy rather than replacing it with a different clipboard entry.
+  if (( $? != 2 )); then
+    exit 0
+  fi
+  ;;
 esac
 
-for mime in image/png image/jpeg image/webp image/gif image/bmp image/tiff; do
+for mime in "${image_types[@]}"; do
   if grep -qx "$mime" <<<"$types"; then
     emit_image "$mime" wl-paste --type "$mime"
     exit 0

@@ -304,6 +304,8 @@ elif [[ $1 == "--type" && $2 == "text" ]]; then
     sleep 10
   fi
   printf '%s' "${WL_PASTE_TEXT:-terminal copy}"
+elif [[ $1 == "--type" && $2 == "image/png" ]]; then
+  cat "$WL_PASTE_IMAGE"
 fi
 SH
 
@@ -370,7 +372,7 @@ fi
 pass "clipboard snapshot text read stalled midway uses its internal timeout"
 pass "clipboard snapshot stalled midway emits no partial entry"
 
-for watched_mime in text image/png; do
+for watched_mime in text image/png image; do
   if capture_output=$({ printf 'copy whose owner never closes'; sleep 1; } | XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" timeout --preserve-status 4s "$ROOT/shell/plugins/clipboard/capture.sh" "$watched_mime"); then
     capture_status=0
   else
@@ -483,6 +485,24 @@ capture_output=$(printf 'jpg-data' | XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$
 image_path=$(jq -r '.path' <<<"$capture_output")
 jq -e '.mime == "image/jpeg"' <<<"$capture_output" >/dev/null && [[ $image_path == *.jpg ]] || fail "clipboard capture stores watched jpeg images with jpg extension"
 pass "clipboard capture stores watched jpeg images with jpg extension"
+
+magick -size 1x1 xc:red "$TMPDIR/watched.png"
+magick "$TMPDIR/watched.png" "$TMPDIR/watched.jpg"
+
+capture_output=$(WL_PASTE_TYPES="text/html\nimage/jpeg\n" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" image <"$TMPDIR/watched.jpg")
+image_path=$(jq -r '.path' <<<"$capture_output")
+jq -e '.mime == "image/jpeg"' <<<"$capture_output" >/dev/null && [[ $image_path == *.jpg ]] && cmp -s "$image_path" "$TMPDIR/watched.jpg" || fail "clipboard capture records watched images offered only as jpeg"
+pass "clipboard capture records watched images offered only as jpeg"
+
+capture_output=$(WL_PASTE_TYPES="image/jpeg\n" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" image <"$TMPDIR/watched.png")
+image_path=$(jq -r '.path' <<<"$capture_output")
+jq -e '.mime == "image/png"' <<<"$capture_output" >/dev/null && [[ $image_path == *.png ]] && cmp -s "$image_path" "$TMPDIR/watched.png" || fail "clipboard capture keeps the watched format when the clipboard changes"
+pass "clipboard capture keeps the watched format when the clipboard changes"
+
+capture_output=$(printf '<svg xmlns="http://www.w3.org/2000/svg"/>' | WL_PASTE_TYPES="image/svg+xml\nimage/png\n" WL_PASTE_IMAGE="$TMPDIR/watched.png" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" image)
+image_path=$(jq -r '.path' <<<"$capture_output")
+jq -e '.mime == "image/png"' <<<"$capture_output" >/dev/null && [[ $image_path == *.png ]] && cmp -s "$image_path" "$TMPDIR/watched.png" || fail "clipboard capture falls back to png when svg is offered first"
+pass "clipboard capture falls back to png when svg is offered first"
 
 image_dir_mode=$(stat -c '%a' "$TMPDIR/state/omarchy/clipboard-images")
 [[ $image_dir_mode == "700" ]] || fail "clipboard image directory is owner-only" "actual: $image_dir_mode"

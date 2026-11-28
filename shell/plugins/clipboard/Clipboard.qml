@@ -374,7 +374,7 @@ Item {
 
   Process {
     id: imageWatchProc
-    command: ["setpriv", "--pdeathsig", "TERM", "wl-paste", "--type", "image/png", "--watch", root.captureScript, "image/png"]
+    command: ["setpriv", "--pdeathsig", "TERM", "wl-paste", "--type", "image", "--watch", root.captureScript, "image"]
     onExited: watchRestartTimer.restart()
     stdout: SplitParser {
       onRead: function(data) { root.addClipboardJson(data) }
