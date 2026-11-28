@@ -75,6 +75,7 @@ Item {
   }
 
   function rebuildDisplay() {
+    pointerGate.reset()
     var out = EmojiSearch.filterEmojis(root.emojis, root.filterText, 1000)
     root.filteredEmojis = out
 
@@ -91,6 +92,7 @@ Item {
   function select(delta) {
     var count = root.filteredEmojis.length
     if (count === 0) return
+    pointerGate.reset()
     if (!cursorActive) {
       cursorActive = true
       selectedIndex = delta < 0 ? count - 1 : 0
@@ -103,6 +105,7 @@ Item {
   function selectRow(delta) {
     var count = root.filteredEmojis.length
     if (count === 0) return
+    pointerGate.reset()
     if (!cursorActive) {
       cursorActive = true
       selectedIndex = delta < 0 ? count - 1 : 0
@@ -119,6 +122,7 @@ Item {
   function selectPage(delta) {
     var count = root.filteredEmojis.length
     if (count === 0) return
+    pointerGate.reset()
     if (!cursorActive) {
       cursorActive = true
       selectedIndex = delta < 0 ? count - 1 : 0
@@ -149,6 +153,11 @@ Item {
     if (!emoji) return
     root.dismiss()
     Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-menu-emoji-insert", emoji])
+  }
+
+  PointerMoveGate {
+    id: pointerGate
+    referenceItem: card
   }
 
   FileView {
@@ -259,12 +268,26 @@ Item {
 
           GridView {
             id: resultGrid
+            objectName: "emojiGrid"
             anchors.fill: parent
             model: root.filteredEmojis
             clip: true
             cellWidth: root.cellWidth
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
+
+            WheelHandler {
+              acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+              target: null
+              onWheel: function(event) {
+                var delta = event.pixelDelta.y * Style.touchpadScrollFactor || event.angleDelta.y / 120 * root.cellHeight * 3
+                if (delta === 0) return
+                pointerGate.reset()
+                var bottom = resultGrid.originY + Math.max(0, resultGrid.contentHeight - resultGrid.height)
+                resultGrid.contentY = Math.max(resultGrid.originY, Math.min(bottom, resultGrid.contentY - delta))
+                event.accepted = true
+              }
+            }
 
             delegate: Rectangle {
               required property int index
@@ -292,7 +315,8 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onContainsMouseChanged: if (containsMouse) {
+                onPositionChanged: function(mouse) {
+                  if (!pointerGate.moved(mouseArea, mouse)) return
                   root.cursorActive = true
                   root.selectedIndex = index
                 }

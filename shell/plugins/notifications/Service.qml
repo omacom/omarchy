@@ -1596,6 +1596,7 @@ Item {
             hoverEnabled: true
             acceptedButtons: Qt.NoButton
             propagateComposedEvents: true
+            cursorShape: containsMouse && !service.keyboardMode && service.hoverKey !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
 
             // The cards cannot see hover under this region, so they are told.
             function hoverAt(x, y) {

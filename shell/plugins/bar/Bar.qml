@@ -3131,7 +3131,7 @@ Item {
       propagateComposedEvents: true
       // Only the hovered slot needs the hit test; without the guard every
       // slot on every monitor re-ran it on each click target change.
-      cursorShape: moduleHover.hovered && root.moduleClickTargetAt(slot, mouseX, mouseY) ? Qt.PointingHandCursor : Qt.ArrowCursor
+      cursorShape: moduleHover.hovered && root.moduleClickTargetAt(slot, moduleHover.point.position.x, moduleHover.point.position.y) ? Qt.PointingHandCursor : Qt.ArrowCursor
       // Do not assign drag.target here: the section's layout places
       // ModuleSlot, and moving slot.x/slot.y by hand fights it. The ghost
       // follows the pointer instead.
