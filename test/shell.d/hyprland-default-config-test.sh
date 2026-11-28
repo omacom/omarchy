@@ -262,3 +262,53 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
 (( number_claims == 9 )) ||
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
+
+# Native Linux Steam games keep their own window class instead of
+# steam_app_<appid>, so steam.lua detects them from SteamGameId in
+# /proc/<pid>/environ on window.open and starts them fullscreen.
+SteamGameId=239820 sleep 10 &
+steam_game_pid=$!
+env -u SteamGameId -u SteamAppId sleep 10 &
+plain_app_pid=$!
+trap 'kill "$steam_game_pid" "$plain_app_pid" 2>/dev/null || true; rm -rf "$tmpdir"' EXIT
+
+HOME="$fresh_home" OMARCHY_PATH="$ROOT" STEAM_GAME_PID="$steam_game_pid" PLAIN_APP_PID="$plain_app_pid" lua - <<'LUA' || fail "native Steam games fullscreen on open while dialogs and non-Steam apps do not"
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+local handlers, dispatches = {}, {}
+hl = {
+  window_rule = function() end,
+  on = function(event, fn) handlers[event] = fn end,
+  dispatch = function(cmd) table.insert(dispatches, cmd) end,
+  dsp = {
+    window = {
+      tag = function(spec) return { kind = "tag", tag = spec.tag, window = spec.window } end,
+      fullscreen = function(spec) return { kind = "fullscreen", mode = spec.mode, action = spec.action, window = spec.window } end,
+    },
+  },
+}
+require("default.hypr.helpers")
+require("default.hypr.apps.steam")
+local on_open = assert(handlers["window.open"], "steam.lua did not subscribe to window.open")
+local game_pid = tonumber(os.getenv("STEAM_GAME_PID"))
+local plain_pid = tonumber(os.getenv("PLAIN_APP_PID"))
+
+local function check(win)
+  dispatches = {}
+  on_open(win)
+  return dispatches
+end
+
+local native = check({ class = "Gamedevtycoon64-bin", pid = game_pid, floating = false, fullscreen = 0, tags = {} })
+assert(#native == 2 and native[1].kind == "tag" and native[1].tag == "+steam-game", "native game not tagged")
+assert(native[2].kind == "fullscreen" and native[2].mode == "fullscreen" and native[2].action == "set", "native game not fullscreened")
+
+local on_float_ws = check({ class = "Gamedevtycoon64-bin", pid = game_pid, floating = true, fullscreen = 0, tags = { "omarchy-mode-opened*" } })
+assert(#on_float_ws == 2 and on_float_ws[2].kind == "fullscreen", "native game on floating workspace not fullscreened")
+
+assert(#check({ class = "Gamedevtycoon64-bin", pid = game_pid, floating = true, fullscreen = 0, tags = {} }) == 0, "floating game dialog should stay floating")
+assert(#check({ class = "steam", pid = game_pid, floating = false, fullscreen = 0, tags = {} }) == 0, "steam client should be ignored")
+assert(#check({ class = "steam_app_battlenet", pid = game_pid, floating = false, fullscreen = 0, tags = {} }) == 0, "battle.net should be ignored")
+assert(#check({ class = "foot", pid = plain_pid, floating = false, fullscreen = 0, tags = {} }) == 0, "non-Steam window should be ignored")
+LUA
+kill "$steam_game_pid" "$plain_app_pid" 2>/dev/null || true
+pass "native Linux Steam games fullscreen on open without affecting dialogs or other apps"
