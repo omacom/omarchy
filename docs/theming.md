@@ -8,7 +8,7 @@ Omarchy themes live under `themes/<name>/` in the source tree (installed at
 
 Beyond `colors.toml` and hand-written config overrides, a first-party theme can ship `backgrounds/` (users overlay their own via `~/.config/omarchy/backgrounds/<name>/`; the active image is the `~/.local/state/omarchy/current/background` symlink), `preview.png` for the theme switcher, `keyboard.rgb`, and a `light.mode` marker file.
 
-The boot splash, with its drive-unlock prompt, and the login screen take the theme's `background`, `foreground`, `accent` and `red`, not images it ships ([boot-splash.md](boot-splash.md#colors)). Apple Silicon keeps Plymouth, in Omarchy's default look, for its drive unlock.
+The boot splash, with its drive-unlock prompt, and the login screen take the theme's `background`, `foreground`, `accent` and `red` (or optional `splash_background`, `splash_foreground`, `splash_accent` and `splash_error` overrides in `colors.toml`), not images it ships ([boot-splash.md](boot-splash.md#colors)). Apple Silicon keeps Plymouth, in Omarchy's default look, for its drive unlock.
 
 The built-in themes' stills live in [omacom/omarchy-themes-backgrounds](https://github.com/omacom/omarchy-themes-backgrounds), not in this repository, and ship as the `omarchy-themes-backgrounds` package into `/usr/share/omarchy/themes/<name>/backgrounds/`. `omarchy-theme-set` copies that packaged `backgrounds/` (stills, intros and loops) into the theme it stages without overwriting what the theme ships, so a dev-linked checkout gets them too. A theme left with no backgrounds at all, its own or the user's, gets one drawn from its colors: `omarchy-theme-bg-generate` writes `backgrounds/omarchy.png`, the Omarchy mark in the theme's `accent` centered on its `background`.
 

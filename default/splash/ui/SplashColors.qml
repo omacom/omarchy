@@ -14,8 +14,8 @@ Scope {
   readonly property var colors: {
     const result = {
       background: "#1a1b26",
-      foreground: "#a9b1d6",
-      accent: "#7aa2f7",
+      foreground: "#c0caf5",
+      accent: "#a8cd76",
       error: "#f7768e"
     }
     for (const line of file.text().split("\n")) {

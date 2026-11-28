@@ -142,7 +142,7 @@ ShellRoot {
 
       Rectangle {
         anchors.fill: parent
-        color: Commons.Color.background
+        color: Commons.Color.splashBackground
         opacity: root.coverOpacity
 
         Image {
@@ -159,7 +159,7 @@ ShellRoot {
 
         Rectangle {
           anchors.fill: logo
-          color: Commons.Color.accent
+          color: Commons.Color.splashAccent
           layer.enabled: true
           layer.effect: MultiEffect {
             maskEnabled: true
@@ -175,12 +175,12 @@ ShellRoot {
           height: 10 * cover.splashUnit
           x: (parent.width - width) / 2
           y: logo.y + logo.height + (40 + (48 - 10) / 2) * cover.splashUnit
-          color: Qt.tint(Commons.Color.background, Qt.alpha(Commons.Color.foreground, 0.1))
+          color: Qt.tint(Commons.Color.splashBackground, Qt.alpha(Commons.Color.splashForeground, 0.1))
 
           Rectangle {
             width: Math.max(1, Math.round(300 * root.progress)) * cover.splashUnit
             height: parent.height
-            color: Commons.Color.foreground
+            color: Commons.Color.splashForeground
           }
         }
       }

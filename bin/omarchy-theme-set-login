@@ -6,7 +6,7 @@
 # The boot splash draws before the disk is unlocked, so it reads its colors
 # from the ESP, and the login screen runs as the greeter user; both copies are
 # root's to write, which omarchy-theme-set-login-colors does.
-SYSTEM_COPY=/var/lib/omarchy/login/colors
+SYSTEM_COPY=${OMARCHY_LOGIN_COLORS_PATH:-/var/lib/omarchy/login/colors}
 
 # Both are the machine's, and the passwordless grant to write them
 # (etc/sudoers.d/omarchy-theme-login) is wheel's. Anyone else would be asked to
@@ -21,24 +21,29 @@ while IFS=$'\t' read -r key value; do
 done < <(omarchy-theme-color --all)
 
 # Six lowercase hex digits, without the "#": the form the writer and its
-# sudoers rule take.
+# sudoers rule take. Tries each palette key in order, falling back to the final
+# argument.
 hex() {
-  local value=${palette[$1]:-}
-  value=${value#\#}
-  value=${value,,}
-  if [[ $value =~ ^[0-9a-f]{6}$ ]]; then
-    echo "$value"
-  else
-    echo "$2"
-  fi
+  local key value
+  for key in "${@:1:$#-1}"; do
+    value=${palette[$key]:-}
+    value=${value#\#}
+    value=${value,,}
+    if [[ $value =~ ^[0-9a-f]{6}$ ]]; then
+      echo "$value"
+      return
+    fi
+  done
+  echo "${@: -1}"
 }
 
 # SplashColors.qml's defaults, for any color a theme leaves out, repeated here
-# because the writer takes all four.
-background=$(hex background 1a1b26)
-foreground=$(hex foreground a9b1d6)
-accent=$(hex accent 7aa2f7)
-error=$(hex red f7768e)
+# because the writer takes all four. A theme can override any of them with a
+# splash_* key while keeping its desktop palette intact.
+background=$(hex splash_background background 1a1b26)
+foreground=$(hex splash_foreground foreground c0caf5)
+accent=$(hex splash_accent accent a8cd76)
+error=$(hex splash_error red f7768e)
 
 # Skip the privileged write when the colors are already in place: this must
 # match what the writer writes (omarchy-theme-set-login-colors), or every theme

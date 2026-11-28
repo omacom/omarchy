@@ -28,6 +28,9 @@ QtObject {
   property color foreground: _paletteDefaults.foreground
   property color background: _paletteDefaults.background
   property color accent: _paletteDefaults.accent
+  property color splashForeground: _paletteDefaults.foreground
+  property color splashBackground: _paletteDefaults.background
+  property color splashAccent: _paletteDefaults.accent
   property color urgent: _paletteDefaults.urgent
   // A caution short of urgent: the theme's yellow.
   property color warning: _paletteDefaults.warning
@@ -167,6 +170,9 @@ QtObject {
     foreground = named.foreground || named.color7 || _paletteDefaults.foreground
     background = named.background || named.color0 || _paletteDefaults.background
     accent = named.accent || named.color4 || _paletteDefaults.accent
+    splashForeground = named.splash_foreground || foreground
+    splashBackground = named.splash_background || background
+    splashAccent = named.splash_accent || accent
     urgent = nextUrgent
     warning = nextWarning
     muted = named.muted || named.color8 || foreground
