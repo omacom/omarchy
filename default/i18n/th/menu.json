@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "ลอย"
   },
-  "appearance.unlock": {
-    "label": "ปลดล็อก"
-  },
   "trigger.toggle": {
     "label": "สลับ"
   },
@@ -993,9 +990,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"

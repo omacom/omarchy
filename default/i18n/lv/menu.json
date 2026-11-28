@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Peldošs"
   },
-  "appearance.unlock": {
-    "label": "Atbloķēt"
-  },
   "trigger.toggle": {
     "label": "Pārslēgt"
   },
@@ -993,9 +990,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"

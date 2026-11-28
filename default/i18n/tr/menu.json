@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Yüzen"
   },
-  "appearance.unlock": {
-    "label": "Kilidi Aç"
-  },
   "trigger.toggle": {
     "label": "Aç/Kapat"
   },
@@ -993,9 +990,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"

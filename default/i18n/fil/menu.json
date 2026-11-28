@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Lumulutang"
   },
-  "appearance.unlock": {
-    "label": "I-unlock"
-  },
   "trigger.toggle": {
     "label": "I-toggle"
   },
@@ -993,9 +990,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"

@@ -1,12 +1,12 @@
 # Tema
 
-Omarchy dilengkapi dengan dua puluh tiga tema yang indah. Anda dapat memilih di antaranya melalui _Tampilan > Tema_ di Menu Omarchy (`Super + Space`) atau langsung melompat ke pemilih tema menggunakan `Super + Ctrl + T`.
+Omarchy hadir dengan dua puluh tiga tema yang indah. Kamu bisa memilih di antaranya melalui _Tampilan > Tema_ di Menu Omarchy (`Super + Space`) atau langsung melompat ke pemilih tema menggunakan `Super + Ctrl + T`.
 
-Setiap tema memberi gaya pada desktop, terminal, neovim, layar aktivitas (btop), browser Anda (Chrome, Chromium, Edge atau Brave), dan seluruh shell Omarchy: bilah atas, menu, notifikasi, OSD, dan layar kunci. (Untuk Obsidian, Anda harus memilih tema Omarchy secara manual melalui _Tampilan > Tema_ di dalam aplikasi).
+Setiap tema memberi gaya pada desktop, terminal, neovim, layar aktivitas (btop), browser kamu (Chrome, Chromium, Edge atau Brave), dan seluruh shell Omarchy: bar atas, menu, notifikasi, OSD, dan layar kunci. (Untuk Obsidian, kamu harus memilih tema Omarchy secara manual melalui _Tampilan > Tema_ di dalam aplikasi tersebut).
 
-Tema memiliki serangkaian gambar latar belakang yang dapat Anda pilih menggunakan `Super + Ctrl + W`.
+Tema memiliki serangkaian gambar latar belakang yang bisa kamu pilih di antaranya menggunakan `Super + Ctrl + W`.
 
-Anda dapat menemukan lebih banyak tema lagi di [halaman tema tambahan](https://omarchy.org/themes/) atau bahkan [membuat tema Anda sendiri](43-making-your-own-theme.md).
+Kamu bisa menemukan lebih banyak tema lagi di [halaman tema ekstra](https://omarchy.org/themes/) atau bahkan [membuat tema kamu sendiri](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -79,82 +79,16 @@ _Starship_
 
 ### Ikon aplikasi
 
-Ikon di peluncur aplikasi dan dock digambar dengan warna tema Anda, jadi ikut berubah bersama tema. Ikon tersebut berasal dari satu set ikon, yang Anda pilih secara terpisah dari tema di bawah _Tampilan > Ikon_, dari pratinjau setiap set, dengan cara yang sama seperti Anda memilih tema:
+Ikon-ikon di peluncur aplikasi dan dock digambar dengan warna tema kamu, jadi ikon-ikon tersebut berubah mengikuti tema. Ikon-ikon tersebut berasal dari satu set ikon, yang kamu pilih secara terpisah dari tema di bawah _Tampilan > Ikon_, dari pratinjau setiap set, dengan cara yang sama seperti kamu memilih tema:
 
-- _Papercraft_ adalah default-nya: semua yang terinstal digambar dalam satu gaya. Aplikasi yang dikenal dari logonya, seperti Chrome, HEY, atau YouTube, mempertahankan bentuknya dan menggunakan warna tema.
-- _Arcade_ menggambar aplikasi yang sama sebagai seni piksel 8-bit, seperti yang dilakukan konsol game lama.
+- _Papercraft_ adalah default-nya: semua yang terpasang, digambar dalam satu gaya. Aplikasi yang dikenal dari logonya, seperti Chrome, HEY, atau YouTube, mempertahankan bentuknya dan mengambil warna tema.
+- _Arcade_ menggambar aplikasi yang sama sebagai seni piksel 8-bit, seperti yang akan dilakukan konsol game lama.
 - _Original_ menampilkan setiap aplikasi dengan ikon yang diberikan oleh pembuatnya.
 
-Anda dapat memasang set ikon yang dibuat orang lain dengan _Pasang > Gaya > Ikon_ (atau `omarchy icons install <git url>`), dan menghapusnya lagi di bawah _Hapus > Ikon_. _Perbarui > Ikon Ekstra_ mengambil versi terbaru dari set yang telah Anda pasang.
+Kamu bisa memasang set ikon buatan orang lain dengan _Pasang > Gaya > Ikon_ (atau `omarchy icons install <git url>`), dan menghapusnya lagi di bawah _Hapus > Ikon_. _Perbarui > Ikon Ekstra_ mengambil versi terbaru dari set yang telah kamu pasang.
 
-Untuk membuat set Anda sendiri, letakkan ikon Anda di `~/.config/omarchy/icons/<name>/`, satu file per aplikasi, dinamai sesuai baris `Icon=` dari file `.desktop` aplikasi tersebut. File yang berakhiran `.svg` ditampilkan apa adanya. File yang berakhiran `.svg.tpl` digambar dengan warna tema: tulis `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` atau `{{ icon_shadow }}` di tempat warna seharusnya berada. Set default di `/usr/share/omarchy/icons/papercraft/` adalah tempat yang baik untuk memulai. Tambahkan `preview.png` untuk menampilkan set Anda di pemilih; tanpa itu, Omarchy menggambar pratinjau dari ikon Anda. Untuk mengubah satu ikon saja dari set default, letakkan versi Anda di `~/.config/omarchy/icons/papercraft/`.
+Untuk membuat set kamu sendiri, letakkan ikon-ikon kamu di `~/.config/omarchy/icons/<name>/`, satu file per aplikasi, diberi nama sesuai baris `Icon=` dari file `.desktop` aplikasi tersebut. File yang berakhiran `.svg` ditampilkan apa adanya. File yang berakhiran `.svg.tpl` digambar dengan warna tema: tulis `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` atau `{{ icon_shadow }}` di tempat warna seharusnya berada. Set default di `/usr/share/omarchy/icons/papercraft/` adalah tempat yang baik untuk memulai. Tambahkan `preview.png` untuk menampilkan set kamu di pemilih; tanpa file tersebut, Omarchy menggambar pratinjau dari ikon-ikon kamu. Untuk mengubah satu ikon dari set default, letakkan versi kamu di `~/.config/omarchy/icons/papercraft/`.
 
-### Buka Kunci
+### Boot dan login
 
-Tema juga dapat memiliki desain buka kunci khusus, yang digunakan untuk proses dekripsi saat boot. Anda dapat memilih salah satunya di bawah _Tampilan > Buka Kunci_. Tampilannya seperti ini:
-
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
-
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
-
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
-
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
-
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
-
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
-
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
-
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
-
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![last-horizon](../themes/last-horizon/preview-unlock.png)
-_Last Horizon_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![lupine](../themes/lupine/preview-unlock.png)
-_Lupine_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![solitude](../themes/solitude/preview-unlock.png)
-_Solitude_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+Layar yang meminta kata sandi drive kamu saat komputer menyala, dan layar login, juga mengikuti tema. Setiap kali kamu berganti tema, keduanya mengambil latar belakang, teks, aksen, dan warna merahnya, jadi tidak ada desain buka kunci terpisah yang perlu dipilih. Di Mac Apple Silicon, layar kata sandi drive tetap mempertahankan tampilan default Omarchy apa pun temanya.
