@@ -707,5 +707,6 @@
   "camera.title": "Camera",
   "camera.tooltipActive": "Camera active — click to tune image",
   "camera.warmth": "Warmth",
-  "wifiqr.showPassword": "Show password"
+  "wifiqr.showPassword": "Show password",
+  "dock.settings": "Dock Settings"
 }
