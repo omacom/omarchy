@@ -64,8 +64,8 @@ BarWidget {
       root.bar.shell.updateEntryInline(root.moduleName, entry)
   }
 
-  // Day and month names follow the Omarchy language, not the system locale,
-  // which only catches up at the next login.
+  // Day and month names follow the Omarchy language, in the session's region
+  // when it names one of that language (I18n.formatLocale).
   readonly property var formatLocale: Qt.locale(I18n.formatLocale)
 
   // The ISO week goes in as a literal, so its digits are localized here the

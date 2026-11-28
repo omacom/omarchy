@@ -3,6 +3,7 @@ import QtQuick
 import Quickshell
 import "Plural.js" as Plural
 import "Numbers.js" as Numbers
+import "RegionalFormat.js" as RegionalFormat
 
 // Display-language strings for the shell. The selected code lives in
 // ~/.config/omarchy/language (omarchy-language owns it); a missing file
@@ -21,7 +22,17 @@ QtObject {
 
   readonly property string language: languageCode(languageFile.text)
   readonly property var localeSettings: parseCatalog(registryFile.text)[root.language] || ({})
-  readonly property string formatLocale: localeSettings.formatLocale || "en-US"
+  readonly property string registryLocale: localeSettings.formatLocale || "en-US"
+  // The registry's locale, unless the session's regional formats name a
+  // region of the same language (en_AU, en_GB, fr_CA): then that region's.
+  // omarchy-language and omarchy-region restart the shell, so the
+  // environment read here is current.
+  readonly property string formatLocale: RegionalFormat.pick(root.registryLocale,
+    RegionalFormat.sessionLocale(Quickshell.env("LC_ALL"), Quickshell.env("LC_TIME"), Quickshell.env("LANG")))
+  // Units (°C or °F) follow LC_MEASUREMENT the same way.
+  readonly property string measurementLocale: RegionalFormat.pick(root.registryLocale,
+    RegionalFormat.sessionLocale(Quickshell.env("LC_ALL"), Quickshell.env("LC_MEASUREMENT"), Quickshell.env("LANG")))
+  readonly property bool dayFirst: RegionalFormat.dayFirst(Qt.locale(root.formatLocale).dateFormat(Locale.LongFormat))
   // From the registry: how numbers are written and which way text runs.
   readonly property string decimal: localeSettings.decimal || "."
   readonly property string zeroDigit: localeSettings.zeroDigit || "0"
@@ -55,6 +66,14 @@ QtObject {
     if (typeof value !== "string" || value.length === 0) value = Plural.pick(root.englishStrings[key], "en", count)
     if (typeof value === "string" && value.length > 0) return value
     return fallback !== undefined ? fallback : key
+  }
+
+  // A catalog date pattern in the region's day and month order. Only the
+  // English catalog is month first for every region; each translation
+  // already writes its own order. Pass the pattern, not its key:
+  // I18n.regionalDate(I18n.t("clock.dayMonthFormat")).
+  function regionalDate(pattern) {
+    return root.language === "en" ? RegionalFormat.orderDayMonth(pattern, root.dayFirst) : pattern
   }
 
   // A number with the language's decimal separator and digits, ungrouped:

@@ -66,8 +66,8 @@ Panel {
   // convention. Clicking the grid's "W" heading writes the choice back to
   // shell.json.
   readonly property int weekStart: Model.normalizedWeekStart(setting("weekStartDay", null), labelLocale.firstDayOfWeek)
-  // Names and the default week start follow the Omarchy language rather than
-  // the system locale, which only catches up at the next login.
+  // Names and the default week start follow the Omarchy language, in the
+  // session's region when it names one of that language (I18n.formatLocale).
   readonly property var labelLocale: Qt.locale(Commons.I18n.formatLocale)
   // Qt's MMMM is the genitive form ("октября"), right beside a day but not
   // in a month heading, so the title takes the standalone name ("октябрь")
@@ -323,7 +323,7 @@ Panel {
                 id: heroDate
                 textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.today.toLocaleDateString(root.labelLocale, Commons.I18n.t("clock.dayMonthFormat"))
+                text: root.today.toLocaleDateString(root.labelLocale, Commons.I18n.regionalDate(Commons.I18n.t("clock.dayMonthFormat")))
                 color: heroMouse.containsMouse
                   ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
                   : root.contentForeground

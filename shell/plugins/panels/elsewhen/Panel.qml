@@ -43,7 +43,7 @@ Panel {
   // "home" shows the distance from here ("+2h"), "utc" the zone itself ("UTC-5").
   readonly property string offsetMode: setting("offsetMode", "home") === "utc" ? "utc" : "home"
   // Only the US measurement system means Fahrenheit.
-  readonly property string autoUnits: formatLocale.measurementSystem === Locale.ImperialUSSystem ? "F" : "C"
+  readonly property string autoUnits: Qt.locale(Commons.I18n.measurementLocale).measurementSystem === Locale.ImperialUSSystem ? "F" : "C"
   readonly property string units: Model.resolveUnits(setting("units", ""), autoUnits)
   readonly property bool globeEnabled: setting("globeEnabled", true) !== false
   // Draw the globe with less in it while it moves.
@@ -60,7 +60,7 @@ Panel {
       pm: locale.pmText,
       date: function(parts) {
         return new Date(parts.year, parts.month, parts.day, 12)
-          .toLocaleString(locale, Commons.I18n.t("elsewhen.dateFormat"))
+          .toLocaleString(locale, Commons.I18n.regionalDate(Commons.I18n.t("elsewhen.dateFormat")))
       }
     }
   }
