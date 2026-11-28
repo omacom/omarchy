@@ -79,6 +79,7 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   vim) command=vim ;;
   neovim) command=nvim ;;
   plain) command=plain ;;
+  ghostty) command=ghostty ;;
   esac
   ;;
 omarchy-install-browser)
@@ -318,6 +319,123 @@ for entry in "${terminal_cases[@]}"; do
     fail "$selection becomes the default terminal after installation"
 done
 pass "terminal defaults install every missing terminal before selection"
+
+ghostty_desktop="$test_home/.local/share/applications/com.mitchellh.ghostty.desktop"
+ghostty_desktop_ref="$test_tmp/ghostty-desktop-ref"
+cache_home="$test_home/custom-cache"
+
+rm -rf "$test_home/.local/share/applications"
+mkdir -p "$(dirname "$ghostty_desktop")" "$cache_home"
+touch "$installed_dir/ghostty"
+touch "$cache_home/xdg-terminal-exec"
+XDG_CACHE_HOME="$cache_home" omarchy-default-terminal ghostty
+cmp -s "$ROOT/default/ghostty/com.mitchellh.ghostty.desktop" "$ghostty_desktop" ||
+  fail "selecting Ghostty installs Omarchy's desktop entry"
+[[ ! -e $cache_home/xdg-terminal-exec ]] ||
+  fail "selecting a terminal invalidates the xdg-terminal-exec cache"
+pass "selecting Ghostty installs its desktop entry and invalidates the cache"
+
+printf '%s\n' \
+  '[Desktop Entry]' \
+  'Type=Application' \
+  'Name=Custom Ghostty' \
+  'Exec=/usr/bin/ghostty --custom' >"$ghostty_desktop_ref"
+cp "$ghostty_desktop_ref" "$ghostty_desktop"
+touch "$cache_home/xdg-terminal-exec"
+XDG_CACHE_HOME="$cache_home" omarchy-default-terminal ghostty
+cmp -s "$ghostty_desktop_ref" "$ghostty_desktop" ||
+  fail "selecting Ghostty preserves an existing user desktop entry"
+[[ ! -e $cache_home/xdg-terminal-exec ]] ||
+  fail "selecting a terminal invalidates the xdg-terminal-exec cache"
+pass "selecting Ghostty preserves an existing user desktop entry"
+
+ghostty_symlink_target="$test_tmp/custom-ghostty-target"
+ghostty_symlink_error="$test_tmp/ghostty-symlink-error"
+rm "$ghostty_desktop"
+ln -s "$ghostty_symlink_target" "$ghostty_desktop"
+touch "$cache_home/xdg-terminal-exec"
+XDG_CACHE_HOME="$cache_home" omarchy-default-terminal ghostty 2>"$ghostty_symlink_error"
+[[ ! -s $ghostty_symlink_error ]] ||
+  fail "selecting Ghostty does not write through a dangling desktop symlink" "$(<"$ghostty_symlink_error")"
+[[ -L $ghostty_desktop && $(readlink "$ghostty_desktop") == "$ghostty_symlink_target" ]] ||
+  fail "selecting Ghostty preserves a dangling desktop symlink"
+[[ ! -e $ghostty_symlink_target ]] ||
+  fail "selecting Ghostty does not create a dangling symlink target"
+[[ ! -e $cache_home/xdg-terminal-exec ]] ||
+  fail "selecting Ghostty invalidates the cache while preserving a symlink"
+pass "selecting Ghostty preserves a dangling desktop symlink"
+
+rm -rf "$test_home/.config/ghostty" "$test_home/.local/share/applications"
+mkdir -p "$cache_home"
+touch "$cache_home/xdg-terminal-exec"
+XDG_CACHE_HOME="$cache_home" "$ROOT/bin/omarchy-install-terminal" ghostty
+cmp -s "$ROOT/config/ghostty/config" "$test_home/.config/ghostty/config" ||
+  fail "direct Ghostty install copies the default config"
+cmp -s "$ROOT/default/ghostty/com.mitchellh.ghostty.desktop" "$ghostty_desktop" ||
+  fail "direct Ghostty install copies Omarchy's desktop entry"
+[[ ! -e $cache_home/xdg-terminal-exec ]] ||
+  fail "direct Ghostty install invalidates the xdg-terminal-exec cache"
+[[ $(tail -n 1 "$test_home/.config/xdg-terminals.list") == "com.mitchellh.ghostty.desktop" ]] ||
+  fail "direct Ghostty install selects Ghostty as the default terminal"
+pass "direct Ghostty install copies the config and desktop entry and invalidates the cache"
+
+cp "$ghostty_desktop_ref" "$ghostty_desktop"
+touch "$cache_home/xdg-terminal-exec"
+XDG_CACHE_HOME="$cache_home" "$ROOT/bin/omarchy-install-terminal" ghostty
+cmp -s "$ghostty_desktop_ref" "$ghostty_desktop" ||
+  fail "direct Ghostty install preserves an existing user desktop entry"
+pass "direct Ghostty install preserves an existing user desktop entry"
+
+rm "$ghostty_desktop"
+ln -s "$ghostty_symlink_target" "$ghostty_desktop"
+touch "$cache_home/xdg-terminal-exec"
+XDG_CACHE_HOME="$cache_home" "$ROOT/bin/omarchy-install-terminal" ghostty \
+  >"$test_tmp/direct-ghostty-symlink-output" 2>"$ghostty_symlink_error"
+[[ ! -s $ghostty_symlink_error ]] ||
+  fail "direct Ghostty install does not write through a dangling desktop symlink" "$(<"$ghostty_symlink_error")"
+[[ -L $ghostty_desktop && $(readlink "$ghostty_desktop") == "$ghostty_symlink_target" ]] ||
+  fail "direct Ghostty install preserves a dangling desktop symlink"
+[[ ! -e $ghostty_symlink_target ]] ||
+  fail "direct Ghostty install does not create a dangling symlink target"
+[[ ! -e $cache_home/xdg-terminal-exec ]] ||
+  fail "direct Ghostty install invalidates the cache while preserving a symlink"
+pass "direct Ghostty install preserves a dangling desktop symlink"
+
+refresh_bin="$test_tmp/refresh-bin"
+mkdir -p "$refresh_bin"
+cat >"$refresh_bin/omarchy-cmd-present" <<'SH'
+#!/bin/bash
+[[ $1 == "ghostty" ]]
+SH
+cat >"$refresh_bin/update-desktop-database" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$refresh_bin"/*
+
+rm "$ghostty_desktop"
+cp "$ghostty_desktop_ref" "$ghostty_desktop"
+PATH="$refresh_bin:$PATH" omarchy-refresh-applications
+cmp -s "$ghostty_desktop_ref" "$ghostty_desktop" ||
+  fail "application refresh preserves an existing Ghostty desktop entry"
+pass "application refresh preserves an existing Ghostty desktop entry"
+
+rm "$ghostty_desktop"
+ln -s "$ghostty_symlink_target" "$ghostty_desktop"
+PATH="$refresh_bin:$PATH" omarchy-refresh-applications >"$ghostty_symlink_error" 2>&1
+[[ ! -s $ghostty_symlink_error ]] ||
+  fail "application refresh does not write through a dangling Ghostty desktop symlink" "$(<"$ghostty_symlink_error")"
+[[ -L $ghostty_desktop && $(readlink "$ghostty_desktop") == "$ghostty_symlink_target" ]] ||
+  fail "application refresh preserves a dangling Ghostty desktop symlink"
+[[ ! -e $ghostty_symlink_target ]] ||
+  fail "application refresh does not create a dangling Ghostty symlink target"
+pass "application refresh preserves a dangling Ghostty desktop symlink"
+
+rm "$ghostty_desktop"
+PATH="$refresh_bin:$PATH" omarchy-refresh-applications
+cmp -s "$ROOT/default/ghostty/com.mitchellh.ghostty.desktop" "$ghostty_desktop" ||
+  fail "application refresh installs the Ghostty desktop entry when missing"
+pass "application refresh installs the Ghostty desktop entry when missing"
 
 for entry in "${editor_cases[@]}"; do
   read -r selection command installer <<<"$entry"
