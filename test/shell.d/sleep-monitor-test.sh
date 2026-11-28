@@ -104,3 +104,38 @@ if kill -0 "$producer_pid" 2>/dev/null; then
   fail "sleep monitor cleans up its producer when terminated" "producer still running: $producer_pid"
 fi
 pass "sleep monitor cleans up its producer when terminated"
+
+cat >"$mock_bin/dbus-monitor" <<'SH_STUB'
+#!/bin/bash
+printf 'signal without a sleep transition\n'
+sleep 0.05
+SH_STUB
+chmod +x "$mock_bin/dbus-monitor"
+for mode in --consume --inhibited service; do
+  args=()
+  [[ $mode == service ]] || args+=("$mode")
+  status=0
+  OMARCHY_PATH="$mock_omarchy" PATH="$mock_bin:$PATH" \
+    "$sleep_monitor" "${args[@]}" </dev/null >"$tmpdir/output" 2>&1 || status=$?
+  (( status == 1 )) || fail "$mode reports an event stream ending without a sleep event" "status: $status"
+  pass "sleep monitor reports EOF in $mode mode"
+done
+
+cat >"$mock_bin/dbus-monitor" <<'SH_STUB'
+#!/bin/bash
+printf '   boolean true\n'
+exec sleep 30
+SH_STUB
+cat >"$mock_omarchy/bin/omarchy-system-sleep-lock" <<'SH_STUB'
+#!/bin/bash
+exit 17
+SH_STUB
+for mode in --consume --inhibited service; do
+  args=()
+  [[ $mode == service ]] || args+=("$mode")
+  status=0
+  OMARCHY_PATH="$mock_omarchy" PATH="$mock_bin:$PATH" \
+    "$sleep_monitor" "${args[@]}" <<< '   boolean true' >"$tmpdir/output" 2>&1 || status=$?
+  (( status == 17 )) || fail "$mode preserves a failed lock helper status" "status: $status"
+  pass "sleep monitor reports lock-helper failure in $mode mode"
+done
