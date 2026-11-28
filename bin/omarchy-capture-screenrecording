@@ -116,12 +116,16 @@ start_webcam_overlay() {
   done
 
   # ffplay's SDL window takes its Wayland app id from the environment, which the
-  # overlay's window rules match on.
+  # overlay's window rules match on. -noborder is left off on purpose: ffplay
+  # treats it as exclusive with a resizable window and then locks the minimum
+  # and maximum size to the camera frame, so the size presets and an edge drag
+  # never apply. The window rule draws no border, which keeps one out of the
+  # recording.
   SDL_VIDEO_WAYLAND_WMCLASS="WebcamOverlay-$WEBCAM_SIZE" SDL_APP_ID="WebcamOverlay-$WEBCAM_SIZE" \
     ffplay -f v4l2 "${capture_options[@]}" -i "$WEBCAM_DEVICE" \
     -fflags nobuffer -flags low_delay -framedrop -sync ext \
     -vf 'crop=ih*8/9:ih' \
-    -window_title WebcamOverlay -noborder -an \
+    -window_title WebcamOverlay -an \
     -loglevel quiet 9>&- &>/dev/null &
 
   # The move has to settle before gpu-screen-recorder starts, or the camera is
