@@ -7,6 +7,8 @@
   "bar": {
     "position": "top",
     "background": "opaque",
+    "transparentOnlyWhenWorkspaceEmpty": false,
+    "transparentForegroundPerMonitor": false,
     "layout": {
       "left": [
         {
