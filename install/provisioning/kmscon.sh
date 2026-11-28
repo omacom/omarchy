@@ -119,7 +119,22 @@ omarchy_kmscon() {
     # print /etc/issue, a line naming the system, ahead of the command.
     export LANG=C.UTF-8
     unset LC_ALL COLUMNS LINES
+    # On Qualcomm Snapdragon (msm DRM), kmscon's atomic DRM backend fails
+    # with EINVAL (-22) when switching a plane across CRTCs when an external
+    # display is attached, leaving the external screen blank and spamming
+    # adreno_request_fw. Fall back to fbdev (--no-drm) on msmdrmfb, where
+    # kmscon renders cleanly across both panels.
+    local fb_name=${OMARCHY_KMSCON_FB_NAME-}
+    if [[ -z $fb_name && -r /sys/class/graphics/fb0/name ]]; then
+      read -r fb_name </sys/class/graphics/fb0/name 2>/dev/null || true
+    fi
+    local -a drm_args=()
+    if [[ $fb_name == "msmdrmfb" ]]; then
+      drm_args=(--no-drm)
+    fi
+
     exec kmscon \
+      "${drm_args[@]}" \
       --vt="$(tty)" \
       --oneshot \
       --no-reset-env \
