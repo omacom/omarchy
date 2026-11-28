@@ -12,6 +12,17 @@ export OMARCHY_PATH="$ROOT"
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
+assertEqual(bar.normalizeGlassOpacity(undefined), 35, 'glassy opacity defaults to the stock 35 percent')
+assertEqual(bar.normalizeGlassOpacity(null), 35, 'glassy opacity treats a non-number as the default')
+assertEqual(bar.normalizeGlassOpacity(0), 1, 'glassy opacity stays above clear')
+assertEqual(bar.normalizeGlassOpacity(100), 99, 'glassy opacity stays below opaque')
+assertDeepEqual(bar.stepBackground('opaque', 35, -1), { background: 'glassy', glassOpacity: 90 }, 'scrolling down from opaque turns glassy at 90 percent')
+assertDeepEqual(bar.stepBackground('glassy', 35, -1), { background: 'glassy', glassOpacity: 25 }, 'scrolling down fades glassy by ten points')
+assertDeepEqual(bar.stepBackground('glassy', 5, -1), { background: 'none', glassOpacity: 5 }, 'scrolling below glassy turns clear')
+assertDeepEqual(bar.stepBackground('glassy', 95, 1), { background: 'opaque', glassOpacity: 95 }, 'scrolling above glassy turns opaque')
+assertDeepEqual(bar.stepBackground('none', 35, 1), { background: 'glassy', glassOpacity: 10 }, 'scrolling up from clear turns glassy at 10 percent')
+assertDeepEqual(bar.stepBackground('opaque', 35, 1), { background: 'opaque', glassOpacity: 35 }, 'scrolling up stays opaque')
+assertDeepEqual(bar.stepBackground('none', 35, -1), { background: 'none', glassOpacity: 35 }, 'scrolling down stays clear')
 
 // A widget's slot can be on the bar without being drawn (hidden by the
 // widget, or folded away by a drag), so panel routing has to pick the one
