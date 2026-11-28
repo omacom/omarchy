@@ -452,5 +452,14 @@
     "decimal": ",",
     "zeroDigit": "0",
     "site": "https://pt-br.omarchy.org/"
+  },
+  "ky": {
+    "name": "Кыргызча",
+    "englishName": "Kyrgyz",
+    "formatLocale": "ky-KG",
+    "locale": "ky_KG.UTF-8",
+    "decimal": ",",
+    "zeroDigit": "0",
+    "community": true
   }
 }

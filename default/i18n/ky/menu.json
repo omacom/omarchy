@@ -1,0 +1,1449 @@
+{
+  "root": {
+    "label": "Өтүү"
+  },
+  "apps": {
+    "label": "Тиркемелер"
+  },
+  "learn": {
+    "label": "Үйрөнүү"
+  },
+  "appearance": {
+    "label": "Көрүнүш"
+  },
+  "trigger": {
+    "label": "Аракеттер"
+  },
+  "setup": {
+    "label": "Жөндөө"
+  },
+  "install": {
+    "label": "Орнотуу"
+  },
+  "remove": {
+    "label": "Алып салуу"
+  },
+  "update": {
+    "label": "Жаңыртуу"
+  },
+  "system": {
+    "label": "Тутум"
+  },
+  "system.about": {
+    "label": "Тутум жөнүндө"
+  },
+  "system.screensaver": {
+    "label": "Экран сактагыч"
+  },
+  "system.lock": {
+    "label": "Кулпулоо"
+  },
+  "system.suspend": {
+    "label": "Уйку режими"
+  },
+  "system.hibernate": {
+    "label": "Терең уйку"
+  },
+  "system.logout": {
+    "label": "Сеанстан чыгуу"
+  },
+  "system.reboot": {
+    "label": "Кайра жүктөө"
+  },
+  "system.firmware": {
+    "label": "BIOS ичине кайра жүктөө",
+    "description": "UEFI микропрограммасынын жөндөөлөрүнө кайра жүктөө"
+  },
+  "system.shutdown": {
+    "label": "Өчүрүү"
+  },
+  "learn.keybindings": {
+    "label": "Баскыч айкалыштары"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Коомчулук"
+  },
+  "appearance.theme": {
+    "label": "Тема"
+  },
+  "appearance.background": {
+    "label": "Фон"
+  },
+  "appearance.font": {
+    "label": "Арип"
+  },
+  "appearance.icons": {
+    "label": "Белгилер"
+  },
+  "appearance.top-bar": {
+    "label": "Меню панели"
+  },
+  "appearance.top-bar.hide": {
+    "label": "Панелди жашыруу"
+  },
+  "appearance.top-bar.show": {
+    "label": "Панелди көрсөтүү"
+  },
+  "appearance.top-bar.position": {
+    "label": "Панелди жайгаштыруу"
+  },
+  "appearance.top-bar.background": {
+    "label": "Панелдин фону"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "Тунук эмес панель"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "Айнектей панель"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "Тунук панель"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "Панелдин көрсөткүчтөрү"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Батареянын % көрсөтүү"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Батареянын % жашыруу"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "Саат"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Жекшемби 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Жекшемби 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Жекшемби 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Жекшемби 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "Жек 3 Май 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "Жек 3 Май 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 Май W18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 Май W18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "Жогорку панель"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "Төмөнкү панель"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "Сол панель"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "Оң панель"
+  },
+  "appearance.windows": {
+    "label": "Терезелер"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Терезе аралыктарын күйгүзүү"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Терезе аралыктарын өчүрүү"
+  },
+  "appearance.windows.corners": {
+    "label": "Терезе бурчтары"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "Темадагы бурчтар"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "Тик бурчтар"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "Тегерек бурчтар"
+  },
+  "appearance.windows.transparency": {
+    "label": "Терезенин тунуктугу"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "Тунук эмес терезелер"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "Тунук терезелер"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "Айнектей терезелер"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Жалгыз терезенин катышын күйгүзүү"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Жалгыз терезенин катышын өчүрүү"
+  },
+  "appearance.branding": {
+    "label": "Өзгөчө белгилер"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Экран сактагыч"
+  },
+  "appearance.branding.about": {
+    "label": "Тутум жөнүндө"
+  },
+  "appearance.branding.about.text": {
+    "label": "Текстти түзөтүү"
+  },
+  "appearance.branding.about.image": {
+    "label": "Сүрөттөн коюу"
+  },
+  "appearance.branding.about.default": {
+    "label": "Демейкисин кайтаруу"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Текстти түзөтүү"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Сүрөттөн коюу"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Демейкисин кайтаруу"
+  },
+  "appearance.dock": {
+    "label": "Док"
+  },
+  "appearance.dock.autohide": {
+    "label": "Докту автоматтык жашыруу"
+  },
+  "appearance.dock.always-on": {
+    "label": "Докту дайыма көрсөтүү"
+  },
+  "appearance.dock.position": {
+    "label": "Доктун жайгашуусу"
+  },
+  "appearance.dock.position.top": {
+    "label": "Жогорку док"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Төмөнкү док"
+  },
+  "appearance.dock.position.left": {
+    "label": "Сол док"
+  },
+  "appearance.dock.position.right": {
+    "label": "Оң док"
+  },
+  "appearance.workspace-layout": {
+    "label": "Иш мейкиндигинин жайгашуусу",
+    "title": "Иш мейкиндигинин демейки жайгашуусу"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "Тизүү"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "Жылдыруу"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "Эркин"
+  },
+  "appearance.animations-on": {
+    "label": "Анимацияларды күйгүзүү"
+  },
+  "appearance.animations-off": {
+    "label": "Анимацияларды өчүрүү"
+  },
+  "appearance.unlock": {
+    "label": "Кулпуну ачуу"
+  },
+  "trigger.toggle": {
+    "label": "Которуу"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Уйкуга өтпөө"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Уйкуга уруксат берүү"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Билдирмелерди күйгүзүү"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Билдирмелерди тынчытуу"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Түнкү жарыкты күйгүзүү"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Түнкү жарыкты өчүрүү"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Экран сактагычты күйгүзүү"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Экран сактагычты өчүрүү"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Кыйроону каттоону күйгүзүү"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Кыйроону каттоону өчүрүү"
+  },
+  "trigger.emoji": {
+    "label": "Эмодзи"
+  },
+  "trigger.clipboard-history": {
+    "label": "Алмашуу буферинин тарыхы"
+  },
+  "trigger.reminder": {
+    "label": "Эстеткич"
+  },
+  "trigger.capture": {
+    "label": "Экран тартуу"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Экран сүрөтү"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Экран жаздырууну токтотуу"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Экран жаздыруу"
+  },
+  "trigger.capture.text": {
+    "label": "Текст"
+  },
+  "trigger.capture.qr": {
+    "label": "QR код"
+  },
+  "trigger.capture.color": {
+    "label": "Түс"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Үнсүз"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "Иш тактасынын үнү менен"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "Иш тактасынын жана микрофондун үнү менен"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "Иш тактасынын жана микрофондун үнү, веб-камера менен"
+  },
+  "trigger.transcode": {
+    "label": "Форматка айландыруу"
+  },
+  "trigger.share": {
+    "label": "Бөлүшүү"
+  },
+  "trigger.hardware": {
+    "label": "Жабдуулар"
+  },
+  "trigger.tests": {
+    "label": "Ылдамдыкты текшерүү"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Ноутбуктун экранын күйгүзүү"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Ноутбуктун экранын өчүрүү"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Экранды кайталоону күйгүзүү"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Экранды кайталоону өчүрүү"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Гибриддик GPU режимине өтүү"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Камтылган GPU режимине өтүү"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Сенсордук тактаны күйгүзүү"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Сенсордук тактаны өчүрүү"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Сенсордук тактанын термелүүсү"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "төмөн"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "орто"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "жогору"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Сенсордук экранды күйгүзүү"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Сенсордук экранды өчүрүү"
+  },
+  "trigger.reminder.set": {
+    "label": "Эстеткич коюу"
+  },
+  "trigger.reminder.show": {
+    "label": "Баарын көрсөтүү"
+  },
+  "trigger.reminder.clear": {
+    "label": "Баарын тазалоо"
+  },
+  "trigger.share.clipboard": {
+    "label": "Алмашуу буфери"
+  },
+  "trigger.share.file": {
+    "label": "Файл"
+  },
+  "trigger.share.folder": {
+    "label": "Папка"
+  },
+  "trigger.share.receive": {
+    "label": "Кабыл алуу"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Тармактын ылдамдыгын текшерүү"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Дисктин ылдамдыгын текшерүү"
+  },
+  "setup.keyboard": {
+    "label": "Баскычтоп"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Баскыч айкалыштары"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Баскычтоп киргизүүлөрү"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Киргизүү ыкмалары"
+  },
+  "setup.input": {
+    "label": "Киргизүү"
+  },
+  "setup.region": {
+    "label": "Аймак"
+  },
+  "setup.region.language": {
+    "label": "Тил"
+  },
+  "setup.region.formats": {
+    "label": "Форматтар",
+    "description": "Күндөрдүн, убакыттын, сандардын жана бирдиктердин жазылышы"
+  },
+  "setup.region.timezone": {
+    "label": "Убакыт алкагы"
+  },
+  "setup.network": {
+    "label": "Тармак"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "setup.network.dns.custom": {
+    "label": "Өзгөчө"
+  },
+  "setup.network.hostname": {
+    "label": "Хост аты"
+  },
+  "setup.network.qr": {
+    "label": "QR код"
+  },
+  "setup.default": {
+    "label": "Демейкилер"
+  },
+  "setup.default.browser": {
+    "label": "Браузер",
+    "title": "Демейки браузер"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Үндөн текст жазуу",
+    "title": "Демейки үндөн текст жазуу"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Терминал",
+    "title": "Демейки терминал"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Редактор",
+    "title": "Демейки редактор"
+  },
+  "setup.default.editor.plain": {
+    "label": "Plain"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Плагиндер"
+  },
+  "setup.plugin.enable": {
+    "label": "Плагинди күйгүзүү"
+  },
+  "setup.plugin.disable": {
+    "label": "Плагинди өчүрүү"
+  },
+  "setup.plugin.add": {
+    "label": "Плагин кошуу"
+  },
+  "setup.plugin.clone": {
+    "label": "Плагинди клондоо"
+  },
+  "setup.plugin.remove": {
+    "label": "Плагинди алып салуу"
+  },
+  "setup.security": {
+    "label": "Коопсуздук"
+  },
+  "setup.config": {
+    "label": "Жөндөөлөр"
+  },
+  "setup.security.fingerprint": {
+    "label": "Манжа изи"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH агенти"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "sudo талап кылбаган Docker"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Сырсөзсүз sudo"
+  },
+  "setup.git": {
+    "label": "Git"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "remove.factory-reset": {
+    "label": "Заводдук абалга кайтаруу"
+  },
+  "install.package": {
+    "label": "Пакет"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "Кызмат"
+  },
+  "install.development": {
+    "label": "Программалоо"
+  },
+  "install.editor": {
+    "label": "Редактор"
+  },
+  "install.style": {
+    "label": "Көрүнүш"
+  },
+  "install.style.theme": {
+    "label": "Тема"
+  },
+  "install.style.background": {
+    "label": "Фон"
+  },
+  "install.style.icons": {
+    "label": "Белгилер"
+  },
+  "install.style.font": {
+    "label": "Арип"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Оюндар"
+  },
+  "install.browser": {
+    "label": "Браузер"
+  },
+  "install.webapp": {
+    "label": "Веб-тиркеме"
+  },
+  "install.terminal": {
+    "label": "Терминал"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Алдын ала орнотулгандар"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xbox контроллерлери"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch оюн иштеткичи"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Пакет"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "Алып салуу"
+  },
+  "remove.dictation": {
+    "label": "Үндөн текст жазуу"
+  },
+  "remove.service": {
+    "label": "Кызматтар",
+    "title": "Алып салуу"
+  },
+  "remove.development": {
+    "label": "Программалоо",
+    "title": "Алып салуу"
+  },
+  "remove.theme": {
+    "label": "Тема"
+  },
+  "remove.icons": {
+    "label": "Белгилер"
+  },
+  "remove.gaming": {
+    "label": "Оюндар",
+    "title": "Алып салуу"
+  },
+  "remove.browser": {
+    "label": "Браузер",
+    "title": "Алып салуу"
+  },
+  "remove.webapp": {
+    "label": "Веб-тиркеме"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Алдын ала орнотулгандар"
+  },
+  "remove.security": {
+    "label": "Коопсуздук",
+    "title": "Алып салуу"
+  },
+  "remove.security.fingerprint": {
+    "label": "Манжа изи"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "sudo талап кылбаган Docker"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH агенти"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xbox контроллерлери (󰂯)"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes оюну"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Алып салуу"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Алып салуу"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Алып салуу"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Канал"
+  },
+  "update.kernel": {
+    "label": "Өзөк"
+  },
+  "update.config": {
+    "label": "Жөндөөлөр",
+    "title": "Демейкисине кайтаруу"
+  },
+  "update.themes": {
+    "label": "Кошумча темалар"
+  },
+  "update.icons": {
+    "label": "Кошумча белгилер"
+  },
+  "update.games": {
+    "label": "Game Vibes оюндары"
+  },
+  "update.process": {
+    "label": "Процесс",
+    "title": "Кайра иштетүү"
+  },
+  "update.hardware": {
+    "label": "Жабдуулар",
+    "title": "Кайра иштетүү"
+  },
+  "update.firmware": {
+    "label": "Микропрограмма"
+  },
+  "update.password": {
+    "label": "Сырсөз"
+  },
+  "update.time": {
+    "label": "Убакыт"
+  },
+  "update.channel.stable": {
+    "label": "Туруктуу"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Кабык"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Кабык"
+  },
+  "update.hardware.audio": {
+    "label": "Үн"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Сенсордук такта"
+  },
+  "install.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop": {
+    "label": "Десктоп"
+  },
+  "install.ai.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "install.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.desktop.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "install.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "install.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "install.cli.github": {
+    "label": "GitHub"
+  },
+  "install.cli.hey": {
+    "label": "HEY"
+  },
+  "install.cli.hunk": {
+    "label": "Hunk"
+  },
+  "install.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "install.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "install.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "install.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "install.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "install.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "install.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "install.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "install.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "install.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "install.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "install.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "install.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "install.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "install.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "install.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "install.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "install.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "install.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "install.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "install.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.cli": {
+    "label": "CLI",
+    "title": "Алып салуу"
+  },
+  "remove.ai.desktop": {
+    "label": "Десктоп",
+    "title": "Алып салуу"
+  },
+  "remove.ai.cli": {
+    "label": "CLI",
+    "title": "Алып салуу"
+  },
+  "remove.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "remove.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "remove.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "remove.cli.github": {
+    "label": "GitHub"
+  },
+  "remove.cli.hey": {
+    "label": "HEY"
+  },
+  "remove.cli.hunk": {
+    "label": "Hunk"
+  },
+  "remove.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "remove.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "remove.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "remove.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "remove.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "remove.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "remove.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "remove.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "remove.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "remove.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "remove.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "remove.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "remove.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "remove.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "remove.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "remove.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "remove.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "remove.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "remove.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "remove.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "remove.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  }
+}
