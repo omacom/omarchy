@@ -247,6 +247,7 @@
   "setup.network.dns.custom": {"icon":"","label":"Custom","checked":"[[ \"$(omarchy-dns)\" == \"Custom\" ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dns Custom'"},
   "setup.network.hostname": {"icon":"󰌢","label":"Hostname","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-hostname"},
   "setup.network.qr": {"icon":"󰐲","label":"QR Code","aliases":["wifi-qr"],"when":"omarchy-network-wifi-connected","action":"omarchy-shell shell summon omarchy.wifiqr"},
+  "setup.dual-boot": {"icon":"󰋊","label":"Dual Boot","when":"! omarchy-hw-aarch64-apple && [[ $(omarchy-boot-backend --managed) == limine ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-dual-boot"},
 
   // Install
   "install.package": {"icon":"󰣇","label":"Package","action":"xdg-terminal-exec --app-id=org.omarchy.terminal omarchy-pkg-install"},
