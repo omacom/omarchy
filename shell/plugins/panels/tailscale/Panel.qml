@@ -972,7 +972,8 @@ Panel {
               parent: peerList
               width: Style.space(280)
               padding: 0
-              modal: false
+              modal: true
+              dim: false
               focus: true
               closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
               function handleKey(event) {
@@ -1292,8 +1293,12 @@ Panel {
       anchors.fill: parent
       acceptedButtons: Qt.LeftButton
       hoverEnabled: true
-      cursorShape: Qt.ArrowCursor
+      cursorShape: copyButton.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
       onContainsMouseChanged: if (containsMouse) root.setPeerCursor(peerRow.rowIndex)
+      onClicked: {
+        root.setPeerCursor(peerRow.rowIndex)
+        peerRow.openCopyMenu()
+      }
     }
 
     RowLayout {
@@ -1358,6 +1363,7 @@ Panel {
       PanelActionButton {
         id: copyButton
         iconText: "󰆏"
+        tooltipText: Commons.I18n.t("network.copyToClipboard")
         foreground: root.foreground
         fontFamily: root.fontFamily
         enabled: peerRow.peerIp !== "" || peerRow.peerName !== "" || peerRow.peerDns !== "" || peerRow.peerIpv6 !== ""

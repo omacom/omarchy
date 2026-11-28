@@ -1927,6 +1927,7 @@ Panel {
       if (!isHovered) return
       root.cursorActive = true
       root.focusSection = "band"
+      root.bandAutoFocused = false
       root.bandIndex = pill.slot
     }
   }
@@ -2063,6 +2064,7 @@ Panel {
         root.focusSection = "wifi"
         root.selectedIndex = row.index
         root.wifiActionFocused = false
+        if (row.isPasswordOpen) return
         if (row.isConnected) {
           root.disconnectRow(row.net.ssid)
           return
@@ -2225,7 +2227,7 @@ Panel {
         id: idField
         visible: row.isEnterprise && !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: connectPwBtn.left
+        anchors.right: revealPwBtn.left
         anchors.top: parent.top
         anchors.rightMargin: Style.space(6)
         placeholderText: Commons.I18n.t("network.identity")
@@ -2249,7 +2251,7 @@ Panel {
         id: pwField
         visible: !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: connectPwBtn.left
+        anchors.right: revealPwBtn.left
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
@@ -2295,12 +2297,24 @@ Panel {
         }
       }
 
-      // Esc closes the prompt (handled by pwField.Keys.onEscapePressed)
-      // so there's no separate cancel button.
+      // Not a focus target, so typing carries on in pwField after a click.
+      PanelActionButton {
+        id: revealPwBtn
+        visible: !row.isBusy && !row.isFailed
+        anchors.right: connectPwBtn.left
+        anchors.rightMargin: Style.space(2)
+        anchors.verticalCenter: parent.verticalCenter
+        iconText: passwordPanel.revealed ? "󰈉" : "󰈈"
+        tooltipText: passwordPanel.revealed ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        onClicked: passwordPanel.revealed = !passwordPanel.revealed
+      }
+
       PanelActionButton {
         id: connectPwBtn
-        visible: !row.isBusy && !row.isFailed
-        anchors.right: revealPwBtn.left
+        visible: revealPwBtn.visible
+        anchors.right: cancelPwBtn.left
         anchors.rightMargin: Style.space(2)
         anchors.verticalCenter: parent.verticalCenter
         enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
@@ -2311,18 +2325,17 @@ Panel {
         onClicked: row.submitCredentials()
       }
 
-      // 22×22 right-anchored to line up with lockIndicator above. Not a
-      // focus target, so typing carries on in pwField after a click.
       PanelActionButton {
-        id: revealPwBtn
-        visible: connectPwBtn.visible
+        id: cancelPwBtn
+        visible: revealPwBtn.visible
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        iconText: passwordPanel.revealed ? "󰈉" : "󰈈"
-        tooltipText: passwordPanel.revealed ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
+        iconText: "✕"
+        fontSize: Style.font.bodySmall
+        tooltipText: Commons.I18n.t("common.cancel")
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
-        onClicked: passwordPanel.revealed = !passwordPanel.revealed
+        onClicked: root.cancelPasswordPrompt()
       }
     }
   }

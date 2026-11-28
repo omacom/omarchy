@@ -99,17 +99,38 @@ Column {
     onClicked: search.start()
   }
 
-  TextField {
-    id: field
+  Item {
     visible: search.active
     width: parent.width
-    placeholderText: search.placeholderText
-    foreground: search.foreground
-    Keys.onEscapePressed: search.stop()
-    Keys.onReturnPressed: search.pickSelected()
-    Keys.onEnterPressed: search.pickSelected()
-    Keys.onUpPressed: search.selectedIndex = Model.moveSelection(search.selectedIndex, -1, search.matches.length)
-    Keys.onDownPressed: search.selectedIndex = Model.moveSelection(search.selectedIndex, 1, search.matches.length)
+    height: field.implicitHeight
+
+    TextField {
+      id: field
+      anchors.left: parent.left
+      anchors.right: closeButton.left
+      anchors.rightMargin: Style.space(4)
+      anchors.verticalCenter: parent.verticalCenter
+      placeholderText: search.placeholderText
+      foreground: search.foreground
+      Keys.onEscapePressed: search.stop()
+      Keys.onReturnPressed: search.pickSelected()
+      Keys.onEnterPressed: search.pickSelected()
+      Keys.onUpPressed: search.selectedIndex = Model.moveSelection(search.selectedIndex, -1, search.matches.length)
+      Keys.onDownPressed: search.selectedIndex = Model.moveSelection(search.selectedIndex, 1, search.matches.length)
+    }
+
+    PanelActionButton {
+      id: closeButton
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      iconText: "✕"
+      fontSize: Style.font.bodySmall
+      tooltipText: Commons.I18n.t("common.cancel")
+      foreground: search.dim
+      hoverColor: search.foreground
+      fontFamily: search.fontFamily
+      onClicked: search.stop()
+    }
   }
 
   CityMatches {

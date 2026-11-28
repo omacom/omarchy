@@ -660,13 +660,17 @@ Panel {
             }
           }
 
-          Row {
+          Item {
             visible: root.editingLocation
-            spacing: Style.space(6)
+            width: parent.width
+            height: locationField.implicitHeight
 
             TextField {
               id: locationField
-              width: Style.space(190)
+              anchors.left: parent.left
+              anchors.right: locationEditActions.left
+              anchors.rightMargin: Style.space(4)
+              anchors.verticalCenter: parent.verticalCenter
               enabled: !root.savingLocation
               placeholderText: Commons.I18n.t("weather.searchCity")
               foreground: root.bar.foreground
@@ -691,19 +695,47 @@ Panel {
               }
             }
 
-            // Clear back to IP auto-detect. While a committed location is
-            // loading, this same compact affordance becomes a spinner.
-            Rectangle {
-              width: Style.space(18)
-              height: Style.space(18)
+            // Reset a saved city back to IP auto-detect or cancel editing
+            // without changing it. While a committed location is loading, the
+            // spinner occupies the same box so the field width stays put.
+            Item {
+              id: locationEditActions
+              anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
-              radius: Math.min(4, Style.cornerRadius)
-              color: !root.savingLocation && clearLocationArea.containsMouse ? Style.hoverFillFor(root.bar.foreground, Commons.Color.accent) : "transparent"
+              width: actionButtons.implicitWidth
+              height: actionButtons.implicitHeight
+
+              Row {
+                id: actionButtons
+                visible: !root.savingLocation
+                spacing: Style.space(2)
+
+                PanelActionButton {
+                  id: clearLocationBtn
+                  visible: root.configuredLocation !== ""
+                  iconText: "󰆤"
+                  tooltipText: Commons.I18n.t("weather.useAutoLocation")
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  onClicked: root.clearLocation()
+                }
+
+                PanelActionButton {
+                  id: cancelLocationBtn
+                  iconText: "✕"
+                  fontSize: Style.font.bodySmall
+                  tooltipText: Commons.I18n.t("common.cancel")
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  onClicked: root.cancelEditingLocation()
+                }
+              }
 
               Text {
+                visible: root.savingLocation
                 textFormat: Text.PlainText
                 anchors.centerIn: parent
-                text: root.savingLocation ? "󰦖" : "✕"
+                text: "󰦖"
                 font.family: root.bar.fontFamily
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.pixelSize: Style.font.bodySmall
@@ -714,15 +746,6 @@ Panel {
                   duration: Style.duration(800)
                   loops: Animation.Infinite
                 }
-              }
-
-              MouseArea {
-                id: clearLocationArea
-                anchors.fill: parent
-                enabled: !root.savingLocation
-                hoverEnabled: true
-                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                onClicked: root.clearLocation()
               }
             }
           }

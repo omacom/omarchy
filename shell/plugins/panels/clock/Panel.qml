@@ -39,6 +39,9 @@ Panel {
   // a read-out, not a picker, so there is no per-day cursor to keep in sync.
   property int viewYear: today.getFullYear()
   property int viewMonth: today.getMonth()
+  // A wheel notch steps one month, and a touchpad adds up its smaller deltas
+  // until they make a notch's worth.
+  property real wheelAccumulator: 0
 
   // Local noon, so a first of the month with no midnight (Havana, April 2012)
   // still names its own month; UTC would name the previous one west of Greenwich.
@@ -559,9 +562,12 @@ Panel {
             WheelHandler {
               onWheel: function(event) {
                 // Horizontal wheels and touchpad side-scrolls report y === 0;
-                // without this they would every one read as "next month".
+                // ignore them so they neither step nor disturb vertical accumulation.
                 if (event.angleDelta.y === 0) return
-                root.moveMonth(event.angleDelta.y > 0 ? -1 : 1)
+                var wheel = Util.wheelSteps(root.wheelAccumulator, event.angleDelta.y)
+                root.wheelAccumulator = wheel.remainder
+                if (wheel.steps === 0) return
+                root.moveMonth(-wheel.steps)
               }
             }
 
