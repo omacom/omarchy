@@ -395,9 +395,11 @@ Panel {
   }
 
   function setDisplayBrightness(name, value) {
+    var monitor = Model.monitorName(name)
+    if (!monitor) return
     var percent = Model.clampBrightness(value)
-    showBrightness(name, percent)
-    root.pendingBrightnessMonitor = name
+    showBrightness(monitor, percent)
+    root.pendingBrightnessMonitor = monitor
     root.pendingBrightnessPercent = percent
 
     if (setBrightnessProc.running) {
@@ -406,22 +408,26 @@ Panel {
     }
 
     root.brightnessSetQueued = false
-    setBrightnessProc.command = ["omarchy-brightness-display", "--no-osd", "--monitor", name, percent + "%"]
+    setBrightnessProc.command = ["omarchy-brightness-display", "--no-osd", "--monitor", monitor, percent + "%"]
     setBrightnessProc.running = true
   }
 
   function previewBrightness(name, value) {
+    var monitor = Model.monitorName(name)
+    if (!monitor) return
     var percent = Model.clampBrightness(value)
-    showBrightness(name, percent)
-    root.pendingBrightnessMonitor = name
+    showBrightness(monitor, percent)
+    root.pendingBrightnessMonitor = monitor
     root.pendingBrightnessPercent = percent
     brightnessDebounce.restart()
   }
 
   function adjustBrightness(name, delta) {
-    var level = brightnessOf(name)
+    var monitor = Model.monitorName(name)
+    if (!monitor) return
+    var level = brightnessOf(monitor)
     if (level < 0) return
-    setDisplayBrightness(name, level + delta)
+    setDisplayBrightness(monitor, level + delta)
   }
 
   function showBrightnessOsd(percent) {

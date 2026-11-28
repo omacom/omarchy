@@ -4,6 +4,15 @@ function clampBrightness(value) {
   return Math.max(1, Math.min(100, Math.round(n)))
 }
 
+// A Hyprland connector name, safe to pass as an argument. Anything else,
+// including a slash or a glob, is refused.
+function monitorName(name) {
+  var monitor = String(name == null ? "" : name).trim()
+  if (!/^[A-Za-z0-9_.-]+$/.test(monitor)) return ""
+  if (monitor === "." || monitor === ".." || monitor.indexOf("..") !== -1) return ""
+  return monitor
+}
+
 function normalizeScale(scale) {
   var n = parseFloat(String(scale || ""))
   if (!isFinite(n)) return ""
@@ -367,6 +376,7 @@ function parseDisplays(raw) {
 if (typeof module !== "undefined") {
   module.exports = {
     clampBrightness: clampBrightness,
+    monitorName: monitorName,
     normalizeScale: normalizeScale,
     cleanScale: cleanScale,
     matchingScaleIndex: matchingScaleIndex,

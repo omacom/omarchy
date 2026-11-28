@@ -7,15 +7,25 @@
 monitor="${1:-}"
 step="${2:-}"
 
-[[ -n $monitor ]] || exit 1
+if [[ ! $monitor =~ ^[A-Za-z0-9_.-]+$ || $monitor == "." || $monitor == ".." || $monitor == *..* ]]; then
+  exit 1
+fi
 
-cache_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display-ddc"
-cache_name="${monitor//[^[:alnum:]_.-]/_}"
-cache_file="$cache_dir/$cache_name.bus"
+# Only cache under the user-private runtime dir. With no XDG_RUNTIME_DIR, detect
+# every time rather than fall back to a predictable, world-writable /tmp path
+# another user could pre-create.
+cache_dir=""
+cache_file=""
+if [[ -n ${XDG_RUNTIME_DIR:-} && -d ${XDG_RUNTIME_DIR} ]]; then
+  cache_dir="${XDG_RUNTIME_DIR}/omarchy-brightness-display-ddc"
+  cache_name="${monitor//[^[:alnum:]_.-]/_}"
+  cache_file="$cache_dir/$cache_name.bus"
+fi
 unavailable_cache_seconds=60
 range_cache_seconds=10
 
 cache_unavailable() {
+  [[ -n $cache_file ]] || return 0
   mkdir -p "$cache_dir" 2>/dev/null || true
   printf 'unavailable %s\n' "$(date +%s)" >"$cache_file" 2>/dev/null || true
 }
@@ -44,7 +54,7 @@ find_bus() {
   local cached_value=""
   local now=0
 
-  if [[ -r $cache_file ]]; then
+  if [[ -n $cache_file && -r $cache_file ]]; then
     read -r bus cached_value <"$cache_file" || true
   fi
 
@@ -63,8 +73,10 @@ find_bus() {
       cache_unavailable
       return 1
     fi
-    mkdir -p "$cache_dir" 2>/dev/null || true
-    printf '%s\n' "$bus" >"$cache_file" 2>/dev/null || true
+    if [[ -n $cache_file ]]; then
+      mkdir -p "$cache_dir" 2>/dev/null || true
+      printf '%s\n' "$bus" >"$cache_file" 2>/dev/null || true
+    fi
   fi
 
   printf '%s\n' "$bus"
@@ -91,7 +103,7 @@ read_brightness() {
   local now=0
   local values=""
 
-  if [[ -r $cache_file ]]; then
+  if [[ -n $cache_file && -r $cache_file ]]; then
     read -r cached_bus cached_maximum _ <"$cache_file" || true
   fi
 
@@ -106,9 +118,11 @@ read_brightness() {
     return 1
   }
 
-  now=$(date +%s)
-  mkdir -p "$cache_dir" 2>/dev/null || true
-  printf '%s %s %s\n' "$bus" "${values##* }" "$now" >"$cache_file" 2>/dev/null || true
+  if [[ -n $cache_file ]]; then
+    now=$(date +%s)
+    mkdir -p "$cache_dir" 2>/dev/null || true
+    printf '%s %s %s\n' "$bus" "${values##* }" "$now" >"$cache_file" 2>/dev/null || true
+  fi
   printf '%s %s\n' "$bus" "$values"
 }
 
@@ -129,7 +143,7 @@ fi
 if [[ $step =~ ^([0-9]+)%$ ]]; then
   target="${BASH_REMATCH[1]}"
   range_cache_fresh=0
-  if [[ -r $cache_file ]]; then
+  if [[ -n $cache_file && -r $cache_file ]]; then
     read -r bus maximum range_cached_at <"$cache_file" || true
   fi
 
@@ -172,7 +186,7 @@ fi
 (( raw_target = (target * maximum + 50) / 100 ))
 
 if ! ddcutil --bus "$bus" --skip-ddc-checks --noverify setvcp 10 "$raw_target" >/dev/null 2>&1; then
-  rm -f "$cache_file"
+  [[ -n $cache_file ]] && rm -f "$cache_file"
   exit 1
 fi
 
