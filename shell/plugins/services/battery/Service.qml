@@ -18,6 +18,13 @@ Item {
   // shell started, so a one-off read on startup, on a power source change and
   // after omarchy-powerprofiles-set (which asks for it over IPC) recovers.
   property string activePowerProfile: ""
+  // Quickshell's PowerProfiles builds a QDBusInterface, whose constructor asks
+  // the daemon to introspect itself synchronously. At login the bus activation
+  // that would answer waits for multi-user.target, which power-profiles-daemon
+  // is ordered after upstream, so touching it at startup held the whole shell
+  // until every boot service had started. Follow its signals once the read
+  // below, out of process, has seen the daemon answer.
+  property bool powerProfilesReachable: false
   property bool powerProfileReadPending: false
   property int powerProfileSignals: 0
   property int powerProfileReadSignals: 0
@@ -147,19 +154,22 @@ Item {
     // interpreter for it trips a CPython 3.14 shutdown race
     // (python/cpython#124619): the GLib D-Bus worker thread re-enters the
     // interpreter after finalization and the process dies with SIGSEGV.
-    command: ["busctl", "--json=short", "get-property", "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles", "ActiveProfile"]
+    // At login this read is what waits out that activation, so it gets longer
+    // than busctl's 25 s; a daemon that is running or absent answers at once.
+    command: ["busctl", "--timeout=120", "--json=short", "get-property", "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles", "ActiveProfile"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.activePowerProfile = BatteryModel.profileAfterRead(root.activePowerProfile, text, root.powerProfileReadSignals, root.powerProfileSignals)
     }
-    onExited: {
+    onExited: function(exitCode) {
+      if (exitCode === 0) root.powerProfilesReachable = true
       // Deferred: the process still reports running while it signals exit.
       if (root.powerProfileReadPending) Qt.callLater(root.refreshPowerProfile)
     }
   }
 
   Connections {
-    target: PowerProfiles
+    target: root.powerProfilesReachable ? PowerProfiles : null
     function onProfileChanged() {
       root.powerProfileSignals++
       root.activePowerProfile = root.profileName(PowerProfiles.profile)
