@@ -293,7 +293,6 @@
   "diskSpeedtest.failed": "Disk speed test failed",
   "diskSpeedtest.read": "READ",
   "diskSpeedtest.write": "WRITE",
-  "dock.autoHide": "Auto-hide",
   "dock.keepInDock": "Keep in Dock",
   "dock.layout": "Layout",
   "dock.layoutFloating": "Floating",

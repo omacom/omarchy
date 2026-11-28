@@ -39,24 +39,25 @@ PanelWindow {
     return mode
   }
   readonly property bool floating: !!dock && dock.isFloating(workspaceId)
-  // Whether the dock comes out over windows: tiles run to the screen edges,
-  // and so does a maximized window. A floating workspace's windows go where
-  // they are put, mostly clear of it, and an empty one has only the wallpaper.
-  readonly property bool overWindows: {
-    if (fullscreenMode === 1) return true
-    if (floating) return false
+  // Whether the workspace has a window on it. One minimized to the dock waits
+  // on a workspace of its own, so it does not count.
+  readonly property bool occupied: {
     var toplevels = Hyprland.toplevels.values
     for (var i = 0; i < toplevels.length; i++) {
       if (toplevels[i].workspace && toplevels[i].workspace.id === workspaceId) return true
     }
     return false
   }
+  // Whether the dock comes out over windows: tiles run to the screen edges,
+  // and so does a maximized window. A floating workspace's windows go where
+  // they are put, mostly clear of it.
+  readonly property bool overWindows: fullscreenMode === 1 || (!floating && occupied)
   readonly property bool shown: !!dock && (floating || (dock.tiling && !!workspace)) && fullscreenMode < 2
-  // With auto-hide on, the dock waits off screen until the pointer reaches its
-  // edge, and stays while the pointer, a menu, or a drag still needs it. A
-  // maximized window hides the dock the same way, so it can still be called up,
-  // and so does a tiled workspace, whose windows reach the screen edge.
-  readonly property bool autohide: !!dock && (dock.autohide || fullscreenMode === 1 || !floating)
+  // The dock stays out on an empty workspace, where it is the way to start
+  // something, and gets out of the way once the workspace has a window: it
+  // then waits off screen until the pointer reaches its edge, and stays while
+  // the pointer, a menu, or a drag still needs it.
+  readonly property bool autohide: !!dock && occupied
   property bool revealed: false
   readonly property bool menuOpen: menuItem !== null || settingsMenu
   readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || movingDock || holdOpen || insertIndex >= 0)
@@ -204,9 +205,9 @@ PanelWindow {
   }
   property var menuItem: null
   property Item menuSlot: null
-  // The apps button's menu: where the dock sits, the default layout, and
-  // whether the dock hides. Position and Layout open their choices in a
-  // submenu beside it, on hover as a menu bar's do, or on a click.
+  // The apps button's menu: where the dock sits and the layout. Each opens
+  // its choices in a submenu beside it, on hover as a menu bar's do, or on a
+  // click.
   property bool settingsMenu: false
   property string openSubmenu: ""
   // Whether the submenu opens on the near side of the menu, for the rows'
@@ -232,7 +233,7 @@ PanelWindow {
     id: submenuTimer
     interval: 200
     onTriggered: {
-      var row = window.pendingSubmenu === "position" ? positionRow : window.pendingSubmenu === "layout" ? layoutRow : autoHideRow
+      var row = window.pendingSubmenu === "position" ? positionRow : layoutRow
       if (row.hovered) window.openSubmenu = window.pendingSubmenu
     }
   }
@@ -901,20 +902,6 @@ PanelWindow {
         highlighted: window.openSubmenu === "layout"
         onHoveredChanged: if (hovered) window.hoverSubmenu("layout")
         onTriggered: window.openSubmenu = "layout"
-      }
-
-      // A tiled workspace always hides the dock; the setting is the floating
-      // workspaces' one.
-      PopupMenuRow {
-        id: autoHideRow
-        visible: window.settingsMenu
-        text: Commons.I18n.t("dock.autoHide")
-        checked: !!window.dock && window.dock.autohide
-        onHoveredChanged: if (hovered) window.hoverSubmenu("")
-        onTriggered: {
-          Util.execDetached("omarchy-dock autohide " + (window.dock.autohide ? "off" : "on"))
-          window.closeMenu()
-        }
       }
 
       PopupMenuRow {

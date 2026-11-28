@@ -3,8 +3,7 @@
 # omarchy:summary=Configure the app dock
 # omarchy:group=dock
 # omarchy:subcommand=position [top|bottom|left|right] — Set the dock position, or print it when given none
-# omarchy:subcommand=autohide [on|off|toggle] — Hide the dock on floating workspaces until the pointer reaches its edge, or print the setting
-# omarchy:subcommand=tiling [on|off|toggle] — Show the dock, auto-hidden, on tiled workspaces too, or print the setting
+# omarchy:subcommand=tiling [on|off|toggle] — Show the dock on tiled workspaces too, or print the setting
 # omarchy:subcommand=pinned [<desktop-id>...] — Set the pinned apps in dock order, or print them
 # omarchy:subcommand=pin <desktop-id> — Keep an app in the dock
 # omarchy:subcommand=unpin <desktop-id> — Remove an app from the dock
@@ -20,12 +19,8 @@ Usage: omarchy dock <command> [args...]
 
   position [top|bottom|left|right]     Dock position; prints the current one
                                        when given none
-  autohide [on|off|toggle]             Hide the dock on floating workspaces
-                                       until the pointer reaches its edge;
+  tiling [on|off|toggle]               Show the dock on tiled workspaces too;
                                        prints on or off when given none
-  tiling [on|off|toggle]               Show the dock, always auto-hidden, on
-                                       tiled workspaces too; prints on or off
-                                       when given none
   pinned [<desktop-id>...]             Pinned desktop ids in dock order; prints
                                        them one per line when given none
   pin <desktop-id>                     Keep an app in the dock
@@ -50,34 +45,29 @@ cmd_position() {
   echo "Dock position set to $position"
 }
 
-# An on/off dock setting: prints it when given no value, and takes on, off, or
-# toggle. A shell.json without the key has the default.
-flag() {
-  jq -r --arg key "$1" --argjson default "$2" \
-    '.dock[$key] as $value | if (if $value == null then $default else $value end) == true then "on" else "off" end' "$(source_file)"
+# On unless turned off, so a shell.json without the key has the tiled dock.
+current_tiling() {
+  jq -r 'if .dock.tiling == false then "off" else "on" end' "$(source_file)"
 }
 
-cmd_flag() {
-  local key="$1" default="$2" label="$3"
-  shift 3
-
+cmd_tiling() {
   if (( $# == 0 )); then
-    flag "$key" "$default"
+    current_tiling
     return
   fi
 
   local value="$1"
-  (( $# == 1 )) || fail "$key takes a single value"
+  (( $# == 1 )) || fail "tiling takes a single value"
   if [[ $value == "toggle" ]]; then
-    if [[ $(flag "$key" "$default") == "on" ]]; then
+    if [[ $(current_tiling) == "on" ]]; then
       value=off
     else
       value=on
     fi
   fi
-  [[ $value =~ ^(on|off)$ ]] || fail "$key must be on, off, or toggle"
-  commit "$NORMALIZE | .dock[\$key] = (\$value == \"on\")" --arg key "$key" --arg value "$value"
-  echo "$label turned $value"
+  [[ $value =~ ^(on|off)$ ]] || fail "tiling must be on, off, or toggle"
+  commit "$NORMALIZE | .dock.tiling = (\$value == \"on\")" --arg value "$value"
+  echo "Dock on tiled workspaces turned $value"
 }
 
 cmd_pinned() {
@@ -123,8 +113,7 @@ command="${1:-}"
 
 case "$command" in
   position) cmd_position "$@" ;;
-  autohide) cmd_flag autohide false "Dock auto-hide" "$@" ;;
-  tiling) cmd_flag tiling true "Dock on tiled workspaces" "$@" ;;
+  tiling) cmd_tiling "$@" ;;
   pinned) cmd_pinned "$@" ;;
   pin) cmd_pin "$@" ;;
   unpin) cmd_unpin "$@" ;;

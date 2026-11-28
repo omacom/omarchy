@@ -192,17 +192,6 @@ omarchy_dock pinned signal chromium.desktop signal >/dev/null
   fail "dock pin order is set in one go" "$(cat "$home/.config/omarchy/shell.json")"
 pass "dock pin order is set through omarchy-dock pinned"
 
-[[ $(omarchy_dock autohide) == "off" ]] || fail "dock auto-hide starts off"
-omarchy_dock autohide toggle >/dev/null
-jq -e '.dock.autohide == true' "$home/.config/omarchy/shell.json" >/dev/null || fail "dock auto-hide toggles on"
-[[ $(omarchy_dock autohide) == "on" ]] || fail "dock auto-hide reads back"
-omarchy_dock autohide off >/dev/null
-jq -e '.dock.autohide == false' "$home/.config/omarchy/shell.json" >/dev/null || fail "dock auto-hide turns off"
-if omarchy_dock autohide sometimes 2>/dev/null; then
-  fail "dock auto-hide takes only on, off, or toggle"
-fi
-pass "dock auto-hide is set through omarchy-dock autohide"
-
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and
 # not beside the minimized one.

@@ -7,9 +7,9 @@ import "DockModel.js" as DockModel
 
 // An app dock: pinned apps, running apps, and a grid of every app. A floating
 // workspace has no tiles to hand the apps out, so the dock is a place to find
-// them there. Tiled workspaces get it too, unless turned off, always
-// auto-hidden so it never sits over the tiles, and it is where windows
-// minimized from them wait.
+// them there. Tiled workspaces get it too, unless turned off. It stays out
+// on an empty workspace and hides once there is a window, and it is where
+// minimized windows wait.
 Item {
   id: root
 
@@ -21,7 +21,6 @@ Item {
   readonly property var defaultDockConfig: shell && shell.defaultsConfig && shell.defaultsConfig.dock ? shell.defaultsConfig.dock : ({})
   readonly property string position: DockModel.normalizePosition(dockConfig.position)
   readonly property bool vertical: DockModel.isVertical(position)
-  readonly property bool autohide: dockConfig.autohide === true
   readonly property bool tiling: dockConfig.tiling !== false
 
   // A dock being dragged by its apps button: the screen it is on, the edge it

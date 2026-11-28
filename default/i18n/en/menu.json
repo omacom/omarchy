@@ -249,12 +249,6 @@
   "appearance.dock": {
     "label": "Dock"
   },
-  "appearance.dock.autohide": {
-    "label": "Auto-hide Dock"
-  },
-  "appearance.dock.always-on": {
-    "label": "Always-on Dock"
-  },
   "appearance.dock.tiling": {
     "label": "Dock on Tiling"
   },

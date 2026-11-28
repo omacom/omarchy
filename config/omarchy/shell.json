@@ -76,7 +76,6 @@
   },
   "dock": {
     "position": "right",
-    "autohide": false,
     "pinned": [
       "folio",
       "omarchy-browser",

@@ -112,8 +112,6 @@
   "appearance.branding.screensaver.image": {"icon":"","label":"Set From Image","action":"omarchy-branding-screensaver image"},
   "appearance.branding.screensaver.default": {"icon":"","label":"Restore Default","action":"omarchy-branding-screensaver reset"},
   "appearance.dock": {"icon":"󱂩","label":"Dock"},
-  "appearance.dock.autohide": {"icon":"󰈉","label":"Auto-hide Dock","when":"[[ $(omarchy-dock autohide) == \"off\" ]]","action":"omarchy-dock autohide on"},
-  "appearance.dock.always-on": {"icon":"󰈈","label":"Always-on Dock","when":"[[ $(omarchy-dock autohide) == \"on\" ]]","action":"omarchy-dock autohide off"},
   "appearance.dock.tiling": {"icon":"󰕰","label":"Dock on Tiling","when":"[[ $(omarchy-dock tiling) == \"off\" ]]","action":"omarchy-dock tiling on"},
   "appearance.dock.floating-only": {"icon":"󰕮","label":"Dock Only on Floating","when":"[[ $(omarchy-dock tiling) == \"on\" ]]","action":"omarchy-dock tiling off"},
   "appearance.dock.position": {"icon":"","label":"Dock Position"},
