@@ -90,3 +90,28 @@ mkfifo "$test_tmp/events"
 out=$(holder_waits "$test_tmp/events" 1) || fail "the holder lets go at its time limit when no session comes" "still holding after 5 s"
 [[ $out == *"no session took"* ]] || fail "the holder lets go at its time limit when no session comes" "$out"
 pass "the holder lets go at its time limit when no session comes"
+
+# When the splash already exited before hold starts (e.g. Escape or simpledrm
+# unbind in the real root), hold notifies systemd and exits 0 without creating
+# the adoption marker.
+fake_bin=$test_tmp/bin
+mkdir -p "$fake_bin"
+cat >"$fake_bin/pidof" <<'SH'
+#!/bin/bash
+exit 1
+SH
+cat >"$fake_bin/systemd-notify" <<SH
+#!/bin/bash
+printf '%s\n' "\$*" >"$test_tmp/notified"
+SH
+chmod +x "$fake_bin/pidof" "$fake_bin/systemd-notify"
+rm -f "$adopt" "$test_tmp/notified"
+out=$(PATH="$fake_bin:$PATH" bash "$hold" 2>&1) ||
+  fail "hold exits 0 when the splash has no display open" "$out"
+[[ $out == *"nothing to hold"* ]] ||
+  fail "hold logs why it had nothing to hold" "$out"
+[[ $(cat "$test_tmp/notified" 2>/dev/null) == "--ready" ]] ||
+  fail "hold notifies systemd --ready before exiting when nothing is held" "$(cat "$test_tmp/notified" 2>/dev/null)"
+[[ ! -e $adopt ]] ||
+  fail "hold does not create the adoption marker when nothing is held"
+pass "hold notifies systemd and exits 0 when the splash has no display open"

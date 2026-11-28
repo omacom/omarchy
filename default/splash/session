@@ -66,6 +66,7 @@ if [ -z "$devices" ]; then
   exit 1
 fi
 echo "omarchy-splash: drawing on $devices"
+touch "$run/starting"
 
 # amdgpu powers a GPU down once no display is connected to it, and a GPU that
 # is powered down misses a display plugged in later. The GPUs stay powered
@@ -168,6 +169,7 @@ esac
 while :; do
   seatd-launch -- sway $debug --config /usr/lib/omarchy-splash/sway.conf
   status=$?
+  rm -f "$run/ready"
   if [ -e "$run/stopping" ] || [ -e "$run/dismissed" ] || [ "$devices" != "$firmware" ]; then
     exit "$status"
   fi
