@@ -530,6 +530,9 @@
   "setup.default.browser.firefox": {
     "label": "Firefox"
   },
+  "setup.default.browser.librewolf": {
+    "label": "LibreWolf"
+  },
   "setup.default.browser.zen": {
     "label": "Zen"
   },
@@ -751,6 +754,9 @@
   },
   "install.browser.firefox": {
     "label": "Firefox"
+  },
+  "install.browser.librewolf": {
+    "label": "LibreWolf"
   },
   "install.browser.zen": {
     "label": "Zen"
@@ -1129,6 +1135,9 @@
   },
   "remove.browser.firefox": {
     "label": "Firefox"
+  },
+  "remove.browser.librewolf": {
+    "label": "LibreWolf"
   },
   "remove.browser.zen": {
     "label": "Zen"
