@@ -266,13 +266,10 @@ pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
 # Native Linux Steam games keep their own window class instead of
 # steam_app_<appid>, so steam.lua detects them from SteamGameId in
 # /proc/<pid>/environ on window.open and starts them fullscreen.
-SteamGameId=239820 sleep 10 >/dev/null 2>&1 &
-steam_game_pid=$!
-env -u SteamGameId -u SteamAppId sleep 10 >/dev/null 2>&1 &
-plain_app_pid=$!
-trap 'kill "$steam_game_pid" "$plain_app_pid" 2>/dev/null || true; wait "$steam_game_pid" "$plain_app_pid" 2>/dev/null || true; rm -rf "$tmpdir"' EXIT
-
-HOME="$fresh_home" OMARCHY_PATH="$ROOT" STEAM_GAME_PID="$steam_game_pid" PLAIN_APP_PID="$plain_app_pid" lua - <<'LUA' || fail "native Steam games fullscreen on open while dialogs and non-Steam apps do not"
+# Use Lua's own PID (with SteamGameId set) and this shell's PID (without it)
+# so we read real /proc/<pid>/environ files with no background processes.
+unset SteamGameId SteamAppId
+HOME="$fresh_home" OMARCHY_PATH="$ROOT" SteamGameId=239820 PLAIN_APP_PID="$$" lua - <<'LUA' || fail "native Steam games fullscreen on open while dialogs and non-Steam apps do not"
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 local handlers, dispatches = {}, {}
 hl = {
@@ -289,7 +286,9 @@ hl = {
 require("default.hypr.helpers")
 require("default.hypr.apps.steam")
 local on_open = assert(handlers["window.open"], "steam.lua did not subscribe to window.open")
-local game_pid = tonumber(os.getenv("STEAM_GAME_PID"))
+local stat = assert(io.open("/proc/self/stat", "r"))
+local game_pid = tonumber(stat:read("*a"):match("^(%d+)"))
+stat:close()
 local plain_pid = tonumber(os.getenv("PLAIN_APP_PID"))
 
 local function check(win)
@@ -306,9 +305,10 @@ local on_float_ws = check({ class = "Gamedevtycoon64-bin", pid = game_pid, float
 assert(#on_float_ws == 2 and on_float_ws[2].kind == "fullscreen", "native game on floating workspace not fullscreened")
 
 assert(#check({ class = "Gamedevtycoon64-bin", pid = game_pid, floating = true, fullscreen = 0, tags = {} }) == 0, "floating game dialog should stay floating")
+assert(#check({ class = "google-chrome", pid = game_pid, floating = false, fullscreen = 0, tags = { "chromium-based-browser*" } }) == 0, "browser launched from a game should be ignored")
+assert(#check({ class = "foot", pid = game_pid, floating = false, fullscreen = 0, tags = { "terminal*" } }) == 0, "terminal launched from a game should be ignored")
 assert(#check({ class = "steam", pid = game_pid, floating = false, fullscreen = 0, tags = {} }) == 0, "steam client should be ignored")
 assert(#check({ class = "steam_app_battlenet", pid = game_pid, floating = false, fullscreen = 0, tags = {} }) == 0, "battle.net should be ignored")
 assert(#check({ class = "foot", pid = plain_pid, floating = false, fullscreen = 0, tags = {} }) == 0, "non-Steam window should be ignored")
 LUA
-kill "$steam_game_pid" "$plain_app_pid" 2>/dev/null || true
 pass "native Linux Steam games fullscreen on open without affecting dialogs or other apps"
