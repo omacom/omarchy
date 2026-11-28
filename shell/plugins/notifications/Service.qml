@@ -143,9 +143,11 @@ Item {
   readonly property int maxDuration: 30000
 
   // Critical waits for you. Everything else gets at least its urgency's
-  // minimum, stretched up to 30s when the sender asks for longer.
-  function durationFor(urgency, requested) {
-    if (urgency === NotificationUrgency.Critical) return 0
+  // minimum, stretched up to 30s when the sender asks for longer. A site can
+  // have the browser send its pushes critical, and sites do it for everyday
+  // ones, so a browser's cards time out like normal ones.
+  function durationFor(urgency, requested, app) {
+    if (urgency === NotificationUrgency.Critical && !Markup.isBrowser(app)) return 0
     var base = urgency === NotificationUrgency.Low ? lowDuration : normalDuration
     return Math.min(maxDuration, Math.max(base, requested > 0 ? requested : 0))
   }
@@ -608,7 +610,7 @@ Item {
     // Otherwise the object is destroyed when this handler returns.
     notification.tracked = true
 
-    row.duration = row.sticky ? 0 : durationFor(notification.urgency, row.expireTimeout)
+    row.duration = row.sticky ? 0 : durationFor(notification.urgency, row.expireTimeout, row.app)
 
     var previous = refs[key]
     refs[key] = notification
