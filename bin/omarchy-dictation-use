@@ -20,11 +20,27 @@ if ! flock -w 5 9; then
 fi
 
 previous=$(omarchy-default-dictation 2>/dev/null) || previous=""
-if [[ -n $previous && $previous != "$1" ]] && omarchy-cmd-present "omarchy-dictation-$previous"; then
-  if ! "omarchy-dictation-$previous" stop 9>&-; then
-    echo "Could not stop $previous; keeping the existing dictation backend." >&2
-    exit 1
+if [[ -n $previous && $previous != "$1" ]]; then
+  if omarchy-cmd-present "omarchy-dictation-$previous"; then
+    if ! "omarchy-dictation-$previous" stop 9>&-; then
+      echo "Could not stop $previous; keeping the existing dictation backend." >&2
+      exit 1
+    fi
   fi
+
+  # Adapters stop recordings, not services. Only manage the built-in units;
+  # add-on backends own their service lifecycle.
+  case "$1" in
+    voxtype|superwhisper|hex) systemctl --user enable --now "$1.service" 9>&- >/dev/null ;;
+  esac
+  case "$previous" in
+    voxtype|superwhisper|hex)
+      systemctl --user show-environment 9>&- >/dev/null
+      if systemctl --user cat "$previous.service" 9>&- >/dev/null 2>&1; then
+        systemctl --user disable --now "$previous.service" 9>&- >/dev/null
+      fi
+      ;;
+  esac
 fi
 
 temporary=$(mktemp "$config.XXXXXX")
