@@ -220,12 +220,50 @@ exit 1
 SH
 chmod +x "$restart_bin"/*
 
-: >"$test_tmp/restart-prompts"
-HOME="$restart_home" \
-  OMARCHY_KERNEL_MODULES_PATH="$test_tmp/modules" \
-  RESTART_PROMPTS="$test_tmp/restart-prompts" \
-  PATH="$restart_bin:$ROOT/bin:$PATH" \
-  "$ROOT/bin/omarchy-update-restart" --reboot-only >/dev/null
+run_restart_check() {
+  : >"$test_tmp/restart-prompts"
+  HOME="$restart_home" \
+    OMARCHY_KERNEL_MODULES_PATH="$test_tmp/modules" \
+    OMARCHY_UPDATE_UNATTENDED=0 \
+    RESTART_PROMPTS="$test_tmp/restart-prompts" \
+    PATH="$restart_bin:$ROOT/bin:$PATH" \
+    "$ROOT/bin/omarchy-update-restart" --reboot-only >/dev/null
+}
+
+run_restart_check
 grep -q "update.hyprlandReboot" "$test_tmp/restart-prompts" ||
   fail "omarchy-update-restart offers a reboot when a later Hyprland PID runs a deleted binary" "$(cat "$test_tmp/restart-prompts")"
 pass "omarchy-update-restart checks every Hyprland PID for a deleted executable"
+
+# Isolate the flag checks from the Hyprland reboot requirement above.
+cat >"$restart_bin/pgrep" <<'SH'
+#!/bin/bash
+exit 1
+SH
+
+flag="$restart_home/.local/state/omarchy/reboot-required"
+mkdir -p "$(dirname "$flag")"
+boot_time=$(awk '/^btime/ {print $2}' /proc/stat)
+
+# A reboot outside omarchy-system leaves a flag from the previous boot.
+touch -d "@$((boot_time - 60))" "$flag"
+run_restart_check
+if [[ -s $test_tmp/restart-prompts ]]; then
+  fail "reboot-required flag written before the current boot does not prompt" "$(cat "$test_tmp/restart-prompts")"
+fi
+pass "reboot-required flag written before the current boot does not prompt"
+[[ ! -e $flag ]] || fail "reboot-required flag written before the current boot is cleared"
+pass "reboot-required flag written before the current boot is cleared"
+
+touch "$flag"
+run_restart_check
+grep -qF "update.rebootRequired" "$test_tmp/restart-prompts" ||
+  fail "reboot-required flag written since boot prompts for a reboot" "$(cat "$test_tmp/restart-prompts")"
+pass "reboot-required flag written since boot prompts for a reboot"
+[[ -e $flag ]] || fail "declining the prompt keeps the reboot-required flag"
+pass "declining the prompt keeps the reboot-required flag"
+
+rm -f "$flag"
+run_restart_check
+[[ ! -s $test_tmp/restart-prompts ]] || fail "no reboot-required flag means no prompt" "$(cat "$test_tmp/restart-prompts")"
+pass "no reboot-required flag means no prompt"
