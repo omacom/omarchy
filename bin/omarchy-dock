@@ -39,7 +39,7 @@ PINNED='(.dock.pinned // $defaults[0].dock.pinned // [])'
 
 cmd_position() {
   if (( $# == 0 )); then
-    jq -r '.dock.position // "bottom"' "$(source_file)"
+    jq -r '.dock.position // "right"' "$(source_file)"
     return
   fi
 

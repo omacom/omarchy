@@ -20,7 +20,7 @@ PanelWindow {
 
   property var dock: null
 
-  readonly property string position: dock ? dock.position : "bottom"
+  readonly property string position: dock ? dock.position : "right"
   readonly property bool vertical: dock ? dock.vertical : false
   readonly property var monitor: Hyprland.monitorFor(screen)
   readonly property var workspace: monitor ? monitor.activeWorkspace : null
