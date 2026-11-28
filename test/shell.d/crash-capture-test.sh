@@ -320,9 +320,35 @@ crash_mute ../bar-off >/dev/null
   fail "a name that climbs out writes a sibling toggle, so muting a crash could turn off the bar instead"
 pass "the command cannot be talked into writing outside crash-ignore/"
 
-# A program may be called -h, and the router answers that with its own help
-# before the command runs. A leading -- is the way through, so it has to be
-# consumed rather than taken for the program name.
+# Help flags print usage and exit cleanly without creating a mute file.
+for help_flag in -h --help; do
+  status=0
+  output=$(crash_mute "$help_flag" 2>&1) || status=$?
+  (( status == 0 )) ||
+    fail "'$help_flag' exits $status instead of showing usage"
+  grep -Fq "Usage: omarchy crash mute" <<<"$output" ||
+    fail "'$help_flag' does not print usage" "$output"
+  [[ ! -e $(mute_flag -- "$help_flag") ]] ||
+    fail "'$help_flag' creates a mute file instead of showing usage"
+done
+pass "help flags print usage without creating a mute file"
+
+for option in --typo -v; do
+  ! crash_mute "$option" >/dev/null 2>&1 ||
+    fail "an unknown option is taken as a program name"
+  [[ ! -e $(mute_flag -- "$option") ]] ||
+    fail "a refused option still writes a mute flag"
+done
+! crash_mute --typo off >/dev/null 2>&1 ||
+  fail "an option is accepted as a program name when an action follows it"
+pass "options require an explicit separator before they can name a program"
+
+crash_mute /opt/odd/-dashed >/dev/null
+[[ -f $(mute_flag -- -dashed) ]] ||
+  fail "a path to a dash-leading program is refused even though it cannot be mistaken for an option"
+pass "an executable path can name a dash-leading program without a separator"
+
+# A leading -- names a program even when its name looks like a help flag.
 crash_mute -- -h >/dev/null 2>&1 ||
   fail "a leading -- is refused rather than consumed, so a program named like a flag cannot be muted at all"
 [[ -f $(mute_flag -- -h) ]] ||
