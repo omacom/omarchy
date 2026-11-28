@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Suzuvchi"
   },
-  "appearance.unlock": {
-    "label": "Qulfdan ochish"
-  },
   "trigger.toggle": {
     "label": "Almashtirish"
   },
@@ -993,9 +990,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"

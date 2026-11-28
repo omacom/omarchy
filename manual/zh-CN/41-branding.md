@@ -1,55 +1,43 @@
-# 品牌标识
+# 品牌形象
 
-Omarchy 允许你为启动解锁、屏幕保护程序和关于屏幕设置你的公司徽标或个人图像。
+Omarchy 允许你为屏保和关于屏幕设置你的公司徽标或个人图像。
 
-### 启动解锁
+### 屏保
 
-你可以使用 `omarchy plymouth preview` 查看你的自定义徽标和颜色的效果。它接受一个背景颜色、一个文本颜色、一个徽标 png，以及预览图的路径：
-
-```
-omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
-```
-
-然后使用 `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png` 应用这套设置，这也会让 SDDM 登录屏幕使用相同的颜色和徽标。如果你想恢复，可以使用 `omarchy plymouth reset`。
-
- ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
-
-### 屏幕保护程序
-
-你可以在 _外观 > 品牌标识 > 屏幕保护程序_ 下更改屏幕保护程序使用的徽标。它是一个 ASCII 徽标，所以你可以直接编辑文本，但你也可以给它一个 png 或 svg 图像，我们会将其转换为 ASCII。它看起来相当酷。
+你可以在 _Appearance > Branding > Screensaver_ 下更改屏保使用的徽标。它是一个 ASCII 徽标，所以你可以直接编辑文本，但你也可以给它一个 png 或 svg 图像，我们会将其转换为 ASCII。看起来相当酷。
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
 该菜单中有三个条目：
 
-- **编辑文本** 在你的编辑器中打开 `~/.config/omarchy/branding/screensaver.txt`。输入或粘贴任何你喜欢的内容——ASCII 艺术、你的名字、一句粗话。保存并退出，屏幕保护程序会立即启动，让你可以看到效果。
-- **从图像设置** 打开一个 png 或 svg 的文件选择器，将其转换为 ASCII，并向你展示结果。轮廓清晰的徽标效果远比照片好。
-- **恢复默认** 将 Omarchy 徽标放回来。
+- **Edit Text** 会在你的编辑器中打开 `~/.config/omarchy/branding/screensaver.txt`。输入或粘贴任何你喜欢的内容——ASCII 艺术、你的名字、一个粗鲁的词。保存并退出，屏保会立即启动，以便你查看效果。
+- **Set From Image** 会打开一个文件选择器，用于选择 png 或 svg，将其转换为 ASCII，并向你显示结果。轮廓清晰的徽标效果远好于照片。
+- **Restore Default** 会恢复 Omarchy 徽标。
 
 ### 关于屏幕
 
-在 _外观 > 品牌标识 > 关于_ 下有相同的三个选项，用于从 Omarchy 菜单打开的 _关于_ 屏幕，它们的工作方式完全相同——文件是 `~/.config/omarchy/branding/about.txt`，并且每次更改后都会弹出关于窗口。关于图案会被转换成比屏幕保护程序更小的尺寸，因为它必须装进一个窗口，而不是填满你的显示器。
+同样的三个选项位于 _Appearance > Branding > About_ 下，用于你从 Omarchy 菜单打开的 _About_ 屏幕，它们的运作方式完全相同——文件是 `~/.config/omarchy/branding/about.txt`，About 窗口会在每次更改后弹出。About 艺术会被转换为比屏保更小的尺寸，因为它需要放进一个窗口，而不是填满你的显示器。
 
-窗口打开时，一道明亮的白光带每隔几秒就会斜掠过图案，然后又让它静止下来。只要你的图案中每个字符都是单列宽，你自己的图案也会有这个效果——任何通过 _从图像设置_ 生成的都是如此。由 emoji 或双宽字符构成的图案则保持静止，如果你保留了自己的 fastfetch 配置，屏幕也会如此：在这些情况下，静止的徽标是动画主动避让而不是失败，因为让一道 glint 滑过它们会使行中其余部分落在错误的位置。
+当窗口打开时，每隔几秒钟，一道明亮的白光带会斜过艺术作品，然后让它再次静止。只要你自己的艺术中的每个字符都是一列宽，它也会有这个效果——_Set From Image_ 生成的任何内容都是如此。用 emoji 或双宽字符构建的艺术则会保持静止，如果你保留了自己的 fastfetch 配置，屏幕也会保持静止：在这些情况下，静止的徽标是动画在主动避让而不是失败，因为让一道亮光滑过它们会让该行其余部分落到错误的位置。
 
  ![branding-about](images/branding-about.webp)
 
-### 自己转换图像
+### 自行转换图像
 
-两个 _从图像设置_ 选项实际上都只是在调用 `omarchy transcode ascii`，如果你想要控制转换过程，可以直接运行它：
+两个 _Set From Image_ 选项实际上都只是在调用 `omarchy transcode ascii`，如果你想要控制转换过程，可以直接运行它：
 
 ```
 omarchy transcode ascii ~/logo.svg ~/.config/omarchy/branding/screensaver.txt --width 100
 ```
 
-它接受以终端列和行表示的 `--width` 和 `--height`，接受 `braille`（默认选项，而且精细得多）或 `block` 两种 `--mode` 之一，接受一个用于决定哪些像素算作徽标一部分的 `--threshold` 百分比，以及在你的徽标是深色背景上的浅色时使用的 `--invert`。如果转换结果出来是一团，通常要调的就是阈值这个旋钮。
+它接受以终端列数和行数为单位的 `--width` 和 `--height`，`--mode` 可以是 `braille`（默认值，而且精细得多）或 `block`，一个用于决定哪些像素算作徽标一部分的 `--threshold` 百分比，以及用于你的徽标在深色背景上是浅色时的 `--invert`。如果转换结果出来是一团糊状物，通常要调的就是阈值这个旋钮。
 
 ### 用文字代替徽标
 
-`omarchy ascii` 使用 Delta Corps Priest 1 绘制文本，这正是绘制 Omarchy 词标本身的 FIGlet 字体，所以屏幕保护程序可以说点什么，而不是展示一幅图画：
+`omarchy ascii` 使用 Delta Corps Priest 1 绘制文本，这就是 Omarchy 字标本身所用的 FIGlet 字体，所以屏保可以说点什么，而不是展示一张图片：
 
 ```
 omarchy ascii "Back in five" > ~/.config/omarchy/branding/screensaver.txt
 ```
 
-它将文本作为参数接受，或者在未给出任何参数时从管道读取。字体只包含字母和空格——绘制时没有包含数字或标点符号——所以任何其他内容都会被丢弃并在 stderr 上指明，而不是被悄悄吞掉。
+它将文本作为参数，或者在未给定任何参数时从管道中读取。该字体只包含字母和空格——它在绘制时没有数字或标点符号——所以任何其他内容都会被丢弃，并在 stderr 上指明，而不是被悄悄吞掉。

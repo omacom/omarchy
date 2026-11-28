@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "צף"
   },
-  "appearance.unlock": {
-    "label": "ביטול נעילה"
-  },
   "trigger.toggle": {
     "label": "החלפה"
   },
@@ -993,9 +990,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"

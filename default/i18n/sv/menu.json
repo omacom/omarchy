@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Flytande"
   },
-  "appearance.unlock": {
-    "label": "Lås upp"
-  },
   "trigger.toggle": {
     "label": "Växla"
   },
@@ -993,9 +990,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"

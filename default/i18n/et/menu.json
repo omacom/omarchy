@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Ujuv"
   },
-  "appearance.unlock": {
-    "label": "Ava lukk"
-  },
   "trigger.toggle": {
     "label": "Lülita"
   },
@@ -993,9 +990,6 @@
   },
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
-  },
-  "update.config.plymouth": {
-    "label": "Plymouth"
   },
   "update.config.tmux": {
     "label": "Tmux"
