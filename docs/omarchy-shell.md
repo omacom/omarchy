@@ -157,7 +157,7 @@ string on a miss.
   "bar": {
     "id": "omarchy.bar",
     "position": "top",
-    "background": "opaque",
+    "background": "none",
     "layout": {
       "left":        [ { "id": "omarchy.menu" } ],
       "centerBegin": [ { "id": "omarchy.indicators" } ],

@@ -49,7 +49,7 @@ ShellRoot {
     },
     bar: {
       position: "top",
-      background: "opaque",
+      background: "none",
       layout: {
         left: [{ id: "omarchy.menu" }, { id: "omarchy.workspaces" }],
         centerBegin: [],

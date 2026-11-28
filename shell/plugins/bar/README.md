@@ -25,7 +25,7 @@ Example `shell.json` (bar subtree only shown):
   "version": 1,
   "bar": {
     "position": "top",
-    "background": "opaque",
+    "background": "none",
     "layout": {
       "left": [
         { "id": "omarchy.menu" },

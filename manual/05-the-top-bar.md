@@ -123,7 +123,7 @@ All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here
   "version": 1,
   "bar": {
     "position": "top",
-    "background": "opaque",
+    "background": "none",
     "layout": {
       "left": [{ "id": "omarchy.menu" }, { "id": "omarchy.workspaces" }],
       "centerBegin": [{ "id": "omarchy.indicators" }],

@@ -350,13 +350,13 @@ jq -e '.bar.background == "glassy" and (.bar | has("transparent") | not)' "$TMPD
   fail "setting a background drops the older transparent flag"
 pass "the older transparent form still sets and reads as the bar background"
 
-# Restoring the default bar also restores its opaque background, and the blur
+# Restoring the default bar also restores its clear background, and the blur
 # behind a glassy one goes with it.
 bar_background glassy >/dev/null
 [[ -f $glass_toggle ]] || fail "a glassy bar has its blur on before defaults"
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar defaults >/dev/null
-[[ $(bar_background) == "opaque" && ! -f $glass_toggle ]] || fail "omarchy bar defaults turns a glassy bar's blur off"
-pass "restoring the default bar turns a glassy bar's blur off"
+[[ $(bar_background) == "none" && ! -f $glass_toggle ]] || fail "omarchy bar defaults restores the clear background and turns a glassy bar's blur off"
+pass "restoring the default bar restores the clear background and turns a glassy bar's blur off"
 
 # A background set by editing shell.json gets its blur when the shell syncs it.
 jq '.bar.background = "glassy"' "$TMPDIR/home/.config/omarchy/shell.json" >"$TMPDIR/edited.json" &&
