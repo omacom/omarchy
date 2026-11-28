@@ -29,6 +29,31 @@ Item {
     }
   }
 
+  Component {
+    id: panelSliderComponent
+    PanelSlider { x: 60; y: 40; width: 200; minimum: 0; maximum: 10; step: 1; integer: true; value: 5 }
+  }
+
+  Component {
+    id: wheelScrollHostComponent
+    Item {
+      id: wheelHost
+      x: 60; y: 40; width: 160; height: 120
+      property alias flick: wheelFlick
+      property int outerWheels: 0
+      MouseArea {
+        anchors.fill: parent
+        onWheel: function(wheel) { wheelHost.outerWheels++; wheel.accepted = true }
+        Flickable {
+          id: wheelFlick
+          anchors.fill: parent; contentWidth: width; contentHeight: 400; contentY: 50
+          flickableDirection: Flickable.VerticalFlick
+          WheelScroll { flickable: wheelFlick }
+        }
+      }
+    }
+  }
+
   TestCase {
     name: "DropdownPopupGeometry"
     when: windowShown
@@ -99,7 +124,10 @@ Item {
       if (data.count <= 8) {
         compare(list.contentY, 0, "short lists have no scroll offset")
         // The real hover handler changes currentIndex; neither end may shift the list.
+        // PointerMoveGate absorbs the first hover sample after opening as the baseline,
+        // so follow up with a small real move across the row.
         mouseMove(list, 20, list.height - data.rowHeight / 2)
+        mouseMove(list, 24, list.height - data.rowHeight / 2)
         tryCompare(list, "currentIndex", data.count - 1)
         wait(50)
         compare(list.contentY, 0, "hovering the last row does not scroll")
@@ -207,6 +235,117 @@ Item {
       mouseRelease(beta)
       compare(emitted, ["beta"])
       compare(picker.value, "beta")
+    }
+
+    function findListView(item) {
+      if (!item) return null
+      if (item.model !== undefined && item.currentIndex !== undefined && item.contentY !== undefined) return item
+      for (var i = 0; i < (item.children || []).length; i++) {
+        var found = findListView(item.children[i])
+        if (found) return found
+      }
+      return null
+    }
+
+    function test_stationary_pointer_during_keyboard_and_wheel_data() {
+      return [
+        {tag: "dropdown", searchable: false},
+        {tag: "searchable", searchable: true}
+      ]
+    }
+
+    function test_stationary_pointer_during_keyboard_and_wheel(data) {
+      var options = []
+      for (var i = 0; i < 12; i++) options.push("Option " + (i + 1))
+      var picker = createTemporaryObject(data.searchable ? searchableDropdownComponent : dropdownComponent, scene, {
+        value: options[0],
+        options: options
+      })
+      verify(picker !== null)
+
+      picker.open()
+      tryCompare(picker, "popupOpen", true)
+      var list = findListView(findPopup(picker).contentItem)
+      verify(list !== null)
+      tryCompare(list, "count", options.length)
+
+      if (data.searchable) {
+        tryVerify(function() {
+          var item = scene.Window.window.activeFocusItem
+          return item && item.hasOwnProperty("placeholderText")
+        })
+        keyClick(Qt.Key_Down)
+      }
+      tryCompare(list, "activeFocus", true)
+
+      // Park the pointer over row 1 after priming PointerMoveGate.
+      var row1 = null
+      tryVerify(function() {
+        row1 = list.itemAtIndex(1)
+        return row1 !== null && row1.height > 0 && list.height >= row1.y + row1.height
+      })
+      for (var p = row1; p; p = p.parent) {
+        if (isPolishScheduled(p)) verify(waitForPolish(p))
+      }
+      var hoverY = row1.y - list.contentY + row1.height / 2
+      mouseMove(list, 20, hoverY)
+      mouseMove(list, 26, hoverY)
+      tryCompare(list, "currentIndex", 1)
+
+      // Keyboard walk and wheel scroll must not let rows under the stationary pointer steal selection.
+      for (var idx = 2; idx < options.length; idx++) {
+        keyClick(Qt.Key_Down)
+        tryCompare(list, "currentIndex", idx)
+      }
+      tryVerify(function() { return list.contentY > 0 }, 2000, "keyboard walk scrolled the list")
+      wait(50)
+      compare(list.currentIndex, options.length - 1, "stationary pointer did not steal keyboard selection")
+
+      var beforeY = list.contentY
+      mouseWheel(list, 26, hoverY, 0, 120)
+      tryVerify(function() { return list.contentY < beforeY }, 2000, "wheel scrolled the list up")
+      wait(50)
+      compare(list.currentIndex, options.length - 1, "stationary pointer did not steal selection during wheel scroll")
+
+      // Deliberate pointer movement restores hover selection.
+      var targetIndex = list.indexAt(36, list.contentY + hoverY)
+      verify(targetIndex >= 0 && targetIndex !== options.length - 1)
+      mouseMove(list, 30, hoverY)
+      mouseMove(list, 36, hoverY)
+      tryCompare(list, "currentIndex", targetIndex)
+    }
+
+    function test_panel_slider_wheel() {
+      var slider = createTemporaryObject(panelSliderComponent, scene)
+      verify(slider !== null)
+      var moved = []
+      slider.moved.connect(function(v) { moved.push(v) })
+
+      // Horizontal wheel must be ignored rather than decrementing the slider.
+      mouseWheel(slider, slider.width / 2, slider.height / 2, 120, 0)
+      mouseWheel(slider, slider.width / 2, slider.height / 2, -120, 0)
+      compare(slider.liveValue, 5)
+      compare(moved, [])
+
+      // Vertical wheel still increments and decrements by step.
+      mouseWheel(slider, slider.width / 2, slider.height / 2, 0, 120)
+      compare(slider.liveValue, 6)
+      mouseWheel(slider, slider.width / 2, slider.height / 2, 0, -120)
+      compare(slider.liveValue, 5)
+      compare(moved, [6, 5])
+    }
+
+    function test_wheel_scroll_horizontal_passthrough() {
+      var host = createTemporaryObject(wheelScrollHostComponent, scene)
+      verify(host !== null)
+
+      mouseWheel(host.flick, 50, 50, 120, 0)
+      compare(host.flick.contentY, 50, "horizontal wheel does not scroll vertical Flickable")
+      compare(host.outerWheels, 1, "horizontal wheel passes through unaccepted")
+
+      mouseWheel(host.flick, 50, 50, 0, -120)
+      verify(host.flick.contentY > 50, "vertical wheel scrolls the Flickable")
+      compare(host.outerWheels, 1, "vertical wheel is consumed by WheelScroll")
     }
   }
 }

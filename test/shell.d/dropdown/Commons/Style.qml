@@ -11,6 +11,7 @@ QtObject {
   property real focusBorderAlpha: 1
   property real hoverBorderAlpha: 1
   property real cornerRadius: 0
+  property real touchpadScrollFactor: 3.0
   property QtObject spacing: QtObject {
     property int controlHeight: 28
     property int popupRowHeight: 28
@@ -33,6 +34,7 @@ QtObject {
     property int body: 12
   }
   function space(px) { return px }
+  function duration(ms) { return 0 }
   function normalStateColor(foreground, accent) { return foreground }
   function focusStateColor(foreground, accent) { return accent }
   function hoverStateColor(foreground, accent) { return accent }

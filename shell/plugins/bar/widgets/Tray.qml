@@ -325,7 +325,7 @@ BarWidget {
           x: root.fixedAtStart ? root.revealExtent : 0
           text: root.fixedAtStart ? "\uf054" : "\uf053"
           onPressed: function(button) {
-            if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            if (button === Qt.LeftButton || button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
           }
         }
 
@@ -416,7 +416,7 @@ BarWidget {
           text: root.fixedAtStart ? "\uf054" : "\uf053"
           textRotation: 90
           onPressed: function(button) {
-            if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            if (button === Qt.LeftButton || button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
           }
         }
 
@@ -481,115 +481,154 @@ BarWidget {
     owner: root
     bar: root.bar
     open: root.managePopupOpen
+    onVisibleChanged: if (!visible) manageFlick.contentY = 0
     contentWidth: managePopup.fittedContentWidth(Style.space(300))
-    contentHeight: managePopup.fittedContentHeight(manageColumn.implicitHeight)
+    contentHeight: managePopup.fittedContentHeight(
+      manageHeader.implicitHeight + (root.allItems.length > 0 ? manageColumn.spacing + manageListColumn.implicitHeight : 0),
+      Style.space(420)
+    )
 
     Column {
       id: manageColumn
       anchors.fill: parent
       spacing: Style.space(8)
 
-      Text {
-        text: Commons.I18n.t("tray.title")
-        textFormat: Text.PlainText
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.body
-        font.bold: true
-      }
-
-      Text {
-        text: Commons.I18n.t("tray.help")
-        textFormat: Text.PlainText
-        color: Qt.darker(root.foreground, 1.4)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        wrapMode: Text.WordWrap
+      Column {
+        id: manageHeader
         width: parent.width
+        spacing: Style.space(8)
+
+        Text {
+          text: Commons.I18n.t("tray.title")
+          textFormat: Text.PlainText
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          font.bold: true
+        }
+
+        Text {
+          text: Commons.I18n.t("tray.help")
+          textFormat: Text.PlainText
+          color: Qt.darker(root.foreground, 1.4)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.WordWrap
+          width: parent.width
+        }
+
+        Text {
+          visible: root.allItems.length === 0
+          text: Commons.I18n.t("tray.empty")
+          textFormat: Text.PlainText
+          color: Qt.darker(root.foreground, 1.5)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          font.italic: true
+        }
       }
 
-      Text {
-        visible: root.allItems.length === 0
-        text: Commons.I18n.t("tray.empty")
-        textFormat: Text.PlainText
-        color: Qt.darker(root.foreground, 1.5)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        font.italic: true
-      }
+      Flickable {
+        id: manageFlick
+        visible: root.allItems.length > 0
+        width: manageColumn.width
+        height: Math.max(0, manageColumn.height - manageHeader.height - manageColumn.spacing)
+        contentWidth: width
+        contentHeight: manageListColumn.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
+        interactive: contentHeight > height
 
-      Repeater {
-        model: root.allItems
-        delegate: Item {
-          id: rowRoot
-          required property var modelData
-          required property int index
-          width: manageColumn.width
-          implicitHeight: 28
+        ScrollBar.vertical: ScrollBar {
+          id: manageScrollBar
+          policy: ScrollBar.AsNeeded
+        }
 
-          readonly property string itemId: String(modelData.id || "")
-          readonly property string displayName: {
-            var t = String(modelData.title || "").trim()
-            if (t) return t
-            var tt = String(modelData.tooltipTitle || "").trim()
-            if (tt) return tt
-            var id = String(modelData.id || "")
-            var slash = id.lastIndexOf("/")
-            return slash !== -1 ? id.substring(slash + 1) : (id || Commons.I18n.t("tray.unknown"))
-          }
-          readonly property bool isPinned: root.pinnedIds.indexOf(itemId) !== -1
-          readonly property bool isHidden: root.hiddenIds.indexOf(itemId) !== -1
+        WheelScroll {
+          flickable: manageFlick
+          stepHeight: 28 + manageListColumn.spacing
+        }
 
-          TrayIcon {
-            id: rowIcon
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.left: parent.left
-            width: 16
-            height: 16
-            icon: rowRoot.modelData.icon
-          }
+        Column {
+          id: manageListColumn
+          width: manageFlick.width - (manageFlick.interactive ? manageScrollBar.width + Style.space(4) : 0)
+          spacing: Style.space(8)
 
-          Text {
-            textFormat: Text.PlainText
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.left: rowIcon.right
-            anchors.leftMargin: Style.space(10)
-            anchors.right: rowHideBtn.left
-            anchors.rightMargin: Style.space(8)
-            text: rowRoot.displayName
-            color: root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-            elide: Text.ElideRight
-          }
+          Repeater {
+            model: root.allItems
+            delegate: Item {
+              id: rowRoot
+              required property var modelData
+              required property int index
+              width: manageListColumn.width
+              implicitHeight: 28
 
-          Button {
-            id: rowPinBtn
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.right: parent.right
-            iconText: "\uf08d"
-            text: rowRoot.isPinned ? Commons.I18n.t("tray.unpin") : Commons.I18n.t("tray.pin")
-            foreground: root.foreground
-            horizontalPadding: 8
-            verticalPadding: 3
-            iconSize: Style.font.bodySmall
-            fontSize: Style.font.bodySmall
-            onClicked: root.togglePin(rowRoot.itemId)
-          }
+              readonly property string itemId: String(modelData.id || "")
+              readonly property string displayName: {
+                var t = String(modelData.title || "").trim()
+                if (t) return t
+                var tt = String(modelData.tooltipTitle || "").trim()
+                if (tt) return tt
+                var id = String(modelData.id || "")
+                var slash = id.lastIndexOf("/")
+                return slash !== -1 ? id.substring(slash + 1) : (id || Commons.I18n.t("tray.unknown"))
+              }
+              readonly property bool isPinned: root.pinnedIds.indexOf(itemId) !== -1
+              readonly property bool isHidden: root.hiddenIds.indexOf(itemId) !== -1
 
-          Button {
-            id: rowHideBtn
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.right: rowPinBtn.left
-            anchors.rightMargin: Style.space(6)
-            iconText: "\uf06e"
-            text: rowRoot.isHidden ? Commons.I18n.t("tray.show") : Commons.I18n.t("tray.hide")
-            foreground: root.foreground
-            horizontalPadding: 8
-            verticalPadding: 3
-            iconSize: Style.font.bodySmall
-            fontSize: Style.font.bodySmall
-            onClicked: root.toggleHide(rowRoot.itemId)
+              TrayIcon {
+                id: rowIcon
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                width: 16
+                height: 16
+                icon: rowRoot.modelData.icon
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: rowIcon.right
+                anchors.leftMargin: Style.space(10)
+                anchors.right: rowHideBtn.left
+                anchors.rightMargin: Style.space(8)
+                text: rowRoot.displayName
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                elide: Text.ElideRight
+              }
+
+              Button {
+                id: rowPinBtn
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.right: parent.right
+                iconText: "\uf08d"
+                text: rowRoot.isPinned ? Commons.I18n.t("tray.unpin") : Commons.I18n.t("tray.pin")
+                foreground: root.foreground
+                horizontalPadding: 8
+                verticalPadding: 3
+                iconSize: Style.font.bodySmall
+                fontSize: Style.font.bodySmall
+                onClicked: root.togglePin(rowRoot.itemId)
+              }
+
+              Button {
+                id: rowHideBtn
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.right: rowPinBtn.left
+                anchors.rightMargin: Style.space(6)
+                iconText: "\uf06e"
+                text: rowRoot.isHidden ? Commons.I18n.t("tray.show") : Commons.I18n.t("tray.hide")
+                foreground: root.foreground
+                horizontalPadding: 8
+                verticalPadding: 3
+                iconSize: Style.font.bodySmall
+                fontSize: Style.font.bodySmall
+                onClicked: root.toggleHide(rowRoot.itemId)
+              }
+            }
           }
         }
       }
@@ -720,6 +759,11 @@ BarWidget {
         interactive: contentHeight > height
 
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+        WheelScroll {
+          flickable: trayMenuFlick
+          stepHeight: Style.space(30)
+        }
 
         Column {
           id: trayMenuColumn

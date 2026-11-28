@@ -89,6 +89,11 @@ Item {
   implicitWidth: Style.spacing.searchableDropdownWidth
   implicitHeight: showLabel && label !== "" ? rowHeight + Style.spacing.huge : rowHeight
 
+  PointerMoveGate {
+    id: pointerGate
+    referenceItem: resultList
+  }
+
   Column {
     anchors.fill: parent
     spacing: Style.spacing.labelGap
@@ -193,6 +198,7 @@ Item {
         }
 
         onOpened: {
+          pointerGate.reset()
           searchField.text = ""
           root.recomputeFiltered()
           Qt.callLater(function() { searchField.forceActiveFocus() })
@@ -218,6 +224,7 @@ Item {
               font.pixelSize: Style.font.body
 
               onTextChanged: {
+                pointerGate.reset()
                 root.recomputeFiltered()
                 if (resultList.count > 0) resultList.currentIndex = 0
               }
@@ -227,6 +234,7 @@ Item {
                   popup.close(); event.accepted = true
                 } else if (event.key === Qt.Key_Down) {
                   if (resultList.count > 0) {
+                    pointerGate.reset()
                     resultList.currentIndex = 0
                     resultList.forceActiveFocus()
                   }
@@ -280,6 +288,12 @@ Item {
                 popup.close()
               }
 
+              WheelScroll {
+                flickable: resultList
+                stepHeight: root.popupRowHeight
+                gate: pointerGate
+              }
+
               Keys.priority: Keys.BeforeItem
               Keys.onPressed: function(event) {
                 if (event.key === Qt.Key_Escape) {
@@ -288,6 +302,7 @@ Item {
                   if (resultList.currentIndex >= resultList.count - 1) {
                     event.accepted = true; return
                   }
+                  pointerGate.reset()
                   resultList.currentIndex = resultList.currentIndex + 1
                   event.accepted = true
                 } else if (event.key === Qt.Key_Up || event.text === "k") {
@@ -295,6 +310,7 @@ Item {
                     searchField.forceActiveFocus()
                     event.accepted = true; return
                   }
+                  pointerGate.reset()
                   resultList.currentIndex = resultList.currentIndex - 1
                   event.accepted = true
                 } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -303,6 +319,7 @@ Item {
               }
 
               delegate: Rectangle {
+                id: resultRow
                 required property var modelData
                 required property int index
                 width: resultList.width
@@ -345,9 +362,12 @@ Item {
                   anchors.fill: parent
                   hoverEnabled: true
                   cursorShape: Qt.PointingHandCursor
-                  onPositionChanged: resultList.currentIndex = parent.index
+                  onPositionChanged: function(mouse) {
+                    if (pointerGate.moved(resultRow, mouse))
+                      resultList.currentIndex = resultRow.index
+                  }
                   onClicked: {
-                    resultList.currentIndex = parent.index
+                    resultList.currentIndex = resultRow.index
                     resultList.selectCurrent()
                   }
                 }
