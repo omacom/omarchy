@@ -54,6 +54,16 @@ grep -Fxq 'Exec=omarchy-launch-webapp "https://example.org/app"' "$(desktop_for 
   fail "webapp install stores the prefixed https URL" "$(cat "$(desktop_for Plain)")"
 pass "webapp install prefixes a schemeless URL with https"
 
+for url in "" "http://" "HTTPS://" "https:///path" "https://?query" "https://#fragment" "http://:8080" "https://user@/"; do
+  if install_webapp "Missing Host" "$url" "webapp" >"$tmpdir/out" 2>"$tmpdir/err"; then
+    fail "webapp install rejects a missing hostname in '$url'"
+  fi
+  grep -Fq 'must include a hostname' "$tmpdir/err" ||
+    fail "webapp install explains the missing hostname" "$(cat "$tmpdir/err")"
+  [[ ! -e $(desktop_for "Missing Host") ]] || fail "webapp install writes no launcher without a hostname"
+done
+pass "webapp install rejects URLs without a hostname"
+
 if install_webapp "Local" "https://localhost:47990" "webapp" "omarchy-launch-webapp https://localhost:47990 --ignore-certificate-errors" >"$tmpdir/out" 2>"$tmpdir/err"; then
   :
 else
