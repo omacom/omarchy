@@ -531,6 +531,14 @@ Panel {
   property double profileStamp: 0
   property bool profilesQueued: false
   property int peopleEditIndex: -1
+  // The city list the editor opened on. The editor belongs to a row by its
+  // index, so when the list changes under it (a city removed, rows reordered)
+  // it closes instead of landing on whichever city took that slot.
+  property string peopleEditCities: ""
+  onZonesChanged: {
+    if (peopleEditIndex >= 0 && JSON.stringify(Model.serializeCities(zones)) !== peopleEditCities)
+      cancelPeopleEdit()
+  }
 
   function fetchProfiles() {
     var wanted = Model.handlesIn(zones).filter(function(h) { return !profilesTried[h] })
@@ -546,6 +554,7 @@ Panel {
   function startPeopleEdit(index) {
     if (citySearch) citySearch.stop()
     if (hereSearch) hereSearch.stop()
+    peopleEditCities = JSON.stringify(Model.serializeCities(zones))
     peopleEditIndex = index
   }
 
