@@ -109,7 +109,7 @@ Item {
   property int applySerial: 0
   property var items: ({})
   property var itemOrder: []
-  property var searchIndex: ({ children: ({}), nameText: ({}), labelLower: ({}), descLower: ({}) })
+  property var searchIndex: MenuModel.buildSearchIndex({}, [])
   property var navStack: []
   property var providersLoaded: ({})
   property var providerQueue: []
@@ -762,7 +762,7 @@ Item {
     root.activeMenu = active
     var rows = []
     var query = root.filterText.trim()
-    var visMemo = ({})
+    var visMemo = Object.create(null)
     root.searchDivider = false
 
     if (query) {

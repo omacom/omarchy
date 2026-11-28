@@ -270,10 +270,10 @@ function isDescendantOf(items, id, ancestorId) {
 }
 
 function buildSearchIndex(items, itemOrder) {
-  var children = ({})
-  var nameText = ({})
-  var labelLower = ({})
-  var descLower = ({})
+  var children = Object.create(null)
+  var nameText = Object.create(null)
+  var labelLower = Object.create(null)
+  var descLower = Object.create(null)
   var order = Array.isArray(itemOrder) ? itemOrder : []
 
   for (var i = 0; i < order.length; i++) {
@@ -298,7 +298,7 @@ function buildSearchIndex(items, itemOrder) {
 
 function childCount(items, itemOrder, id, searchIndex) {
   if (searchIndex && searchIndex.children)
-    return searchIndex.children[id] ? searchIndex.children[id].length : 0
+    return Object.prototype.hasOwnProperty.call(searchIndex.children, id) ? searchIndex.children[id].length : 0
   var count = 0
   var order = Array.isArray(itemOrder) ? itemOrder : []
   for (var i = 0; i < order.length; i++) {
@@ -336,9 +336,9 @@ function altVariantIds(items, itemOrder) {
   return ids
 }
 
-function isVisible(items, itemOrder, whenResults, entry, depth, searchIndex, memo) {
+function isVisibleMemo(items, itemOrder, whenResults, entry, depth, searchIndex, memo, state) {
   if (!entry) return false
-  if (memo && memo[entry.id] !== undefined) return memo[entry.id]
+  if (memo && Object.prototype.hasOwnProperty.call(memo, entry.id)) return memo[entry.id]
   if (entry.when && whenResults && whenResults[entry.id] === false) {
     if (memo) memo[entry.id] = false
     return false
@@ -353,15 +353,19 @@ function isVisible(items, itemOrder, whenResults, entry, depth, searchIndex, mem
   }
 
   var guard = depth || 0
-  if (guard >= 32) return false
+  if (guard >= 32) {
+    if (state) state.truncated = true
+    return false
+  }
 
   var target = entry.kind === "link" ? entry.target : entry.id
   var visible = false
+  var childState = { truncated: false }
   if (searchIndex && searchIndex.children) {
-    var children = searchIndex.children[target]
+    var children = Object.prototype.hasOwnProperty.call(searchIndex.children, target) ? searchIndex.children[target] : null
     if (children) {
       for (var c = 0; c < children.length; c++) {
-        if (isVisible(items, itemOrder, whenResults, children[c], guard + 1, searchIndex, memo)) {
+        if (isVisibleMemo(items, itemOrder, whenResults, children[c], guard + 1, searchIndex, memo, childState)) {
           visible = true
           break
         }
@@ -371,15 +375,25 @@ function isVisible(items, itemOrder, whenResults, entry, depth, searchIndex, mem
     var order = Array.isArray(itemOrder) ? itemOrder : []
     for (var i = 0; i < order.length; i++) {
       var child = item(items, order[i])
-      if (child && child.parent === target && isVisible(items, itemOrder, whenResults, child, guard + 1, searchIndex, memo)) {
+      if (child && child.parent === target && isVisibleMemo(items, itemOrder, whenResults, child, guard + 1, searchIndex, memo, childState)) {
         visible = true
         break
       }
     }
   }
 
-  if (memo) memo[entry.id] = visible
+  if (visible) {
+    if (memo) memo[entry.id] = true
+  } else if (childState.truncated) {
+    if (state) state.truncated = true
+  } else if (memo) {
+    memo[entry.id] = false
+  }
   return visible
+}
+
+function isVisible(items, itemOrder, whenResults, entry, depth, searchIndex, memo) {
+  return isVisibleMemo(items, itemOrder, whenResults, entry, depth, searchIndex, memo, null)
 }
 
 // A `disabled:` row stays listed but goes dim and unselectable. The
