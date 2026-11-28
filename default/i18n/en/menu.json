@@ -328,6 +328,9 @@
   "trigger.clipboard-history": {
     "label": "Clipboard History"
   },
+  "trigger.steam-big-picture": {
+    "label": "Steam Big Picture"
+  },
   "trigger.reminder": {
     "label": "Reminder"
   },
