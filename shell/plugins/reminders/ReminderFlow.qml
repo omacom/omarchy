@@ -41,7 +41,9 @@ Item {
     root.minutes = ""
     root.filterText = ""
 
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() {
+      if (root && root.opened && keyCatcher) keyCatcher.forceActiveFocus()
+    })
   }
 
   function close() {
@@ -82,7 +84,9 @@ Item {
       root.minutes = nextMinutes
       root.step = "message"
       root.filterText = ""
-      Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+      Qt.callLater(function() {
+        if (root && root.opened && keyCatcher) keyCatcher.forceActiveFocus()
+      })
       return
     }
 

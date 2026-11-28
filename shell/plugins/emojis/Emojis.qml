@@ -50,7 +50,9 @@ Item {
     root.selectedIndex = 0
     root.cursorActive = true
     root.rebuildDisplay()
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() {
+      if (root && root.opened && keyCatcher) keyCatcher.forceActiveFocus()
+    })
   }
 
   function close() {
@@ -85,7 +87,8 @@ Item {
     cursorActive = out.length > 0
 
     Qt.callLater(function() {
-      if (root.filteredEmojis.length > 0) resultGrid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+      if (root && root.opened && resultGrid && root.filteredEmojis.length > 0)
+        resultGrid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
     })
   }
 

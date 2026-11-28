@@ -1293,6 +1293,11 @@ ShellRoot {
       return hidden === true
     }
     invokeIfLoaded(id, "close", null)
+    if (pendingPayloads[id]) {
+      var nextPending = ({})
+      for (var p in pendingPayloads) if (p !== id) nextPending[p] = pendingPayloads[p].slice()
+      pendingPayloads = nextPending
+    }
     if (!openPanelIds[id]) return true
     var next = ({})
     for (var k in openPanelIds) if (k !== id) next[k] = openPanelIds[k]
