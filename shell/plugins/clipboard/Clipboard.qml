@@ -195,7 +195,7 @@ Item {
   }
 
   function rebuildDisplay(preserveScroll) {
-    var savedY = preserveScroll ? resultList.contentY : -1
+    var savedY = resultList.contentY
     var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50, Commons.I18n.t, Commons.I18n.tn, Commons.I18n.formatNumber)
 
     displayModel.clear()
@@ -218,10 +218,7 @@ Item {
 
     Qt.callLater(function() {
       if (displayModel.count === 0) return
-      if (savedY >= 0) {
-        var bottom = resultList.originY + Math.max(0, resultList.contentHeight - resultList.height)
-        resultList.contentY = Math.max(resultList.originY, Math.min(bottom, savedY))
-      }
+      if (preserveScroll) Util.clampContentY(resultList, savedY)
       resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
     })
   }
@@ -271,13 +268,6 @@ Item {
     root.selectedIndex = index
   }
 
-  function scrollFlickable(flick, event, step) {
-    var delta = event.pixelDelta.y * Style.touchpadScrollFactor || event.angleDelta.y / 120 * step
-    var bottom = flick.originY + Math.max(0, flick.contentHeight - flick.height)
-    flick.contentY = Math.max(flick.originY, Math.min(bottom, flick.contentY - delta))
-    event.accepted = true
-  }
-
   function activateIndex(index) {
     if (index < 0 || index >= displayModel.count) return
     var row = displayModel.get(index)
@@ -325,6 +315,14 @@ Item {
   Component.onCompleted: initProc.running = true
 
   ListModel { id: displayModel }
+
+  component PreviewAction: Button {
+    foreground: root.foreground
+    accent: root.selectedText
+    fontFamily: root.fontFamily
+    fontSize: Style.font.bodySmall
+    iconSize: Style.font.bodySmall
+  }
 
   PointerMoveGate {
     id: pointerGate
@@ -525,8 +523,8 @@ Item {
           Text {
             textFormat: Text.PlainText
             anchors.left: parent.left
-            anchors.right: clearHistoryButton.visible ? clearHistoryButton.left : parent.right
-            anchors.rightMargin: clearHistoryButton.visible ? Style.spacing.sm : 0
+            anchors.right: clearHistoryButton.left
+            anchors.rightMargin: Style.spacing.sm
             anchors.verticalCenter: parent.verticalCenter
             text: root.filterText || Commons.I18n.t("clipboard.search")
             color: root.foreground
@@ -544,10 +542,9 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             iconText: "󰆴"
             tooltipText: Commons.I18n.t("clipboard.clearHistory")
-            foreground: Util.alpha(root.foreground, 0.48)
+            foreground: Util.alpha(root.foreground, 0.55)
             hoverColor: Commons.Color.urgent
             fontFamily: root.fontFamily
-            fontSize: Style.font.icon
             onClicked: root.requestClearHistory()
           }
         }
@@ -577,7 +574,7 @@ Item {
                 WheelHandler {
                   acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                   target: null
-                  onWheel: function(event) { root.scrollFlickable(resultList, event, root.rowHeight * 3) }
+                  onWheel: function(event) { Util.wheelScroll(resultList, event, root.rowHeight * 3) }
                 }
 
                 delegate: Rectangle {
@@ -668,6 +665,7 @@ Item {
               clip: true
 
               property var activeRow: displayModel.count > 0 && root.selectedIndex >= 0 && root.selectedIndex < displayModel.count ? displayModel.get(root.selectedIndex) : null
+              readonly property bool hasPreviewImage: activeRow !== null && activeRow.previewImage.length > 0
 
               Rectangle {
                 visible: displayModel.count > 0
@@ -680,7 +678,7 @@ Item {
 
               Flickable {
                 id: previewFlick
-                visible: previewPane.activeRow !== null && !previewPane.activeRow.previewImage
+                visible: previewPane.activeRow !== null && !previewPane.hasPreviewImage
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
@@ -689,14 +687,13 @@ Item {
                 anchors.bottomMargin: Style.spacing.md
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                flickableDirection: Flickable.VerticalFlick
                 contentWidth: width
                 contentHeight: previewTextItem.implicitHeight
 
                 WheelHandler {
                   acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                   target: null
-                  onWheel: function(event) { root.scrollFlickable(previewFlick, event, Style.font.title * 4) }
+                  onWheel: function(event) { Util.wheelScroll(previewFlick, event, Style.font.title * 4) }
                 }
 
                 Text {
@@ -708,19 +705,13 @@ Item {
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.title
                   wrapMode: Text.WrapAnywhere
-                  verticalAlignment: Text.AlignTop
                   onTextChanged: previewFlick.contentY = 0
                 }
               }
 
               SizedImage {
-                visible: previewPane.activeRow !== null && previewPane.activeRow.previewImage.length > 0
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.bottom: previewActions.top
-                anchors.leftMargin: root.contentMargin
-                anchors.bottomMargin: Style.spacing.md
+                visible: previewPane.hasPreviewImage
+                anchors.fill: previewFlick
                 url: previewPane.activeRow ? previewPane.activeRow.previewImage : ""
                 verticalAlignment: Image.AlignTop
                 asynchronous: true
@@ -735,25 +726,15 @@ Item {
                 anchors.bottom: parent.bottom
                 spacing: Style.spacing.sm
 
-                Button {
+                PreviewAction {
                   iconText: "󰆏"
                   text: Commons.I18n.t("common.copy")
-                  foreground: root.foreground
-                  accent: root.selectedText
-                  fontFamily: root.fontFamily
-                  fontSize: Style.font.bodySmall
-                  iconSize: Style.font.bodySmall
                   onClicked: root.copyIndex(root.selectedIndex)
                 }
 
-                Button {
+                PreviewAction {
                   iconText: "󰏌"
-                  text: Commons.I18n.t("dock.open")
-                  foreground: root.foreground
-                  accent: root.selectedText
-                  fontFamily: root.fontFamily
-                  fontSize: Style.font.bodySmall
-                  iconSize: Style.font.bodySmall
+                  text: Commons.I18n.t("common.open")
                   onClicked: root.openIndex(root.selectedIndex)
                 }
               }

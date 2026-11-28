@@ -39,6 +39,17 @@ QtObject {
     return { steps: steps, remainder: total - steps * 120 }
   }
 
+  function clampContentY(flick, y) {
+    var bottom = flick.originY + Math.max(0, flick.contentHeight - flick.height)
+    flick.contentY = Math.max(flick.originY, Math.min(bottom, y))
+  }
+
+  function wheelScroll(flick, event, step) {
+    var delta = event.pixelDelta.y * Style.touchpadScrollFactor || event.angleDelta.y / 120 * step
+    clampContentY(flick, flick.contentY - delta)
+    event.accepted = true
+  }
+
   // Compose a base color with an opacity. Accepts a color object or a hex
   // string; null/undefined yields transparent black at the requested alpha.
   function alpha(c, opacity) {

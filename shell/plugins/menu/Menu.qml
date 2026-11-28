@@ -1611,11 +1611,10 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             iconText: Commons.I18n.rightToLeft ? "→" : "←"
             tooltipText: Commons.I18n.t("common.back")
-            foreground: Util.alpha(root.foreground, 0.65)
+            foreground: Util.alpha(root.foreground, 0.55)
             hoverColor: root.selectedText
             fontFamily: root.fontFamily
             fontSize: Style.font.heading
-            size: Math.min(root.headerHeight, Style.space(28))
             onClicked: root.goBack()
           }
 
@@ -1664,12 +1663,7 @@ Item {
             WheelHandler {
               acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
               target: null
-              onWheel: function(event) {
-                var delta = event.pixelDelta.y * Style.touchpadScrollFactor || event.angleDelta.y / 120 * root.rowHeightForDetail("") * 3
-                var bottom = resultList.originY + Math.max(0, resultList.contentHeight - resultList.height)
-                resultList.contentY = Math.max(resultList.originY, Math.min(bottom, resultList.contentY - delta))
-                event.accepted = true
-              }
+              onWheel: function(event) { Util.wheelScroll(resultList, event, root.rowHeightForDetail("") * 3) }
             }
 
             section.property: "section"
@@ -1869,7 +1863,6 @@ Item {
                 foreground: Util.alpha(root.selectedText, 0.55)
                 hoverColor: Commons.Color.urgent
                 fontFamily: root.fontFamily
-                fontSize: Style.font.icon
                 onClicked: root.requestDeleteSelected()
               }
             }
