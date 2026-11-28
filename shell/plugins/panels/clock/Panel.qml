@@ -10,7 +10,7 @@ import "Model.js" as Model
 //
 // The grid is a read-out rather than a picker: today is the only marked
 // day, and the only thing that moves is which month is on screen —
-// chevrons, the scroll wheel, and the arrow keys all step it.
+// chevrons, horizontal or vertical scrolling, and the arrow keys all step it.
 //
 // BarWidget.qml owns the bar label and hands this panel the button to
 // anchor against.
@@ -562,6 +562,55 @@ Panel {
                 // without this they would every one read as "next month".
                 if (event.angleDelta.y === 0) return
                 root.moveMonth(event.angleDelta.y > 0 ? -1 : 1)
+              }
+            }
+
+            MouseArea {
+              id: horizontalScroll
+              anchors.fill: parent
+              acceptedButtons: Qt.NoButton
+              // A narrow popup still needs to pan to the hidden columns.
+              enabled: calendarScroll.contentWidth <= calendarScroll.width
+
+              property real wheelRemainder: 0
+              property real swipeDistance: 0
+              readonly property int swipeThreshold: 48
+
+              Timer {
+                id: swipeTimeout
+                interval: 180
+                onTriggered: horizontalScroll.swipeDistance = 0
+              }
+
+              onWheel: function(wheel) {
+                const phase = wheel.phase || Qt.NoScrollPhase
+                if (phase === Qt.ScrollBegin || phase === Qt.ScrollEnd) {
+                  swipeTimeout.stop()
+                  swipeDistance = 0
+                }
+
+                const pixels = wheel.pixelDelta
+                // Wayland can include a pixel delta even for a wheel notch.
+                const useAngle = (phase === Qt.NoScrollPhase && wheel.angleDelta.x !== 0)
+                  || (pixels.x === 0 && pixels.y === 0)
+                const delta = useAngle ? wheel.angleDelta : pixels
+                wheel.accepted = Math.abs(delta.x) > Math.abs(delta.y)
+                if (!wheel.accepted || phase === Qt.ScrollEnd || phase === Qt.ScrollMomentum) return
+
+                const direction = LayoutMirroring.enabled ? 1 : -1
+                if (useAngle) {
+                  const turn = Util.wheelSteps(wheelRemainder, delta.x)
+                  wheelRemainder = turn.remainder
+                  if (turn.steps !== 0) root.moveMonth(direction * turn.steps)
+                  return
+                }
+
+                // Infer swipe boundaries only when the input has no phases.
+                if (phase === Qt.NoScrollPhase) swipeTimeout.restart()
+                if (Math.abs(swipeDistance) >= swipeThreshold) return
+                swipeDistance += delta.x
+                if (Math.abs(swipeDistance) >= swipeThreshold)
+                  root.moveMonth(direction * Math.sign(swipeDistance))
               }
             }
 
