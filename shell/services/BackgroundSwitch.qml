@@ -17,7 +17,7 @@ Item {
   readonly property string home: Quickshell.env("HOME")
   readonly property string backgroundLink: home + "/.local/state/omarchy/current/background"
   readonly property string transitionCache: home + "/.cache/omarchy/background-transitions"
-  readonly property string themeSetLock: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/omarchy-theme-set.lock"
+  readonly property string themeSetLock: (Quickshell.env("XDG_RUNTIME_DIR") || (home + "/.local/state/omarchy")) + "/omarchy-theme-set.lock"
 
   // The change in progress, named by its cover's token.
   property string token: ""
@@ -204,7 +204,9 @@ Item {
   // taken and runs before it is released, so no new intro can start between.
   Process {
     id: reloadLock
-    command: ["flock", root.themeSetLock, "bash", "-c", 'echo locked; read -r go; [[ $go != reload ]] || exec omarchy-restart-hyprctl']
+    command: ["bash", "-c",
+      'dir=${1%/*}; mkdir -p "$dir" || exit 1; if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then chmod 700 "$dir" || exit 1; fi; exec 9>"$1" || exit 1; flock 9 || exit 1; echo locked; read -r go; [[ $go != reload ]] || exec omarchy-restart-hyprctl',
+      "theme-reload", root.themeSetLock]
     stdinEnabled: true
     stdout: SplitParser {
       onRead: {
