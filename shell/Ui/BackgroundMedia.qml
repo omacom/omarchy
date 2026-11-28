@@ -26,7 +26,7 @@ Item {
   readonly property bool video: Util.isVideoPath(path)
   // Cache-bust images selected in a running lock session, so a theme switch
   // that replaces the file behind an unchanged path shows the new pixels.
-  readonly property url imageUrl: path && !video ? Util.fileUrl(path) + (version ? "?" + versionPrefix + "=" + version : "") : ""
+  readonly property url imageUrl: path && !video ? Util.fileUrl(path) + (version || versionPrefix !== "v" ? "?" + versionPrefix + "=" + version : "") : ""
 
   Loader {
     id: imageLoader

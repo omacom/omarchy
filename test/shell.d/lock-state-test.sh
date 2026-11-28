@@ -100,8 +100,11 @@ function evalLockUrl(lockWallpaperPath, backgroundVersion) {
     Util: { isVideoPath: () => false, fileUrl: (p) => 'file://' + p }
   })
 }
+assertEqual(evalImageUrl('/wall/a.webp', 0, 'v'), 'file:///wall/a.webp', 'desktop/shared version 0 uses unversioned URL')
 assertEqual(evalImageUrl('/wall/a.webp', 1, 'v'), 'file:///wall/a.webp?v=1', 'desktop/shared BackgroundMedia URL uses ?v=')
+assertEqual(evalImageUrl('/wall/a.webp', 0, 'lockv'), 'file:///wall/a.webp?lockv=0', 'unshared lock version 0 uses disjoint ?lockv=0 (never collides with desktop)')
 assertEqual(evalImageUrl('/wall/a.webp', 1, 'lockv'), 'file:///wall/a.webp?lockv=1', 'lock overwrite BackgroundMedia URL uses disjoint ?lockv=')
+assertEqual(evalLockUrl('/wall/a.webp', 0), 'file:///wall/a.webp?lockv=0', 'lock preload version 0 matches unshared LockView URL')
 assertEqual(evalLockUrl('/wall/a.webp', 1), 'file:///wall/a.webp?lockv=1', 'lock preload URL matches lock overwrite BackgroundMedia URL')
 
 function runReadlink(entries) {
@@ -165,6 +168,7 @@ const bgCtx = {
     instances: [{
       screen: dp1,
       backgroundReady: true,
+      backgroundFailed: false,
       decodeSize: (p) => p === '/wall/a.webp' ? { width: 3840, height: 2160 } : { width: 0, height: 0 }
     }]
   }
@@ -267,5 +271,36 @@ bgCtx.backgrounds.instances[0].decodeSize = (p) => p === '/wall/b.webp' ? { widt
 lockCtx.backgroundPath = '/wall/b.webp'
 lockCtx.backgroundSignature = 'sig-b-1'
 assertEqual(lockCtx.lockWallpaperRequest(dp1, 1920, 1080).shared, true, 'theme transition shares cache once new still signature matches')
+
+// Failed desktop decode must not suppress the unlocked lock preload.
+bgCtx.backgrounds.instances[0].backgroundReady = false
+bgCtx.backgrounds.instances[0].backgroundFailed = true
+assertEqual(lockCtx.desktopStillPending(dp1), false, 'failed desktop decode does not suppress lock preload')
+bgCtx.backgrounds.instances[0].backgroundFailed = false
+bgCtx.backgrounds.instances[0].backgroundReady = true
+
+// Returning to an overwritten path after switching away bumps desktop reloadVersion so
+// neither desktop nor lock reuses a retained Qt pixmap with stale pixels.
+const sizeProbeBlock = backgroundQml.match(/Process \{\s*id: sizeProbe[\s\S]*?\n  \}/)[0]
+const sizeProbeExited = sizeProbeBlock.match(/onExited: function\(exitCode\) \{([\s\S]*?)\n    \}/)[1]
+const probeCtx = {
+  path: '/wall/a.webp',
+  nativeSizes: {},
+  seenPathSignatures: {},
+  reloadVersion: 0,
+  sizeQueue: ['/wall/a.webp'],
+  sizeProbeOut: { text: '' },
+  probeNextSize() {}
+}
+probeCtx.root = probeCtx
+probeCtx.sizeProbe = probeCtx
+require('vm').runInNewContext(`function runExited(exitCode) {${sizeProbeExited}}`, probeCtx)
+probeCtx.sizeProbeOut.text = '1920 1080\nsig-1\n'
+probeCtx.runExited(0)
+assertEqual(probeCtx.reloadVersion, 0, 'first sizeProbe of A keeps reloadVersion 0')
+probeCtx.nativeSizes = {} // pruned after switching away to B
+probeCtx.sizeProbeOut.text = '1920 1080\nsig-2\n'
+probeCtx.runExited(0)
+assertEqual(probeCtx.reloadVersion, 1, 're-probing overwritten A after switch-away bumps desktop reloadVersion')
 
 JS

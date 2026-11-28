@@ -37,6 +37,7 @@ Item {
   // decode up to cover sourceSize, so a smaller wallpaper would cost the
   // screen's worth of pixels instead of its own.
   property var nativeSizes: ({})
+  property var seenPathSignatures: ({})
   property var sizeQueue: []
   property bool finishingTransition: false
   property int backgroundVersion: 0
@@ -103,7 +104,7 @@ Item {
     var panel = panelForScreen(screen)
     if (!panel) return false
     if (displayedBackground === "") return readlinkProc.running
-    if (panel.backgroundReady) return false
+    if (panel.backgroundReady || panel.backgroundFailed) return false
     var meta = nativeSizes[path]
     if (meta === undefined) return sizeProbe.running || sizeQueue.indexOf(path) !== -1
     if (signature && (!meta.signature || meta.signature !== signature)) return false
@@ -332,10 +333,16 @@ Item {
       var height = exitCode === 0 ? parseInt(parts[1], 10) : 0
       var known = Object.assign({}, root.nativeSizes)
       // An unreadable header records 0x0, which decodes at screen size.
+      var probedSig = exitCode === 0 ? signature : ""
+      if (probedSig) {
+        var prevSig = root.seenPathSignatures[path]
+        if (prevSig !== undefined && prevSig !== probedSig) root.reloadVersion += 1
+        root.seenPathSignatures[path] = probedSig
+      }
       known[path] = {
         width: width > 0 ? width : 0,
         height: height > 0 ? height : 0,
-        signature: exitCode === 0 ? signature : ""
+        signature: probedSig
       }
       root.nativeSizes = known
       root.sizeQueue = root.sizeQueue.filter(function(queued) { return queued !== sizeProbe.path })
@@ -473,6 +480,7 @@ Item {
       }
       property int readyFrames: 0
       readonly property bool backgroundReady: base.ready && readyFrames >= 2
+      readonly property bool backgroundFailed: base.failed
 
       FrameAnimation {
         running: base.ready && panel.readyFrames < 2

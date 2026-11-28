@@ -640,7 +640,7 @@ Item {
   }
   readonly property string lockWallpaperPath: videoBackground ? videoPosterPath : backgroundPath
   readonly property string lockWallpaperUrl: lockWallpaperPath && !Util.isVideoPath(lockWallpaperPath)
-    ? Util.fileUrl(lockWallpaperPath) + (backgroundVersion ? "?lockv=" + backgroundVersion : "")
+    ? Util.fileUrl(lockWallpaperPath) + "?lockv=" + backgroundVersion
     : ""
 
   function desktopStillEntry(screen) {
