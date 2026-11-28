@@ -724,6 +724,7 @@ Panel {
             // the Wi-Fi band Automatic switch) so it reads as part of the header.
             ToggleSwitch {
               id: limitSwitch
+              accessibleName: root.chargeLimitHeaderText
               checked: root.chargeLimitEnabled
               busy: limitProc.running
               trackHeight: Math.round(limitHeader.font.pixelSize * 1.2)
@@ -811,6 +812,7 @@ Panel {
 
               ToggleSwitch {
                 id: topUpSwitch
+                accessibleName: !root.toppingUpOnce ? Commons.I18n.t("power.topUpOnce") : (root.discharging ? Commons.I18n.t("power.toppingUpNext") : Commons.I18n.t("power.toppingUpOnce"))
                 checked: root.toppingUpOnce
                 busy: limitProc.running
                 interactive: false

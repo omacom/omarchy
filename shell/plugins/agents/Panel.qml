@@ -3472,6 +3472,7 @@ Panel {
           tooltipText: section.local && section.local.host !== ""
             ? Commons.I18n.t("agents.unlink")
             : Commons.I18n.t("common.delete")
+          accessibleName: section.local && section.local.host ? Commons.I18n.t("agents.unlink") : Commons.I18n.t("common.delete")
           foreground: root.foreground
           fontFamily: root.fontFamily
           onClicked: root.deleteTarget = section.provider
