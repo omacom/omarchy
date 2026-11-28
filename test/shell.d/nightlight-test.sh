@@ -25,11 +25,23 @@ SHELL_LOG="$TMPDIR/omarchy-shell-log"
 cat >"$TMPDIR/bin/hyprctl" <<'SH'
 #!/bin/bash
 
+# A daemon that is only up once pgrep has looked for it twice: launched after the first look
+if [[ -n ${HYPRSUNSET_LOOKS:-} ]] && (( $(wc -l <"$HYPRSUNSET_LOOKS") < 2 )); then
+  exit 1
+fi
+
 if [[ ${1:-} == "hyprsunset" && ${2:-} == "temperature" ]]; then
   if [[ -n ${3:-} ]]; then
     printf '%s\n' "$3" >"$HYPRSUNSET_STATE"
     printf 'false\n' >"$HYPRSUNSET_STATE.identity"
   else
+    if [[ -n ${HYPRSUNSET_SLOW:-} && -s $HYPRSUNSET_SLOW ]]; then
+      remaining=$(<"$HYPRSUNSET_SLOW")
+      if (( remaining > 0 )); then
+        printf '%s\n' "$((remaining - 1))" >"$HYPRSUNSET_SLOW"
+        exit 1
+      fi
+    fi
     cat "$HYPRSUNSET_STATE" 2>/dev/null || exit 1
   fi
   exit 0
@@ -58,6 +70,8 @@ chmod +x "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/pgrep" "$TMPDIR/bin/omarchy-shell"
 nightlight_cli() {
   PATH="$TMPDIR/bin:$PATH" \
   HYPRSUNSET_STATE="$STATE" \
+  HYPRSUNSET_SLOW="${SLOW:-}" \
+  HYPRSUNSET_LOOKS="${LOOKS:-}" \
   OMARCHY_SHELL_LOG="$SHELL_LOG" \
     "$ROOT/bin/omarchy-toggle-nightlight" "$@"
 }
@@ -97,6 +111,20 @@ pass "nightlight toggle restores daylight from night light"
 
 [[ $(<"$STATE.identity") == "true" ]] || fail "nightlight toggle resets to the identity matrix when turning off"
 pass "nightlight toggle resets to the identity matrix when turning off"
+
+# hyprsunset owns its socket before it answers on it. A probe during that boot
+# read as off, so the menu showed "Nightlight On" and the next toggle warmed
+# the screen again instead of cooling it.
+SLOW="$TMPDIR/slow"
+printf '3\n' >"$SLOW"
+[[ $(nightlight_status 4000 | jq -r .enabled) == "true" ]] || \
+  fail "nightlight status waits for a booting hyprsunset to answer"
+printf '3\n' >"$SLOW"
+nightlight_cli >/dev/null
+unset SLOW
+[[ $(<"$STATE") == 6500 ]] || \
+  fail "nightlight toggle reads a booting hyprsunset before choosing the direction"
+pass "nightlight reads a booting hyprsunset before choosing the direction"
 
 # hyprsunset's own default, as the shipped identity profile starts it
 printf '6000\n' >"$STATE"
@@ -144,3 +172,23 @@ chmod +x "$TMPDIR/bin/setsid"
 toggle_from_daylight 100
 [[ $(<"$STATE") == 4000 && ! -e $BOOT_PENDING ]] || fail "a freshly started hyprsunset can't undo the toggle with its default"
 pass "a freshly started hyprsunset can't undo the toggle with its default"
+
+# A hyprsunset another user is running answers pgrep but owns a socket this
+# session's hyprctl can never reach, so it is no daemon to wait for.
+rm -f "$STATE"
+: >"$SHELL_LOG"
+printf '#!/bin/bash\nfor arg in "$@"; do [[ $arg == "-u" ]] && exit 1; done\nexit 0\n' >"$TMPDIR/bin/pgrep"
+[[ $(nightlight_cli --status | jq -r .enabled) == "false" ]] && ! grep -q '^sleep' "$SHELL_LOG" || \
+  fail "nightlight status doesn't wait for another user's hyprsunset"
+pass "nightlight status doesn't wait for another user's hyprsunset"
+
+# The click that launches hyprsunset turns night light on, even when the daemon
+# boots into a warm profile and answers by the time the toggle reads it.
+LOOKS="$TMPDIR/looks"
+: >"$LOOKS"
+printf '#!/bin/bash\necho >>"$HYPRSUNSET_LOOKS"\n(( $(wc -l <"$HYPRSUNSET_LOOKS") > 1 ))\n' >"$TMPDIR/bin/pgrep"
+printf '4000\n' >"$STATE"
+nightlight_cli >/dev/null
+unset LOOKS
+[[ $(<"$STATE") == 4000 ]] || fail "launching hyprsunset into a warm profile still turns night light on"
+pass "launching hyprsunset into a warm profile still turns night light on"
