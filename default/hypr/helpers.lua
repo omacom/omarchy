@@ -12,7 +12,9 @@ o.shell_quote = shell_quote
 
 -- Chromium-based browsers. Rule classes match the whole name, so their web apps
 -- (chrome-<host>_<path>-<profile>) aren't included.
-o.chromium_browsers = "((google-)?[cC]hrom(e|ium)|[bB]rave-browser|[mM]icrosoft-edge|Vivaldi-stable|helium)"
+o.chromium_browsers = "((google-)?[cC]hrom(e|ium)|[bB]rave-(browser|origin)|[mM]icrosoft-edge|[oO]pera|Vivaldi-stable|helium)"
+
+o.firefox_browsers = "([fF]irefox(-esr)?|org\\.mozilla\\.firefox|zen|app\\.zen_browser\\.zen|librewolf|io\\.gitlab\\.librewolf-community)"
 
 -- Apps that draw their own header with a close button: those browsers and GNOME
 -- apps with a header bar. Floating workspaces give them no titlebar. Web apps
