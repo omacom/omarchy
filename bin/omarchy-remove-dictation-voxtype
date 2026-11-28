@@ -12,6 +12,9 @@ if omarchy-cmd-present voxtype; then
 
   # Remove services
   systemctl --user disable --now voxtype.service 2>/dev/null || true
+  drop_in_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/voxtype.service.d"
+  rm -f "$drop_in_dir/omarchy-restart-with-wireplumber.conf"
+  rmdir "$drop_in_dir" 2>/dev/null || true
   systemctl --user daemon-reload
 
   # Remove packages and configs
