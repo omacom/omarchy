@@ -1,0 +1,14 @@
+[Unit]
+Description=Restore core dump collection after a boot-time crash in init.scope
+# systemd-coredump reads any crash in init.scope as PID 1 crashing and writes
+# |/bin/false to kernel.core_pattern for the rest of the boot. Processes the
+# initrd leaves behind live there too: plymouthd, which survives switch-root,
+# and the generators PID 1 runs. Once boot has got this far PID 1 is plainly
+# alive, so put back the value the sysctl.d configuration asks for. A real
+# PID 1 crash freezes the system and this never runs.
+After=plymouth-quit.service plymouth-quit-wait.service systemd-sysctl.service
+ConditionVirtualization=!container
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/systemd/systemd-sysctl --prefix=kernel.core_pattern
