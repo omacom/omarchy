@@ -34,8 +34,9 @@ keybind = super+control+shift+alt+arrow_up=resize_split:up,100
 keybind = super+control+shift+alt+arrow_left=resize_split:left,100
 keybind = super+control+shift+alt+arrow_right=resize_split:right,100
 
-# Slowdown mouse scrolling
-mouse-scroll-multiplier = 0.95
+# Slow down precise scrolling only. A bare value applies to both device types,
+# which would drop discrete wheel clicks from Ghostty's default 3 to 0.95.
+mouse-scroll-multiplier = precision:0.95,discrete:3
 
 # Fix general slowness on hyprland (https://github.com/ghostty-org/ghostty/discussions/3224)
 async-backend = epoll
