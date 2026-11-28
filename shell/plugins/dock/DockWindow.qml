@@ -243,27 +243,27 @@ PanelWindow {
     window.menuSlot = slot
   }
 
-  // The layout picked here becomes the default every workspace uses, as under
-  // Appearance > Workspace Layout, and the workspace the dock is on switches to
-  // it too. Other workspaces with windows on them keep the layout they have.
+  // The layout picked here goes to the workspace the dock is on and becomes
+  // the default every workspace uses, as under Appearance > Workspace Layout.
+  // Other workspaces with windows on them keep the layout they have.
   //
-  // The default is saved first: it pins every busy workspace to its layout,
-  // this one included, and an empty one takes the new default on its own. Then
-  // the layout toggle, which cycles the focused workspace through dwindle,
-  // scrolling, and floating, steps this one forward or back to the one picked,
-  // reading where it stands only once the default is in. A choice on another
-  // screen's dock focuses that screen first.
+  // The layout toggle cycles the focused workspace through dwindle, scrolling,
+  // and floating, so the one picked is a step forward or back from where this
+  // workspace stands, and a choice on another screen's dock focuses that
+  // screen first. The default is saved after, and only when it changes: saving
+  // it reloads Hyprland.
   function setLayout(mode) {
-    if (!window.dock || ["dwindle", "scrolling", "floating"].indexOf(mode) < 0) return
+    var order = ["dwindle", "scrolling", "floating"]
+    var to = order.indexOf(mode)
+    if (!window.dock || to < 0) return
+    var from = order.indexOf(window.dock.modes[window.workspaceId] || "dwindle")
     var steps = []
     if (window.monitor && !window.monitor.focused)
       steps.push("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ monitor = \"" + window.monitor.name + "\" })") + " >/dev/null")
-    if (mode !== window.dock.defaultMode) steps.push("omarchy-hyprland-workspace-layout-default " + mode)
-    steps.push("case \"$(omarchy-hyprland-workspace-layout-current)>" + mode + "\" in"
-      + " dwindle\\>scrolling|scrolling\\>floating|floating\\>dwindle) omarchy-hyprland-workspace-layout-toggle ;;"
-      + " dwindle\\>floating|scrolling\\>dwindle|floating\\>scrolling) omarchy-hyprland-workspace-layout-toggle back ;;"
-      + " esac")
-    Util.execDetached(steps.join(" && "))
+    if (from >= 0 && from !== to)
+      steps.push("omarchy-hyprland-workspace-layout-toggle" + ((to - from + 3) % 3 === 1 ? "" : " back"))
+    steps.push("if [[ $(omarchy-hyprland-workspace-layout-default) != " + mode + " ]]; then omarchy-hyprland-workspace-layout-default " + mode + "; fi")
+    Util.execDetached(steps.join("; "))
   }
 
   function settleShifts() {

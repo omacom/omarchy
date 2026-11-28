@@ -316,9 +316,6 @@ Item {
   property int modeGeneration: 0
   property int modeProcWorkspace: -1
   property int modeProcGeneration: 0
-  // The layout every workspace without one of its own uses, which the apps
-  // button's menu sets. Read again with the workspaces' layouts.
-  property string defaultMode: "dwindle"
 
   function isFloating(workspaceId) {
     return root.modes[workspaceId] === "floating"
@@ -340,8 +337,6 @@ Item {
   }
 
   function refresh() {
-    defaultModeProc.running = false
-    defaultModeProc.running = true
     root.readModes = ({})
     root.pendingModes = []
     root.modeGeneration++
@@ -358,17 +353,6 @@ Item {
   Component.onCompleted: {
     refresh()
     syncItemModel()
-  }
-
-  Process {
-    id: defaultModeProc
-    command: ["omarchy-hyprland-workspace-layout-default"]
-    stdout: StdioCollector {
-      onStreamFinished: {
-        var mode = text.trim()
-        if (mode) root.defaultMode = mode
-      }
-    }
   }
 
   Process {

@@ -60,9 +60,9 @@ PanelWindow {
     border.width: Style.normalBorderWidth
 
     // The outline glides to the edge the pointer has come nearest.
-    Behavior on x { NumberAnimation { duration: Style.duration(150); easing.type: Easing.OutCubic } }
-    Behavior on y { NumberAnimation { duration: Style.duration(150); easing.type: Easing.OutCubic } }
-    Behavior on width { NumberAnimation { duration: Style.duration(150); easing.type: Easing.OutCubic } }
-    Behavior on height { NumberAnimation { duration: Style.duration(150); easing.type: Easing.OutCubic } }
+    Behavior on x { NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
+    Behavior on y { NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
+    Behavior on width { NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
+    Behavior on height { NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
   }
 }
