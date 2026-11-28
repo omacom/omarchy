@@ -15,18 +15,18 @@ if [[ ${1:-} == "--offer" ]]; then
     --action "$(omarchy-i18n default.chromeOfferDismiss)" true
 fi
 
-# Installs from before Chrome became the default rarely have it, and installing
-# it needs a password, so the whole switch runs where one can be entered.
-if [[ ! -t 0 ]]; then
-  exec omarchy-launch-floating-terminal-with-presentation omarchy-default-browser-switch-to-chrome
-fi
-
-# The offer arrives during the update that brings it, so the switch waits for
-# that update to finish before installing anything or closing Chromium.
+# Wait before opening a terminal, so it cannot cover an update prompt that
+# must be answered before the lock is released.
 lock="${XDG_RUNTIME_DIR:-/tmp/omarchy-$EUID}/omarchy-update.lock"
 if [[ -f $lock ]] && ! flock -n "$lock" true; then
   echo "Waiting for the update to finish..."
   flock "$lock" true
+fi
+
+# Installs from before Chrome became the default rarely have it, and installing
+# it needs a password, so the whole switch runs where one can be entered.
+if [[ ! -t 0 ]]; then
+  exec omarchy-launch-floating-terminal-with-presentation omarchy-default-browser-switch-to-chrome
 fi
 
 # Chrome is installed and the default before Chromium closes, so a failed

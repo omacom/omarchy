@@ -429,3 +429,43 @@ if XDG_RUNTIME_DIR="$linked_runtime" "$stub_bin/omarchy-update-lock" run true >/
 fi
 pass "update lock requires a private non-symlink runtime directory"
 
+# A notification action has no terminal. Waiting must leave the updater's
+# interactive prompt visible until it releases the lock.
+write_stub omarchy-launch-floating-terminal-with-presentation 'touch "$CHROME_SWITCH_LAUNCHED"'
+PATH="$stub_bin:$PATH" ROOT="$ROOT" python3 - "$test_tmp" <<'PY'
+import fcntl
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+scratch = Path(sys.argv[1])
+runtime = scratch / 'chrome-runtime'
+runtime.mkdir(mode=0o700)
+launched = scratch / 'chrome-terminal'
+env = dict(os.environ, XDG_RUNTIME_DIR=str(runtime), CHROME_SWITCH_LAUNCHED=str(launched))
+with (runtime / 'omarchy-update.lock').open('w') as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    switch = subprocess.Popen(
+        [os.environ['ROOT'] + '/bin/omarchy-default-browser-switch-to-chrome'],
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
+        start_new_session=True,
+    )
+    try:
+        try:
+            switch.communicate(timeout=1)
+            raise AssertionError('Chrome switch launched a terminal while the update lock was held')
+        except subprocess.TimeoutExpired:
+            pass
+        assert not launched.exists(), 'Chrome switch covered the updater before the lock was released'
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        output, errors = switch.communicate(timeout=5)
+        assert switch.returncode == 0, errors.decode()
+        assert b'Waiting for the update to finish...' in output, 'Chrome switch never observed the held lock'
+        assert launched.exists(), 'Chrome switch did not launch after the update lock was released'
+    finally:
+        if switch.poll() is None:
+            os.killpg(switch.pid, 9)
+        switch.wait()
+PY
+pass "Chrome notification action waits for the update before opening its terminal"
