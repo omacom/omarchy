@@ -40,7 +40,7 @@ claim_path() {
       candidate="$dir/$base-$index$ext"
     fi
 
-    if ln -- "$staged" "$candidate" 2>/dev/null; then
+    if ln -T -- "$staged" "$candidate" 2>/dev/null; then
       rm -f -- "$staged"
       printf '%s\n' "$candidate"
       return 0

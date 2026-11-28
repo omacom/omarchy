@@ -109,16 +109,16 @@ pass "taildrop receive keeps critical urgency and literal click-to-open paths"
 [[ -f $downloads/unrelated.txt ]] || fail "taildrop receive leaves unrelated downloads alone"
 pass "taildrop receive leaves the rest of the downloads directory alone"
 
-# A second delivery of the same name, alongside a download that arrives while
-# Taildrop is waiting.
+# A second delivery of the same name also finds a folder at the first suffix.
+mkdir "$downloads/photo-1.png"
 printf 'png' >"$WORKDIR/outbox/photo.png"
 receive 1 env DECOY=browser-download.iso
 
 notification_files=("$WORKDIR/notifications/"*)
 
-[[ -f $downloads/photo-1.png ]] || fail "taildrop receive keeps both files on a name clash" "$(ls "$downloads")"
+[[ -f $downloads/photo-2.png && ! -e $downloads/photo-1.png/photo.png ]] || fail "taildrop receive skips a directory at the collision suffix" "$(ls "$downloads")"
 (( ${#notification_files[@]} == 1 )) || fail "taildrop receive announces the collision once"
-assert_notification "$downloads/photo-1.png"
+assert_notification "$downloads/photo-2.png"
 pass "taildrop receive keeps both files on a name clash"
 
 [[ -f $downloads/browser-download.iso ]] || fail "taildrop receive keeps the concurrent download"
