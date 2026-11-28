@@ -20,6 +20,32 @@ Here's a list of the key files in `~/.config` and what they control:
 
 If you end up making a lot of changes to tweak your own setup, it's a good idea to backup all these dotfiles. [Stow is a great way to do that](https://www.youtube.com/watch?v=NoFiYOqnC4o).
 
+### Keeping desktop settings in your mise config
+
+Some choices you make in the Omarchy menu aren't stored in a dotfile, like the theme, the font, or whether windows have gaps. You can declare those in `~/.config/mise/config.toml` and have [mise](https://mise.jdx.dev/bootstrap/settings-plugins.html) apply them, which is handy for making a second machine look like your first. This is an experimental mise feature, so it needs `experimental = true`:
+
+```toml
+[settings]
+experimental = true
+
+[bootstrap.settings.omarchy]
+theme = "tokyo-night"             # a theme's directory name, as in ~/.config/omarchy/themes
+font = "JetBrainsMono Nerd Font"  # any name from `omarchy font list`
+screensaver = true
+
+[bootstrap.settings.omarchy.appearance]
+corners = "theme"                 # theme, sharp, or rounded
+transparency = "transparent"      # opaque, transparent, or glassy
+animations = true
+gaps = true
+bar = true
+
+[bootstrap.settings.omarchy.workspaces]
+layout = "dwindle"                # dwindle, scrolling, or floating
+```
+
+Leave out anything you don't want mise to manage. Run `mise bootstrap settings status` to see which settings differ from the file, `mise bootstrap settings apply --dry-run` to preview, and `mise bootstrap settings apply` to change them. Only settings that differ are touched, and changing one in the Omarchy menu afterwards works as usual; `status` then shows it as different until you update the file or apply again.
+
 ### Starting your own apps with the session
 
 If you want something to run every time you log in — a sync daemon, a chat app, your own script — put it in `~/.config/hypr/autostart.lua`:
