@@ -70,9 +70,14 @@ apply_session_locale() {
 
 # A Chinese, Japanese or Korean language brings its input method and glyph
 # forms, unless the user already has an input method or chose the forms.
+# Persian brings its font for Arabic-script text, unless the user chose.
 seed_typing() {
   local method
   case $1 in
+  fa)
+    omarchy-font-persian --seed on || true
+    return 0
+    ;;
   ja) method=mozc ;;
   ko) method=hangul ;;
   zh-CN) method=pinyin ;;

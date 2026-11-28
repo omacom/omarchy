@@ -233,6 +233,15 @@ def save_keyboard(selected):
       if group_changed:
         setup.live_set(group, old_layout, before)
     raise
+  seed_persian_font(layouts)
+
+
+def seed_persian_font(layouts):
+  # A Persian layout means its typist reads Persian. Alongside Arabic, it is
+  # unclear which they read, so the font is left to omarchy-font-persian.
+  names = layouts.split(",")
+  if "ir" in names and "ara" not in names:
+    subprocess.run(["omarchy-font-persian", "--seed", "on"], check=False)
 
 
 def configure_keyboard():

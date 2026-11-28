@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set whether Arabic-script text uses the Persian font
+# omarchy:args=[on|default]
+# omarchy:examples=omarchy font persian | omarchy font persian on | omarchy font persian default
+
+set -euo pipefail
+
+# Outside a Persian locale, Qt and GTK label Persian text as Arabic, so only the
+# user's own choice can pick the Persian font for it. Also seeded once by a
+# Persian language or keyboard layout; --seed never replaces an existing choice.
+preference=${XDG_CONFIG_HOME:-$HOME/.config}/fontconfig/conf.d/50-omarchy-persian.conf
+
+usage() {
+  echo "Usage: omarchy-font-persian [on|default]" >&2
+  exit 1
+}
+
+# write_preference <on|default>: default still writes the file, so a later seed
+# does not turn the font back on after the user turned it off.
+write_preference() {
+  local rule="" target tmp
+  if [[ $1 == "on" ]]; then
+    rule='  <match target="pattern"><test name="lang" compare="contains"><langset><string>ar</string></langset></test><edit name="family" mode="prepend_first" binding="strong"><string>Vazirmatn NL</string></edit></match>'
+  fi
+  target=$(realpath -m "$preference")
+  mkdir -p "$(dirname "$target")"
+  tmp=$(mktemp "$target.XXXXXX")
+  printf '<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">\n<fontconfig>\n%s\n</fontconfig>\n' "$rule" >"$tmp"
+  chmod 644 "$tmp"
+  mv "$tmp" "$target"
+}
+
+case "${1:-}" in
+"")
+  if [[ -f $preference ]] && grep -q 'Vazirmatn NL' "$preference"; then
+    echo "on"
+  else
+    echo "default"
+  fi
+  ;;
+on | default)
+  write_preference "$1"
+  omarchy-restart-shell
+  omarchy-notification-send -g "$(omarchy-i18n font.persianChanged)" "$(omarchy-i18n font.restartAppsToSeeChange)"
+  ;;
+--seed)
+  [[ ${2:-} == "on" ]] || usage
+  if [[ ! -e $preference && ! -L $preference ]]; then
+    write_preference on
+  fi
+  ;;
+*)
+  usage
+  ;;
+esac

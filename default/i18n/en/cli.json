@@ -159,6 +159,7 @@
   "firstRun.wifiBody": "Click to configure the wireless network.",
   "firstRun.wifiTitle": "Setup Wi-Fi",
   "font.cjkChanged": "Chinese, Japanese, and Korean glyph forms changed",
+  "font.persianChanged": "Persian font for Arabic-script text changed",
   "font.restartAppsToSeeChange": "Restart open apps to see the change",
   "font.restartToSeeChange": "You must restart %1 to see font change",
   "games.corePrompt": "RetroArch core",
