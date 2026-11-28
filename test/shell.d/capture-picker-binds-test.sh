@@ -103,6 +103,7 @@ LUA
 pass "screenshot picker leaves the user's binds on its keys alone"
 
 # A bare click on a monitor other than the focused one snaps to that monitor.
+# Cover special workspaces with older negative ids and Hyprland 0.57's name-only form.
 stub_bin=$(mktemp -d)
 trap 'rm -rf "$stub_bin"' EXIT
 
@@ -111,14 +112,18 @@ cat >"$stub_bin/hyprctl" <<'STUB'
 case $1 in
 monitors)
   echo '[
-    {"name": "eDP-1", "focused": true, "x": 0, "y": 0, "width": 1920, "height": 1200, "scale": 1, "transform": 0, "mirrorOf": "none", "activeWorkspace": {"id": 1}},
-    {"name": "DP-1", "focused": false, "x": 1920, "y": 0, "width": 2560, "height": 1440, "scale": 1, "transform": 0, "mirrorOf": "none", "activeWorkspace": {"id": 2}}
+    {"name": "eDP-1", "focused": true, "x": 0, "y": 0, "width": 1920, "height": 1200, "scale": 1, "transform": 0, "mirrorOf": "none", "activeWorkspace": {"id": 1, "name": "1"}, "specialWorkspace": {"id": -99, "name": "special:quake"}},
+    {"name": "DP-1", "focused": false, "x": 1920, "y": 0, "width": 2560, "height": 1440, "scale": 1, "transform": 0, "mirrorOf": "none", "activeWorkspace": {"id": 2, "name": "2"}, "specialWorkspace": {"name": "special:scratchpad"}}
   ]'
   ;;
 clients)
   echo '[
-    {"at": [2000, 100], "size": [800, 600], "hidden": false, "workspace": {"id": 2}},
-    {"at": [2100, 200], "size": [300, 300], "hidden": false, "workspace": {"id": 3}}
+    {"at": [2000, 100], "size": [800, 600], "hidden": false, "workspace": {"id": 2, "name": "2"}},
+    {"at": [2100, 200], "size": [300, 300], "hidden": false, "workspace": {"id": 3, "name": "2"}},
+    {"at": [2400, 500], "size": [600, 400], "hidden": false, "workspace": {"name": "special:scratchpad"}},
+    {"at": [100, 50], "size": [900, 400], "hidden": false, "workspace": {"id": -99, "name": "special:quake"}},
+    {"at": [3000, 600], "size": [400, 300], "hidden": false, "workspace": {"name": "special:closed"}},
+    {"at": [2500, 700], "size": [500, 200], "hidden": true, "workspace": {"name": "special:scratchpad"}}
   ]'
   ;;
 esac
@@ -131,6 +136,8 @@ picked=$(SLURP_OUT="2200,300 1x1" SLURP_RECTS="$stub_bin/rects" PATH="$stub_bin:
 [[ $picked == "monitor:DP-1" ]] || fail "a bare click on an unfocused monitor snaps to it (got: $picked)"
 
 rects=$(<"$stub_bin/rects")
-[[ $rects == *"2000,100 800x600"* && $rects != *"2100,200 300x300"* ]] || fail "the picker hints windows on every visible workspace and no hidden one (got: $rects)"
+[[ $rects == *"2000,100 800x600"* && $rects == *"2400,500 600x400"* && $rects != *"2100,200 300x300"* ]] || fail "the picker hints windows on every visible and open special workspace and no hidden one (got: $rects)"
+[[ $rects == *"100,50 900x400"* ]] || fail "the picker includes special workspaces with negative ids (got: $rects)"
+[[ $rects != *"3000,600 400x300"* && $rects != *"2500,700 500x200"* ]] || fail "the picker excludes closed special workspaces and hidden group members (got: $rects)"
 
 pass "capture picker snaps a bare click on any monitor"
