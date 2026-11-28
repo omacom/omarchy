@@ -836,6 +836,9 @@
   "install.ai.desktop.claude": {
     "label": "Claude Desktop"
   },
+  "install.ai.desktop.factory": {
+    "label": "Factory Desktop"
+  },
   "install.ai.desktop.grok-bot": {
     "label": "Grok Bot"
   },
@@ -1159,6 +1162,9 @@
   },
   "remove.ai.desktop.claude": {
     "label": "Claude Desktop"
+  },
+  "remove.ai.desktop.factory": {
+    "label": "Factory Desktop"
   },
   "remove.dictation.hex": {
     "label": "Hex"

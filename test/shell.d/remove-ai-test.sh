@@ -450,6 +450,40 @@ fi
 mv "$tmp_dir/omarchy-pkg-drop.real" "$tmp_dir/bin/omarchy-pkg-drop"
 pass "OpenClaw removal drops a service's restart record with the service, before anything else can fail"
 
+# Factory's installer is also its uninstaller, so removal downloads it first.
+# The Droid CLI keeps its state in ~/.factory and its command in ~/.local/bin,
+# and outlives the desktop app.
+cat >"$tmp_dir/bin/curl" <<'SCRIPT'
+#!/bin/bash
+printf 'curl:%s\n' "$4" >>"$TEST_LOG"
+[[ ${TEST_CURL_FAIL:-0} == 0 ]] || exit 1
+printf '%s\n' "$4" >"$6"
+SCRIPT
+cat >"$tmp_dir/bin/sh" <<'SCRIPT'
+#!/bin/bash
+printf 'sh:%s %s\n' "$(<"$1")" "$2" >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir/bin/curl" "$tmp_dir/bin/sh"
+
+fresh_home
+mkdir -p "$HOME/.config/Factory" "$HOME/.factory" "$HOME/.local/bin"
+touch "$HOME/.local/bin/droid"
+: >"$TEST_LOG"
+if TEST_CURL_FAIL=1 "$ROOT/bin/omarchy-remove-ai-factory" >/dev/null 2>&1; then
+  fail "Factory removal fails when its uninstaller can't be downloaded"
+fi
+[[ -d $HOME/.config/Factory ]] && ! grep -q '^pkill:\|^sh:' "$TEST_LOG" ||
+  fail "Factory removal leaves the app running and its config in place when offline"
+pass "Factory removal leaves the app as it was when offline"
+
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-remove-ai-factory" >/dev/null
+[[ $(<"$TEST_LOG") == $'curl:https://downloads.factory.ai/factory-desktop/install.sh\npkill:-x factory-desktop\nsh:https://downloads.factory.ai/factory-desktop/install.sh --uninstall' ]] ||
+  fail "Factory removal quits the app, then runs Factory's uninstaller" "$(<"$TEST_LOG")"
+[[ ! -e $HOME/.config/Factory ]] || fail "Factory removal deletes the desktop app's config"
+[[ -d $HOME/.factory && -e $HOME/.local/bin/droid ]] || fail "Factory removal keeps the Droid CLI and its state"
+pass "Factory removal runs Factory's uninstaller and keeps the Droid CLI"
+
 # Antigravity CLI (agy) state and shared skills live under ~/.gemini, while
 # the desktop app keeps its Electron state in ~/.config/Antigravity.
 : >"$TEST_LOG"

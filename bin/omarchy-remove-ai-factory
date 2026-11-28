@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Factory desktop app along with its configuration
+
+# -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+# Factory's installer is also its uninstaller. It is fetched before anything is
+# stopped, so a removal attempted offline leaves the app as it was.
+installer=$(mktemp)
+trap 'rm -f "$installer"' EXIT
+if ! curl -fsSL --retry 3 https://downloads.factory.ai/factory-desktop/install.sh -o "$installer"; then
+  echo "Could not download Factory's uninstaller. Factory has been kept." >&2
+  exit 1
+fi
+
+# The app rewrites ~/.config/Factory for as long as it runs, so a removal that
+# leaves it running deletes the directory and watches it come straight back.
+pkill -x factory-desktop || true
+
+sh "$installer" --uninstall
+
+# Not ~/.factory or ~/.local/bin/droid: those belong to the Droid CLI, which
+# Factory installs separately and which outlives the app.
+rm -rf "$HOME/.config/Factory"
+
+echo ""
+echo "Factory has been removed."

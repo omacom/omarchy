@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Factory desktop app from its official installer
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+# Factory's own installer puts the app in ~/.local/share/factory-desktop with a
+# launcher in ~/.local/bin and a desktop entry. The app updates itself from then
+# on. Downloaded whole before it runs, so a dropped connection can never run
+# half a script.
+installer=$(mktemp)
+trap 'rm -f "$installer"' EXIT
+curl -fsSL --retry 3 https://downloads.factory.ai/factory-desktop/install.sh -o "$installer"
+sh "$installer"
+
+echo "Opening Factory..."
+setsid uwsm-app -- "$HOME/.local/bin/factory-desktop" >/dev/null 2>&1 &
+
+echo ""
+echo "Factory has been installed. It updates itself."

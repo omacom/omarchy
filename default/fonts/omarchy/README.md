@@ -36,6 +36,7 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E91F` — Muse Code, from <https://simpleicons.org/icons/meta.svg>: Meta publishes no separate Muse mark and dev.meta.ai uses this one
 - `U+E920` — Basecamp, the icon from `basecamp-icon-black.svg` in <https://37signals.com/downloads/basecamp-icon.zip>
 - `U+E921` — HEY, the symbol from `hey-symbol-black.svg` in <https://37signals.com/downloads/hey-symbol.zip>
+- `U+E922` — Factory Droid, from <https://factory.com/favicon.svg>, its tile dropped
 
 The agent marks are monochrome so the menu can render them using the active
 theme's foreground and selection colors.
