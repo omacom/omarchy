@@ -156,10 +156,10 @@ QtObject {
     var nextUrgent = _paletteDefaults.urgent
     var nextWarning = _paletteDefaults.warning
     for (var i = 0; i < lines.length; i++) {
-      var match = lines[i].match(/^\s*([A-Za-z0-9_-]+)\s*=\s*["']?(#[0-9A-Fa-f]{6})/)
+      var match = lines[i].match(/^\s*([A-Za-z0-9_-]+)\s*=\s*(?:"(#[0-9A-Fa-f]{6})"|'(#[0-9A-Fa-f]{6})'|(#[0-9A-Fa-f]{6}))(?:\s*(?:#.*)?$)/)
       if (!match) continue
       var key = match[1]
-      var value = match[2]
+      var value = match[2] || match[3] || match[4]
       named[key] = value
       if (key === "red" || key === "color1") nextUrgent = value
       else if (key === "yellow" || key === "color3") nextWarning = value

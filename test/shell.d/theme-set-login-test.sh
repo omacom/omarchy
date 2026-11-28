@@ -71,32 +71,89 @@ EOF
 run_set_login
 assert_args "partial splash_* overrides leave other roles falling through" "010203 d0d1d2 304050 ff0055"
 
-# An invalid splash_* value falls through to the regular key rather than breaking.
+# An invalid or overlong splash_* value falls through to the regular key.
 cat >"$colors_file" <<'EOF'
 background = "#101112"
 foreground = "#d0d1d2"
 accent = "#304050"
 red = "#aa1122"
 splash_accent = "not-a-color"
+splash_foreground = "#11223344"
 EOF
 run_set_login
-assert_args "invalid splash_* values fall through to the standard key" "101112 d0d1d2 304050 aa1122"
+assert_args "invalid and overlong splash_* values fall through to the standard key" "101112 d0d1d2 304050 aa1122"
 
-# Missing keys fall back to SplashColors.qml's Tokyo Night defaults.
+# Missing keys fall back to the same defaults the real SplashColors.qml loads.
 printf 'mode = "dark"\n' >"$colors_file"
 run_set_login
-assert_args "omitted colors fall back to SplashColors.qml defaults" "1a1b26 c0caf5 a8cd76 f7768e"
+helper_defaults=$(cat "$call_log")
+assert_args "omitted colors fall back to Tokyo Night splash defaults" "1a1b26 c0caf5 a8cd76 f7768e"
 
-qml_defaults=$(awk -F'"' '
-  /background: "#[0-9a-fA-F]{6}"/ { bg = tolower($2) }
-  /foreground: "#[0-9a-fA-F]{6}"/ { fg = tolower($2) }
-  /accent: "#[0-9a-fA-F]{6}"/     { ac = tolower($2) }
-  /error: "#[0-9a-fA-F]{6}"/      { er = tolower($2) }
-  END { gsub(/#/, "", bg); gsub(/#/, "", fg); gsub(/#/, "", ac); gsub(/#/, "", er); print bg, fg, ac, er }
-' "$ROOT/default/splash/ui/SplashColors.qml")
-[[ $qml_defaults == "1a1b26 c0caf5 a8cd76 f7768e" ]] ||
-  fail "SplashColors.qml defaults match omarchy-theme-set-login" "got: '$qml_defaults'"
-pass "SplashColors.qml defaults match omarchy-theme-set-login"
+qml_test_runner=""
+for candidate in /usr/lib/qt6/bin/qmltestrunner /usr/lib/qt6/qmltestrunner; do
+  if [[ -x $candidate ]]; then
+    qml_test_runner=$candidate
+    break
+  fi
+done
+
+if [[ -n $qml_test_runner ]]; then
+  qml_fixture="$test_tmp/qml"
+  mkdir -p "$qml_fixture/Quickshell/Io"
+  cat >"$qml_fixture/Quickshell/qmldir" <<'EOF'
+module Quickshell
+Scope 1.0 Scope.qml
+EOF
+  cat >"$qml_fixture/Quickshell/Scope.qml" <<'EOF'
+import QtQuick
+QtObject {
+  default property list<QtObject> data
+}
+EOF
+  cat >"$qml_fixture/Quickshell/Io/qmldir" <<'EOF'
+module Quickshell.Io
+FileView 1.0 FileView.qml
+EOF
+  cat >"$qml_fixture/Quickshell/Io/FileView.qml" <<'EOF'
+import QtQuick
+QtObject {
+  property string path: ""
+  property bool blockLoading: false
+  property bool printErrors: false
+  function text() { return "" }
+}
+EOF
+  cp "$ROOT/default/splash/ui/SplashColors.qml" "$qml_fixture/"
+  cat >"$qml_fixture/tst_splash_defaults.qml" <<EOF
+import QtQuick
+import QtTest
+
+TestCase {
+  name: "SplashColorsDefaults"
+
+  SplashColors {
+    id: splash
+    path: "/nonexistent/colors"
+  }
+
+  function test_defaults_match_login_helper() {
+    const actual = [
+      splash.colors.background,
+      splash.colors.foreground,
+      splash.colors.accent,
+      splash.colors.error
+    ].map(c => c.replace(/^#/, "").toLowerCase()).join(" ")
+    compare(actual, "${helper_defaults}")
+  }
+}
+EOF
+  qml_out=$(QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \
+    "$qml_test_runner" -import "$qml_fixture" -input "$qml_fixture/tst_splash_defaults.qml" -o -,txt 2>&1) ||
+    fail "SplashColors.qml defaults match omarchy-theme-set-login" "$qml_out"
+  pass "SplashColors.qml defaults match omarchy-theme-set-login"
+else
+  skip "Qt6 qmltestrunner not found; skipping SplashColors.qml default check"
+fi
 
 # Already-matching system copy skips the privileged write.
 cp "$ROOT/themes/tokyo-night/colors.toml" "$colors_file"

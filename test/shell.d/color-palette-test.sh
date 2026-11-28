@@ -117,6 +117,19 @@ TestCase {
     compare(String(Commons.Color.splashBackground), "#1a1b26")
     compare(String(Commons.Color.splashAccent), "#a8cd76")
 
+    // Longer hex values are rejected so startup cover matches omarchy-theme-set-login.
+    Commons.Color.loadColors(
+      'foreground = "#a9b1d6"\n' +
+      'background = "#1a1b26"\n' +
+      'accent = "#7aa2f7"\n' +
+      'splash_accent = "#11223344"\n' +
+      'splash_foreground = "#11223344"\n' +
+      'splash_background = "#11223344"\n'
+    )
+    compare(String(Commons.Color.splashAccent), "#7aa2f7")
+    compare(String(Commons.Color.splashForeground), "#a9b1d6")
+    compare(String(Commons.Color.splashBackground), "#1a1b26")
+
     // Reloading an empty or partial theme must not keep colors from the previous one.
     Commons.Color.loadColors('mode = "light"\n')
     compare(String(Commons.Color.foreground), "#cacccc")
