@@ -61,6 +61,8 @@ assert_path_present "$default_path" "$tmpdir/unrelated/bin" "env-bootstrap prese
 pass "env-bootstrap puts mise shims just ahead of system binaries, behind what the parent put first"
 assert_path_present "$default_path" "$home/.local/bin" "env-bootstrap appends ~/.local/bin"
 assert_path_first "$default_path" "$home/.local/share/omarchy/agent-accounts/bin" "env-bootstrap puts the account dispatchers ahead of inherited tool binaries"
+[[ ${default_path#*:} == "/usr/share/omarchy/bin:"* ]] || fail "env-bootstrap resolves Omarchy commands from the configured default tree" "actual PATH: $default_path"
+pass "env-bootstrap resolves Omarchy commands from the configured default tree"
 
 printf 'export OMARCHY_PATH="%s"\n' "$tmpdir/active" >"$tmpdir/omarchy.conf"
 mapfile -t linked_result < <(run_bootstrap bash "$bootstrap" "$home" "$tmpdir/unrelated/bin:/usr/bin")
@@ -69,13 +71,25 @@ linked_path=${linked_result[1]}
 [[ ${linked_result[0]} == "$tmpdir/active" ]] || fail "env-bootstrap resolves linked OMARCHY_PATH" "actual: ${linked_result[0]}"
 pass "env-bootstrap resolves linked OMARCHY_PATH"
 assert_path_first "$linked_path" "$home/.local/share/omarchy/agent-accounts/bin" "env-bootstrap keeps account dispatchers first in linked mode"
-assert_path_present "$linked_path" "$tmpdir/active/bin" "env-bootstrap includes the active checkout bin in linked mode"
+[[ ${linked_path#*:} == "$tmpdir/active/bin:"* ]] || fail "env-bootstrap puts the active checkout ahead of inherited Omarchy commands" "actual PATH: $linked_path"
+pass "env-bootstrap puts the active checkout ahead of inherited Omarchy commands"
 assert_path_present "$linked_path" "$tmpdir/unrelated/bin" "env-bootstrap preserves unrelated PATH entries in linked mode"
 
 mapfile -t linked_duplicate_result < <(run_bootstrap bash "$bootstrap" "$home" "$tmpdir/active/bin:/usr/bin:$home/.local/share/mise/shims:$home/.local/bin")
 linked_duplicate_path=${linked_duplicate_result[1]}
 [[ $linked_duplicate_path == "$home/.local/share/omarchy/agent-accounts/bin:$tmpdir/active/bin:$home/.local/share/mise/shims:/usr/bin:$home/.local/bin" ]] || fail "env-bootstrap does not duplicate PATH entries" "actual PATH: $linked_duplicate_path"
 pass "env-bootstrap does not duplicate PATH entries"
+
+mapfile -t stale_checkout_result < <(run_bootstrap bash "$bootstrap" "$home" "$tmpdir/unrelated/bin:$tmpdir/other-checkout/bin:/usr/bin")
+stale_checkout_path=${stale_checkout_result[1]}
+[[ ${stale_checkout_path#*:} == "$tmpdir/active/bin:"* ]] || fail "env-bootstrap puts the configured checkout ahead of stale checkout commands" "actual PATH: $stale_checkout_path"
+pass "env-bootstrap puts the configured checkout ahead of stale checkout commands"
+
+mapfile -t empty_field_result < <(run_bootstrap bash "$bootstrap" "$home" ":$tmpdir/unrelated/bin:/usr/bin")
+empty_field_path=${empty_field_result[1]}
+[[ $empty_field_path == "$home/.local/share/omarchy/agent-accounts/bin:$tmpdir/active/bin::$tmpdir/unrelated/bin:$home/.local/share/mise/shims:/usr/bin:"* ]] ||
+  fail "env-bootstrap preserves current-directory lookup from an empty PATH field" "actual PATH: $empty_field_path"
+pass "env-bootstrap preserves current-directory lookup from an empty PATH field"
 
 # An empty PATH must not produce empty entries (a bare ":" means the cwd)
 mapfile -t empty_path_result < <(run_bootstrap bash "$bootstrap" "$home" "")

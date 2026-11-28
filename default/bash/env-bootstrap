@@ -15,15 +15,36 @@ else
 fi
 export OMARCHY_PATH
 
-# Only prepend in dev-link mode. On a production install, the binaries are
-# already on PATH as /usr/bin/omarchy-* via the omarchy package — prepending
-# /usr/share/omarchy/bin would just be noise.
-if [ "$OMARCHY_PATH" != /usr/share/omarchy ]; then
-  case ":$PATH:" in
-    *":${OMARCHY_PATH%/}/bin:"*) ;;
-    *) PATH="${OMARCHY_PATH%/}/bin${PATH:+:$PATH}" ;;
-  esac
+# Keep the command router and its OMARCHY_PATH-resolved files on the same
+# checkout. An inherited PATH can still contain a different checkout's bin
+# directory, so put the configured tree first and remove duplicate entries.
+omarchy_bin_dir=${OMARCHY_PATH%/}/bin
+omarchy_remaining_path=${PATH:-}
+omarchy_command_path=
+omarchy_have_path_entry=0
+if [ -n "$omarchy_remaining_path" ]; then
+  while :; do
+    omarchy_path_entry=${omarchy_remaining_path%%:*}
+    if [ "$omarchy_path_entry" != "$omarchy_bin_dir" ]; then
+      if (( omarchy_have_path_entry )); then
+        omarchy_command_path="$omarchy_command_path:$omarchy_path_entry"
+      else
+        omarchy_command_path=$omarchy_path_entry
+        omarchy_have_path_entry=1
+      fi
+    fi
+    case "$omarchy_remaining_path" in
+      *:*) omarchy_remaining_path=${omarchy_remaining_path#*:} ;;
+      *) break ;;
+    esac
+  done
 fi
+if (( omarchy_have_path_entry )); then
+  PATH=$omarchy_bin_dir:$omarchy_command_path
+else
+  PATH=$omarchy_bin_dir
+fi
+unset omarchy_bin_dir omarchy_remaining_path omarchy_command_path omarchy_path_entry omarchy_have_path_entry
 
 # The subscription account dispatchers for claude, codex and grok must precede
 # real tool directories inherited from a parent shell, so scripts follow account
