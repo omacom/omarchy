@@ -29,6 +29,8 @@ keybind = control+insert=copy_to_clipboard
 keybind = shift+enter=csi:13;2u
 # Legacy encoding sends Alt+Shift+Enter the same as Alt+Enter; send CSI-u so tmux can match M-S-Enter.
 keybind = alt+shift+enter=csi:13;4u
+# Ghostty binds Ctrl+Enter to fullscreen, which Hyprland already covers; send CSI-u so TUIs receive it.
+keybind = ctrl+enter=csi:13;5u
 keybind = super+control+shift+alt+arrow_down=resize_split:down,100
 keybind = super+control+shift+alt+arrow_up=resize_split:up,100
 keybind = super+control+shift+alt+arrow_left=resize_split:left,100
