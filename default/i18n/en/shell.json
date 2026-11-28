@@ -556,6 +556,8 @@
   "network.timedOutDisconnecting": "Timed out disconnecting",
   "network.timedOutForgetting": "Timed out forgetting",
   "network.timeout": "Timeout",
+  "network.turnEthernetOff": "Turn Ethernet off",
+  "network.turnEthernetOn": "Turn Ethernet on",
   "network.turnWifiOff": "Turn Wi-Fi off",
   "network.turnWifiOn": "Turn Wi-Fi on",
   "network.uploaded": "Uploaded",
