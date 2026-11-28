@@ -32,5 +32,5 @@ fi
 # or putting it in the notification would leak it to the session journal and to
 # the notification history, and an unmarked copy would be retained by clipboard
 # history. Pasting still works; only the recorded copy is given up.
-printf '%s' "$RESULT" | wl-copy --sensitive
+printf '%s' "$RESULT" | wl-copy --sensitive --type "text/plain;charset=utf-8"
 omarchy-notification-send -g 󰐲 "$(omarchy-i18n capture.qrCopied)"
