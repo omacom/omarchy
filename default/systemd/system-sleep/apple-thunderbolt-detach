@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# MacBookPro14,1: the Alpine Ridge Thunderbolt controller hangs the platform
+# phase of suspend, in deep and s2idle alike, so the machine never wakes from a
+# lid close. Remove its upstream bridge (8086:1578), and with it the whole
+# Thunderbolt tree, before sleep, and rescan the PCI bus on wake so the
+# USB-C/Thunderbolt ports come back.
+
+pci_devices=${OMARCHY_PCI_DEVICES:-/sys/bus/pci/devices}
+pci_rescan=${OMARCHY_PCI_RESCAN:-/sys/bus/pci/rescan}
+
+case "$1" in
+  pre)
+    for dev in "$pci_devices"/*; do
+      # Removing a bridge takes its children with it, so skip devices that are
+      # already gone.
+      [[ -e $dev/remove ]] || continue
+      if [[ $(<"$dev/vendor") == "0x8086" && $(<"$dev/device") == "0x1578" ]]; then
+        echo 1 >"$dev/remove"
+      fi
+    done
+    ;;
+  post)
+    echo 1 >"$pci_rescan"
+    ;;
+esac
+
+exit 0
