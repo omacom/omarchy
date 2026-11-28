@@ -49,6 +49,7 @@ for unit_file in "$unit_dir"/openclaw-gateway.service "$unit_dir"/openclaw-node.
   fi
 done
 
+echo "Removing OpenClaw..."
 omarchy-pkg-drop openclaw
 
 # The command on PATH goes, so nothing answers to openclaw. The OpenClaw it

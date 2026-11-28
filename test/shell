@@ -315,7 +315,7 @@ if (( ${#skipped[@]} > 0 )); then
 fi
 
 print_slowest() {
-  local rows=() name ms
+  local rows=() sorted=() name ms row rel
   for test in "${tests[@]}"; do
     name=$(basename "$test")
     [[ -f $workdir/$name.time ]] || continue
@@ -324,7 +324,11 @@ print_slowest() {
   done
   (( ${#rows[@]} > 0 )) || return 0
   printf '\nSlowest test files:\n'
-  printf '%s\n' "${rows[@]}" | sort -rn | head -n 10 | while read -r ms rel; do
+  # Drain sort to EOF rather than piping into `head -n 10`, which closes the
+  # pipe early and triggers SIGPIPE under `set -o pipefail`.
+  mapfile -t sorted < <(printf '%s\n' "${rows[@]}" | sort -rn)
+  for row in "${sorted[@]:0:10}"; do
+    read -r ms rel <<<"$row"
     ms=$(( 10#$ms ))
     printf '  %6d.%02ds  %s\n' "$(( ms / 1000 ))" "$(( (ms % 1000) / 10 ))" "$rel"
   done

@@ -56,7 +56,9 @@ default_path=${default_result[1]}
 [[ ${default_result[0]} == /usr/share/omarchy ]] || fail "env-bootstrap resolves default OMARCHY_PATH" "actual: ${default_result[0]}"
 pass "env-bootstrap resolves default OMARCHY_PATH"
 assert_path_present "$default_path" "$tmpdir/unrelated/bin" "env-bootstrap preserves PATH entries in default mode"
-assert_path_present "$default_path" "$home/.local/share/mise/shims" "env-bootstrap appends mise shims"
+[[ :$default_path: == *":$tmpdir/unrelated/bin:$home/.local/share/mise/shims:/usr/bin:"* ]] ||
+  fail "env-bootstrap puts mise shims just ahead of system binaries" "actual PATH: $default_path"
+pass "env-bootstrap puts mise shims just ahead of system binaries, behind what the parent put first"
 assert_path_present "$default_path" "$home/.local/bin" "env-bootstrap appends ~/.local/bin"
 assert_path_first "$default_path" "$home/.local/share/omarchy/agent-accounts/bin" "env-bootstrap puts the account dispatchers ahead of inherited tool binaries"
 
@@ -72,7 +74,7 @@ assert_path_present "$linked_path" "$tmpdir/unrelated/bin" "env-bootstrap preser
 
 mapfile -t linked_duplicate_result < <(run_bootstrap bash "$bootstrap" "$home" "$tmpdir/active/bin:/usr/bin:$home/.local/share/mise/shims:$home/.local/bin")
 linked_duplicate_path=${linked_duplicate_result[1]}
-[[ $linked_duplicate_path == "$home/.local/share/omarchy/agent-accounts/bin:$tmpdir/active/bin:/usr/bin:$home/.local/share/mise/shims:$home/.local/bin" ]] || fail "env-bootstrap does not duplicate PATH entries" "actual PATH: $linked_duplicate_path"
+[[ $linked_duplicate_path == "$home/.local/share/omarchy/agent-accounts/bin:$tmpdir/active/bin:$home/.local/share/mise/shims:/usr/bin:$home/.local/bin" ]] || fail "env-bootstrap does not duplicate PATH entries" "actual PATH: $linked_duplicate_path"
 pass "env-bootstrap does not duplicate PATH entries"
 
 # An empty PATH must not produce empty entries (a bare ":" means the cwd)
@@ -86,6 +88,7 @@ if command -v zsh >/dev/null 2>&1; then
   zsh_path=${zsh_result[1]}
   assert_path_first "$zsh_path" "$home/.local/share/omarchy/agent-accounts/bin" "env-bootstrap works when sourced by zsh"
   assert_path_present "$zsh_path" "$tmpdir/unrelated/bin" "env-bootstrap zsh mode preserves unrelated PATH entries"
+  [[ :$zsh_path: == *":$home/.local/share/mise/shims:/usr/bin:"* ]] || fail "env-bootstrap puts mise shims ahead of system binaries under zsh" "actual PATH: $zsh_path"
 fi
 
 mapfile -t repeated_result < <(run_bootstrap bash "$bootstrap" "$home" "$linked_duplicate_path")
@@ -103,7 +106,7 @@ pass "env-bootstrap drops mise's old command wrappers"
 # dispatcher directory when it was already present. Move the existing entry rather than skip it.
 inherited_path="$tmpdir/managed/bin:$home/.local/share/omarchy/agent-accounts/bin:/usr/bin"
 mapfile -t reordered_result < <(run_bootstrap bash "$bootstrap" "$home" "$inherited_path")
-[[ ${reordered_result[1]} == "$home/.local/share/omarchy/agent-accounts/bin:$tmpdir/active/bin:$tmpdir/managed/bin:/usr/bin:$home/.local/share/mise/shims:$home/.local/bin" ]] ||
+[[ ${reordered_result[1]} == "$home/.local/share/omarchy/agent-accounts/bin:$tmpdir/active/bin:$tmpdir/managed/bin:$home/.local/share/mise/shims:/usr/bin:$home/.local/bin" ]] ||
   fail "bootstrap moves existing dispatchers ahead of inherited managed tool paths without duplication" "${reordered_result[1]}"
 pass "bootstrap moves existing dispatchers ahead of inherited managed tool paths without duplication"
 

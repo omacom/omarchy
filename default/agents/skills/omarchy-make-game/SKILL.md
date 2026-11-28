@@ -80,6 +80,8 @@ omarchy agent look page ~/Games/vibes/<name>/index.html#seed=1 --keys "Space Arr
 
 `#seed=1` plays the same round every time, so a change you made is what changed. In a game that runs on its own, the world should have moved between the first two shots, and the score risen if your keys did what scores; in a turn-based one, the shots should show the moves your keys made. If the round is already over, or nothing changed, find out why before adding anything else. Without `--theme` a game shows in the template's stand-in colours.
 
+Keys go a quarter of a second apart. To steer, put a wait between them, `+600` for 600ms, and hold a key down with `ArrowLeft:800`, as a player would: `--keys "Space +900 ArrowUp +600 ArrowLeft"` turns up after almost a second and left a little later. A round that keeps ending against a wall because the keys came too early needs waits, not a change to the game. When you need to win, lose or reach some state to look at it, don't hunt for the right key sequence: make it happen at once in a scratch copy (below).
+
 Then check the way back, from the list as a player comes in, mid-round: start a round, pause it, and leave. The shot must show the Game Vibes list, not the game.
 
 ```bash
@@ -93,7 +95,7 @@ Open every screenshot with your tool for viewing images; reading the path is not
 - Does it look like the game you set out to make, with enough in it to be worth playing, not a few shapes on an empty field?
 - In the light theme, is it as readable and as good-looking?
 
-Look at your losing and winning moments too: make one happen at once in a scratch copy (a mine under the first reveal, a nearly cleared board) and look at that.
+Look at your losing and winning moments too: make one happen at once in a scratch copy (a mine under the first reveal, a nearly cleared board) and look at that. Keep the copy in the game's own folder, as `~/Games/vibes/<name>/scratch.html`, where it still finds `../three.min.js` and Game Vibes doesn't list it, and delete it when done; a folder of its own in `~/Games/vibes` would show up in the list as another game.
 
 When a fixed key sequence isn't enough, play it step by step with `playwright-cli`: one headless Chrome session that stays open between commands, so you can press, click, read the game's state and look again. It writes its screenshots and logs under `.playwright-cli/` in the current directory, and opens local files only when told to:
 

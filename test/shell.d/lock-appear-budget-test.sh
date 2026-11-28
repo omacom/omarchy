@@ -113,7 +113,7 @@ pass "lock preview never engages the session lock"
 # the lock answers once the plugin services are built after that, both QML
 # work on the same thread. Process starts do not scale like it: an Intel VM
 # starts them a third faster than an AMD one and builds the shell no faster.
-READY_BUDGET_MS=$(( answer_best * ${OMARCHY_LOCK_READY_BUDGET_PERCENT:-400} / 100 ))
+READY_BUDGET_MS=$(( answer_best * ${OMARCHY_LOCK_READY_BUDGET_PERCENT:-250} / 100 ))
 (( ready_best <= READY_BUDGET_MS )) || fail "lock view is built within ${READY_BUDGET_MS}ms of shell start" "Fastest of three starts answered after ${ready_best}ms; the shell itself answered after ${answer_best}ms."
 pass "lock view is built within ${READY_BUDGET_MS}ms of shell start (${ready_best}ms; the shell answered after ${answer_best}ms)"
 (( first_best <= BUDGET_MS )) || fail "lock screen first appears within ${BUDGET_MS}ms" "Fastest of three first appearances took ${first_best}ms."

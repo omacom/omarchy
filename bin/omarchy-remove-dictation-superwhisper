@@ -8,6 +8,7 @@ set -e
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 
+echo "Removing Superwhisper dictation..."
 systemctl --user disable --now superwhisper.service 2>/dev/null || true
 omarchy-shell -q shell setPluginEnabled superwhisper.panel false >/dev/null
 omarchy-pkg-drop superwhisper-bin
