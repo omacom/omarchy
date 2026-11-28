@@ -153,6 +153,7 @@ ShellRoot {
     property var config: ({
       bar: {
         position: "top",
+        allowPositionDrag: false,
         background: "opaque",
         layout: {
           left: [{ id: "test.a" }],
@@ -197,6 +198,8 @@ ShellRoot {
         var a = root.bar.moduleSlots.filter(function(slot) { return slot && slot.moduleName === "test.a" })[0]
         root.surface = a ? root.bar.slotWindow(a) : null
         root.check(root.surface && root.surface.implicitHeight === root.surface.thickness, "the bar's surface is only as tall as its strip: " + (root.surface ? root.surface.implicitHeight + " against " + root.surface.thickness : "no surface"))
+        root.check(!root.bar.beginBarMove(root.surface) && !root.bar.barMoveActive, "position locking refuses a whole-bar move")
+
         var twins = root.slotsOf("test.twin")
         root.check(twins.length === 2, "the bar shows both twins")
         if (twins.length !== 2) return
@@ -262,7 +265,6 @@ ShellRoot {
       [function() {
         var inner = root.slotsOf("test.inner")[0]
         root.check(inner && inner.activeItem.fixedEdge === "start", "moved to the left section, the tray has them grow from its start: " + (inner ? inner.activeItem.fixedEdge : "none shown"))
-
         // Moving to a side edge resizes the surface, so the strip turns clear
         // until the surface has its new size.
         host.mutateShellConfig(function(config) { config.bar.position = "left" })
@@ -306,7 +308,26 @@ ShellRoot {
         root.check(root.surface.settle === "" && root.surface.surfaceEdge === "top" && root.surface.surfaceThickness === root.surface.thickness, "a settle whose frames stop finishes at the current thickness: " + root.surface.settle + " " + root.surface.surfaceThickness + " against " + root.surface.thickness)
         root.check(root.settles.join(",") === "clearing,", "with no frames it never reveals, the watchdog finishes it: " + root.settles.join(","))
         root.surface.visible = true
-      }, 300]
+      }, 300],
+      [function() {
+        host.mutateShellConfig(function(config) { delete config.bar.allowPositionDrag })
+      }, 100],
+      [function() {
+        root.check(root.bar.allowPositionDrag, "bar moves are enabled by default")
+        root.check(root.bar.beginBarMove(root.surface) && root.bar.barMoveActive, "an unlocked bar can start moving")
+        root.bar.barMoveCandidate = "bottom"
+        host.mutateShellConfig(function(config) { config.bar.allowPositionDrag = false })
+      }, 100],
+      [function() {
+        root.check(!root.bar.barMoveActive, "disabling position dragging cancels an active bar move")
+        root.bar.finishBarMove()
+        root.check(host.config.bar.position === "top", "a cancelled move cannot change the configured edge")
+        root.bar.setBarPosition("bottom")
+      }, 100],
+      [function() {
+        root.check(host.config.bar.position === "bottom", "explicit position changes remain available while locked")
+      }, 100]
+
     ]
     stepper.start()
   }
