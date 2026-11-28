@@ -66,7 +66,19 @@ toggle_back() {
 }
 
 saved_mode() {
-  sed -n 's/.*mode = "\([a-z]*\)".*/\1/p' "$layout_file" 2>/dev/null
+  LC_ALL=C sed -n 's/.*mode = "\([a-z]*\)".*/\1/p' "$layout_file" 2>/dev/null
+}
+
+current_mode() {
+  env HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" \
+    PATH="$stub_dir:$ROOT/bin:$PATH" "$@" \
+    "$ROOT/bin/omarchy-hyprland-workspace-layout-current"
+}
+
+default_mode() {
+  env HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" \
+    PATH="$stub_dir:$ROOT/bin:$PATH" "$@" \
+    "$ROOT/bin/omarchy-hyprland-workspace-layout-default"
 }
 
 applied() {
@@ -500,3 +512,24 @@ toggle
 grep -q "set to tiling" "$notification_log" && ! grep -q "dwindle" "$notification_log" ||
   fail "the notification calls dwindle tiling" "$(cat "$notification_log")"
 pass "the notification calls dwindle tiling"
+
+# Turkish collation puts dotted/dotless i outside sed [a-z]. Without pinning C,
+# reading a saved floating/dwindle mode falls back to Hyprland's tiledLayout and
+# Super+L keeps cycling as if the workspace were still scrolling.
+printf 'o.workspace_mode({ workspace = "3", mode = "floating" })\n' >"$layout_file"
+got=$(current_mode LANG=tr_TR.UTF-8 LC_ALL=tr_TR.UTF-8 HYPRCTL_TILED_LAYOUT=scrolling)
+[[ $got == "floating" ]] || fail "current reads floating under tr_TR" "got: $got"
+printf 'o.workspace_mode({ workspace = "3", mode = "dwindle" })\n' >"$layout_file"
+got=$(current_mode LANG=tr_TR.UTF-8 LC_ALL=tr_TR.UTF-8 HYPRCTL_TILED_LAYOUT=scrolling)
+[[ $got == "dwindle" ]] || fail "current reads dwindle under tr_TR" "got: $got"
+printf 'o.workspace_mode({ default = "floating" })\n' >"${layout_file%/*}/default.lua"
+got=$(default_mode LANG=tr_TR.UTF-8 LC_ALL=tr_TR.UTF-8)
+[[ $got == "floating" ]] || fail "default reads floating under tr_TR" "got: $got"
+rm -f "${layout_file%/*}/default.lua"
+# And the toggle itself must advance past floating when LANG is Turkish.
+printf 'o.workspace_mode({ workspace = "3", mode = "floating" })\n' >"$layout_file"
+: >"$log_file"
+toggle LANG=tr_TR.UTF-8 LC_ALL=tr_TR.UTF-8 HYPRCTL_TILED_LAYOUT=scrolling
+[[ ! -e $layout_file ]] || fail "under tr_TR, floating still cycles back to dwindle" "saved: $(cat "$layout_file")"
+applied dwindle || fail "under tr_TR, dwindle is applied after floating" "$(cat "$log_file")"
+pass "layout mode files read correctly under tr_TR"
