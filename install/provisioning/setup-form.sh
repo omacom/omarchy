@@ -36,7 +36,7 @@
 # The form is drawn on the Linux console, whose font (console-font.sh) covers
 # Latin, Cyrillic and Greek. These are the languages it can be read in there;
 # any other is listed under its English name and leaves the form in English.
-OMARCHY_FORM_CONSOLE_LANGUAGES='bg ca cs da de el en es-MX et fi fil fr ga hr hu id is it lt lv ms nl no pl pt pt-BR ro ru sk sl sr sv sw tr uk uz'
+OMARCHY_FORM_CONSOLE_LANGUAGES='bg ca cs da de el en es-ES es-MX et fi fil fr ga hr hu id is it lt lv ms nl no pl pt pt-BR ro ru sk sl sr sv sw tr uk uz'
 
 OMARCHY_FORM_BACK=1
 OMARCHY_FORM_SIGNAL=130

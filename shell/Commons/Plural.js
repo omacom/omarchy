@@ -22,7 +22,7 @@ function category(code, count) {
     return n <= 1 ? "one" : "other"
   case "fr": case "pt-BR":
     return n <= 1 ? "one" : millions ? "many" : "other"
-  case "ca": case "es-MX": case "it": case "pt":
+  case "ca": case "es-ES": case "es-MX": case "it": case "pt":
     return n === 1 ? "one" : millions ? "many" : "other"
   case "fil":
     return (n10 === 4 || n10 === 6 || n10 === 9) ? "other" : "one"
