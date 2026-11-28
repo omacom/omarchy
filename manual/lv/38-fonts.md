@@ -4,10 +4,10 @@ Omarchy pēc noklusējuma kā termināļa un sistēmas fontu izmanto JetBrainsMo
 
  ![fonts-jetbrainsmono](images/fonts-jetbrainsmono.webp)
 
-To var mainīt Omarchy izvēlnes sadaļā _Izskats > Fonts_ (`Super + Space`). Tas iestata vienplatuma fontu visur: terminālī, joslā un visā citā, kas to pieprasa.
+To var nomainīt Omarchy izvēlnē (`Super + Space`) sadaļā _Izskats > Fonts_. Tādējādi monospace fonts tiks iestatīts visur: terminālī, joslā un visur citur, kur tas tiek pieprasīts.
 
-Citus populārus programmēšanas fontus var instalēt Omarchy izvēlnes sadaļā _Instalēt > Stils > Fonts_: Cascadia Mono, Meslo LG Mono, Fira Code, Victor Code, Bitstream Vera Mono un Iosevka ir pieejami ar vienu klikšķi, to Nerd Font versijās, lai glifi joslā un terminālī turpinātu darboties. Pēc kāda no tiem instalēšanas izvēlies to sadaļā _Izskats > Fonts_.
+Citiem populāriem programmēšanas fontiem vari piekļūt Omarchy izvēlnē sadaļā _Instalēt > Stils > Fonts_: Cascadia Mono, Meslo LG Mono, Fira Code, Victor Code, Bitstream Vera Mono un Iosevka ir pieejami ar vienu klikšķi, to Nerd Font versijās, lai glifi joslā un terminālī turpinātu darboties. Instalējot kādu no tiem, uz to pārslēgsies arī visa sistēma, un jebkurā laikā vari pārslēgties atpakaļ sadaļā _Izskats > Fonts_.
 
-## Ķīniešu, japāņu un korejiešu
+## Ķīniešu, japāņu un korejiešu valoda
 
-Ķīniešu, japāņu un korejiešu valodām ir daudz kopīgu rakstzīmju, taču dažas no tām tās zīmē atšķirīgi, tāpēc viena un tā pati rakstzīme vienam lasītājam izskatās pareiza, bet citam — sveša. Izvēloties vienu no šīm valodām sadaļā _Iestatīšana > Valoda_ vai tās ievades metodi, tiek iestatītas atbilstošās formas. Lai tās izvēlētos pats, terminālī palaid `omarchy font cjk jp`, `kr`, `sc`, `tc` (Taivāna) vai `hk` (Honkonga); `omarchy font cjk default` atgriežas pie sistēmas izvēles, kas ir japāņu formas. Teksts, ko tīmekļa lapa vai dokuments atzīmē ar savu valodu, un visa darbvirsma, kamēr tā ir vienā no šīm valodām, saglabā attiecīgās valodas formas.
+Ķīniešu, japāņu un korejiešu valodām ir daudz kopīgu rakstzīmju, taču dažas no tām tās zīmē atšķirīgi, tāpēc viena un tā pati rakstzīme vienam lasītājam izskatās pareizi, bet citam — sveši. Izvēloties kādu no šīm valodām sadaļā _Iestatīšana > Reģions > Valoda_ vai tās ievades metodi, tiks iestatītas atbilstošās formas. Lai tās izvēlētos pats, terminālī palaid `omarchy font cjk jp`, `kr`, `sc`, `tc` (Taivāna) vai `hk` (Honkonga); `omarchy font cjk default` atgriezīsies pie sistēmas izvēles, kas ir japāņu formas. Teksts, ko tīmekļa lapa vai dokuments atzīmē ar savu valodu, un visa darbvirsma, kamēr tā ir kādā no šīm valodām, saglabā attiecīgās valodas formas.

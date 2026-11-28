@@ -1,27 +1,37 @@
 # Migawki systemu
 
-Tworzymy migawki automatycznie przy każdej aktualizacji Omarchy, ale jeśli chcesz utworzyć własną, możesz użyć `omarchy-snapshot create`.
+Migawki tworzymy automatycznie przy każdej aktualizacji Omarchy, ale jeśli chcesz utworzyć własną, możesz użyć `omarchy-snapshot create`.
 
-Aby uruchomić i przywrócić migawkę, wybierasz ją z programu rozruchowego Limine. (Jeśli obecnie uruchamiasz się bezpośrednio do ekranu deszyfrowania Omarchy, najpierw musisz wybrać Limine jako opcję rozruchu w BIOS).
+To, jak uruchamiasz migawkę i jak ją przywracasz, zależy od programu rozruchowego, z którym startuje twój komputer. Nowe instalacje UEFI używają systemd-boot; starsze instalacje i komputery z BIOS-em używają Limine. `omarchy-boot-backend` powie ci, który masz.
 
-Na tym ekranie wybierz migawkę, do której chcesz się uruchomić, na podstawie daty i wersji. Wersję Omarchy z czasu utworzenia migawki widać w lewym dolnym rogu.
+## Z systemd-boot
+
+Wybierz _System > Snapshots_ w menu Omarchy i wskaż migawkę, do której chcesz się uruchomić. Komputer uruchomi się do niej jednorazowo. Albo przytrzymaj Space podczas startu komputera, aby zobaczyć menu rozruchowe, w którym każda migawka jest wymieniona od najnowszej, wraz ze swoją wersją Omarchy i datą.
+
+Migawka uruchamia się z tymczasową warstwą na wierzchu, więc możesz używać jej normalnie, ale wszystko, co zmienisz, zniknie przy następnym ponownym uruchomieniu. Aby ją zachować, uczyń ją swoim systemem: kliknij powiadomienie, które pojawi się po zalogowaniu, wybierz _System > Snapshots > Restore This Snapshot_ albo uruchom `omarchy-snapshot restore`. Przywracanie odbywa się podczas ponownego uruchamiania komputera. System w stanie sprzed przywracania pozostaje w menu rozruchowym jako _Before restore_, a `omarchy-snapshot restore backup` przywraca go z powrotem.
+
+Z terminala:
+
+- `omarchy-snapshot list` wyświetla migawki, do których możesz się uruchomić;
+- `omarchy-snapshot boot 12` jednorazowo uruchamia ponownie komputer do migawki 12;
+- `omarchy-snapshot restore 12` sprawia, że migawka 12 staje się systemem przy następnym ponownym uruchomieniu, a `omarchy-snapshot restore --cancel` pozwala zmienić zdanie przed tym ponownym uruchomieniem.
+
+## Z Limine
+
+Aby uruchomić i przywrócić migawkę, wybierasz ją z programu rozruchowego Limine. Menu rozruchowe domyślnie pozostaje ukryte, więc naciśnij dowolny klawisz, gdy tylko Limine się uruchomi, aby je wyświetlić.
+
+Na tym ekranie wybierz migawkę, do której chcesz się uruchomić, na podstawie daty i wersji. Wersję Omarchy z czasu wykonania migawki widać w lewym dolnym rogu.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Gdy już się zalogujesz, pojawi się powiadomienie informujące, że jesteś w rozruchowej migawce, a po jego kliknięciu rozpocznie się proces przywracania. Alternatywnie możesz skorzystać z `omarchy-snapshot restore`.
+Po wejściu do środka pojawi się powiadomienie informujące cię, że jesteś w uruchamialnej migawce, a jeśli je klikniesz, rozpocznie proces przywracania. Ewentualnie możesz skorzystać z `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Spowoduje to przywrócenie głównego systemu plików, ale nie katalogu `/home`. Działa więc w przypadku cofania zepsutej aktualizacji systemu, ale nie w przypadku odzyskiwania utraconych plików osobistych.
+## Co obejmuje przywracanie
 
-Oznacza to również, że katalog `~/.config` pozostaje bez zmian. Jeśli więc wracasz do wcześniejszej wersji biblioteki lub aplikacji, która przechowuje pliki konfiguracyjne w nowym formacie, będziesz musiał poradzić sobie z tym ręcznie.
+Przywracanie przywraca główny system plików, ale nie twój `/home`. Działa więc przy cofaniu zepsutej aktualizacji systemu, ale nie przy odzyskiwaniu utraconych plików osobistych.
 
-Dotyczy to również własnego rejestru Omarchy dotyczącego tego, które migracje zostały już uruchomione: znajduje się on w katalogu domowym, więc przetrwa przywracanie. Migracje, które zostały uruchomione po utworzeniu migawki, pozostają oznaczone jako wykonane, nawet jeśli zmiany, które wprowadziły w głównym systemie plików, zostały wycofane, a kolejne `omarchy update` nie uruchomi ich ponownie. Jeśli więc po przywróceniu ponownie zaktualizujesz system i nadal będzie brakowało czegoś, co skonfigurowała wcześniejsza aktualizacja, to jest to prawdopodobna przyczyna.
+Oznacza to również, że twój katalog `~/.config` pozostaje bez zmian. Jeśli więc cofasz się do wcześniejszej wersji biblioteki lub aplikacji, która przechowuje pliki konfiguracyjne w nowym formacie, będziesz musiał poradzić sobie z tym ręcznie.
 
-_Uwaga: Ta funkcja jest dostępna tylko w instalacjach korzystających z programu rozruchowego Limine, który jest domyślny od Omarchy 2.0. Nie jest dostępna, jeśli korzystasz z GRUB lub systemd-boot._
-
-### Pomijanie menu rozruchowego
-
-Jeśli nigdy nie korzystasz z menu rozruchowego i chcesz, aby komputer przechodził od razu do ekranu deszyfrowania, uruchom _Setup > Direct Boot_ w menu Omarchy. Dodaje to wpis EFI wskazujący bezpośrednio na Omarchy, dzięki czemu oprogramowanie układowe uruchamia system bez zatrzymywania się na Limine.
-
-Kompromis jest taki sam, jak wspomniano na początku: przy włączonym bezpośrednim uruchamianiu dostanie się do migawki oznacza najpierw wybranie Limine z menu rozruchowego BIOS. Uruchom ponownie _Setup > Direct Boot_, aby usunąć wpis i wrócić do uruchamiania przez Limine. Niektóre oprogramowanie układowe nie lubi niestandardowych wpisów EFI, więc konfiguracja odmawia uruchomienia na oprogramowaniu układowym American Megatrends i Apple.
+To samo dotyczy własnego zapisu Omarchy o tym, które migracje zostały już uruchomione: znajduje się on w twoim katalogu domowym, więc przetrwa przywracanie. Migracje, które zostały uruchomione po wykonaniu migawki, pozostają oznaczone jako wykonane, mimo że zmiany, które wprowadziły w głównym systemie plików, zostały wycofane, a następne `omarchy update` nie uruchomi ich ponownie. Jeśli więc po przywróceniu znów zaktualizujesz system i nadal brakuje czegoś, co skonfigurowała wcześniejsza aktualizacja, to jest to prawdopodobna przyczyna.

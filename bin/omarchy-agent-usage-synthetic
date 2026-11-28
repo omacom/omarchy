@@ -45,6 +45,7 @@ from collectors import (  # noqa: E402
   scan_pi_sessions,
   scan_routed,
   trusted_endpoint,
+  opencode_credential_key,
 )
 
 AGENT_ID = "synthetic"
@@ -141,6 +142,9 @@ def api_key():
   explicit = str(os.environ.get("SYNTHETIC_API_KEY", "")).strip()
   if explicit:
     return explicit
+  # The key opencode keeps in its database, as the agents panel saves it.
+  if key := opencode_credential_key("synthetic"):
+    return key
   # The default pi and omp sign-ins, then opencode's, then each named profile's:
   # a profile's sessions are counted, so a sign-in made only there must read
   # its quotas too, without outranking the defaults.

@@ -1,16 +1,16 @@
 # Biežākie pielāgojumi
 
-Šī ir biežāko Omarchy iestatījumu pielāgojumu kolekcija. Ziniet, ka sistēmas atjauninājumiem reizēm var būt nepieciešams atjaunot noteiktas konfigurācijas to sākotnējā stāvoklī. Ja tā notiek, jūsu izmaiņas netiks zaudētas, bet ieliktas `.bak` failā tajā pašā direktorijā.
+Šī ir biežāko Omarchy iestatījuma pielāgojumu kolekcija. Ņem vērā, ka sistēmas atjauninājumiem reizēm var būt nepieciešams atjaunot noteiktas konfigurācijas to sākotnējā stāvoklī. Ja tā notiek, tavas izmaiņas nepazudīs, bet tiks ievietotas `.bak.<timestamp>` failā blakus oriģinālam.
 
-Ja kaut ko sabojājat, atsevišķas konfigurācijas to sākotnējā iestatījumā varat atjaunot Omarchy izvēlnē sadaļā _Atjaunināt > Konfigurācija_. Ja _patiešām_ sabojājat visu, visas konfigurācijas varat atiestatīt ar `omarchy-reinstall`.
+Ja kaut ko sabojā, atsevišķas konfigurācijas to sākotnējā iestatījumā vari atjaunot Omarchy izvēlnē, izmantojot _Update > Config_. Ja visu sabojā _pa īstam_, visas konfigurācijas vari atiestatīt ar `omarchy reinstall configs` vai pārinstalēt visas noklusējuma pakotnes un konfigurācijas ar `omarchy reinstall`.
 
-### Rādīt visas teknes ikonas vienmēr
+### Parādīt visas paplātes ikonas visu laiku
 
-Pēc noklusējuma teknes ikonas, piemēram, Dropbox, 1password vai Steam, ir paslēptas aiz teknes izvērsēja bultiņas, kas tās atklāj, kad tai uzbraucat. Ja vēlaties, lai tās būtu redzamas vienmēr, ar labo pogu noklikšķiniet izvērsēja bultiņu, lai atvērtu teknes ikonu pārvaldnieku, pēc tam piespraudiet ikonas, ko vēlaties paturēt redzamas (varat arī paslēpt tās, ko nekad nevēlaties redzēt).
+Pēc noklusējuma paplātes ikonas, piemēram, Dropbox, 1password vai Steam, ir paslēptas aiz paplātes izvēršanas bultiņas, kas tās parāda, kad pār to novieto kursoru. Ja vēlies, lai tās visu laiku būtu atklātas, ar labo pogu noklikšķini uz izvēršanas bultiņas, lai atvērtu paplātes ikonu pārvaldnieku, un pēc tam piespraud ikonas, kuras vēlies paturēt redzamas (vari arī paslēpt tās, kuras nekad nevēlies redzēt).
 
 ### Noapaļoti logu stūri
 
-Omarchy noklusējuma dizains ir kvadrātveida stūri, bet, ja vēlaties to nedaudz mīkstināt, varat mainīt failu `~/.config/hypr/looknfeel.lua`, lai noapaļošana vairs nebūtu komentēta:
+Omarchy noklusējuma dizains ir ar kvadrātveida stūriem, bet, ja vēlies to mazliet mīkstināt, Omarchy izvēlnē izvēlies _Appearance > Windows > Window Corners > Rounded Corners_ vai palaid `omarchy hyprland corners rounded`. _Theme Corners_ atgriežas pie tā, ko izmanto tēma. Lai izvēlētos savu rādiusu, paliec pie _Theme Corners_ (`omarchy hyprland corners theme`), jo Rounded un Sharp tiek ielādēti pēc tavas konfigurācijas un to pārraksta, un noņem komentāru no noapaļošanas iestatījuma failā `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({
@@ -21,9 +21,9 @@ hl.config({
 })
 ```
 
-### Logu atstarpju noņemšana
+### Noņemt logu atstarpes
 
-Klēpjdatoru displejos daži cilvēki nevēlas tērēt nevienu pikseli logu atstarpēm (vai pat augšējai joslai, ko varat izslēgt ar `Super + Shift + Space`). Visas atstarpes un apmales varat izslēgt ar `Super + Shift + Backspace` vai noņemt tās pavisam, noņemot komentārus šajā faila `~/.config/hypr/looknfeel.lua` sadaļā:
+Klēpjdatoru ekrānos daži cilvēki dod priekšroku netērēt nevienu pikseli logu atstarpēm (vai pat augšējai joslai, kuru vari izslēgt ar `Super + Shift + Space`). Visas atstarpes un apmales vari ieslēgt un izslēgt ar `Super + Shift + Backspace` vai noņemt tās uz visiem laikiem, noņemot komentārus šajā sadaļā failā `~/.config/hypr/looknfeel.lua`:
 
 ```
 hl.config({

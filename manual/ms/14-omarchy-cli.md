@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy biasanya dikawal melalui kekunci pintas dan menu Omarchy (`Super + Space`). Tetapi anda juga boleh mengawalnya melalui CLI `omarchy`. Ini amat membantu apabila anda membiarkan ejen AI bekerjasama dengan anda dalam penyesuaian atau konfigurasi.
+Omarchy biasanya dikawal melalui kekunci pintas dan menu Omarchy (`Super + Space`). Tetapi anda juga boleh mengawalnya melalui CLI `omarchy`. Ini amat berguna apabila anda membiarkan ejen AI bekerjasama dengan anda dalam penyesuaian atau konfigurasi.
 
-CLI ini mempunyai akses kepada semua peralatan dalaman yang digunakan melalui menu dan juga sebaliknya. Anda boleh melihat semua yang tersedia dengan menjalankan `omarchy` dalam terminal.
+CLI ini mempunyai akses kepada semua perkakas dalaman yang digunakan melalui menu dan juga sebaliknya. Anda boleh melihat semua yang tersedia dengan menjalankan `omarchy` di terminal.
 
 Rupanya lebih kurang seperti ini:
 
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,23 +42,23 @@ Groups:
   ...
 ```
 
-Untuk diagnostik, jalankan `omarchy-debug --no-sudo --print` secara langsung. Ia mencetak diagnostik dan menulis `/tmp/omarchy-debug.log` tanpa meminta sudo, termasuk pada pemasangan pakej yang mana `omarchy debug` boleh gagal dengan "Unknown Omarchy command".
+Untuk diagnostik, jalankan `omarchy-debug --no-sudo --print` secara terus. Ia mencetak diagnostik dan menulis `/tmp/omarchy-debug.log` tanpa meminta sudo, termasuk pada pemasangan pakej di mana `omarchy debug` boleh gagal dengan "Unknown Omarchy command".
 
-Dan anda boleh mendalami setiap kumpulan dengan lebih lanjut:
+Dan anda boleh mendalami setiap kumpulan:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Setiap perintah juga menerima `--help`, sama ada anda bertanya kepada keseluruhan kumpulan (`omarchy capture --help`) atau satu perintah sahaja (`omarchy capture screenshot --help`).
+Setiap arahan juga menerima `--help`, sama ada anda bertanya kepada keseluruhan kumpulan (`omarchy capture --help`) atau satu arahan sahaja (`omarchy capture screenshot --help`).
 
-### Membuka menu daripada terminal
+### Membuka menu dari terminal
 
-Menu Omarchy juga boleh diskrip, yang berguna untuk keybinding anda sendiri. `omarchy menu` membukanya pada akar, dan anda boleh melompat terus ke mana-mana titik dalam pepohon dengan menamakannya: `omarchy menu summon appearance.theme` terus pergi ke pemilih tema, `omarchy menu toggle system` membuka menu sistem dan menutupnya semula jika ia sudah terbuka, dan `omarchy menu close` menyimpannya.
+Menu Omarchy juga boleh diskrip, yang berguna untuk ikatan kekunci anda sendiri. `omarchy menu` membukanya di peringkat akar, dan anda boleh terus melompat ke mana-mana titik dalam pepohon dengan menamakannya: `omarchy menu summon appearance.theme` terus pergi ke pemilih tema, `omarchy menu toggle system` membuka menu sistem dan menutupnya semula jika ia sudah terbuka, dan `omarchy menu close` menutupnya.

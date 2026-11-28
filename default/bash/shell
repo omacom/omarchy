@@ -4,9 +4,21 @@ HISTCONTROL=ignoreboth
 HISTSIZE=32768
 HISTFILESIZE="${HISTSIZE}"
 
-# Autocompletion
-if [[ ! -v BASH_COMPLETION_VERSINFO && -f /usr/share/bash-completion/bash_completion ]]; then
-  source /usr/share/bash-completion/bash_completion
+# Autocompletion (lazy-loaded on first Tab so new terminals don't parse
+# bash-completion synchronously before the first prompt)
+if [[ $- == *i* && ! -v BASH_COMPLETION_VERSINFO && -f /usr/share/bash-completion/bash_completion ]]; then
+  _omarchy_lazy_bash_completion() {
+    complete -r -D 2>/dev/null || true
+    unset -f _omarchy_lazy_bash_completion
+    if [[ -f /usr/share/bash-completion/bash_completion ]]; then
+      source /usr/share/bash-completion/bash_completion
+      if declare -F _completion_loader >/dev/null; then
+        _completion_loader "$1"
+      fi
+      return 124
+    fi
+  }
+  complete -D -F _omarchy_lazy_bash_completion
 fi
 
 # Ensure command hashing is off for mise

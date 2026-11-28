@@ -26,11 +26,11 @@
   "update": {
     "label": "업데이트"
   },
-  "about": {
-    "label": "정보"
-  },
   "system": {
     "label": "시스템"
+  },
+  "system.about": {
+    "label": "정보"
   },
   "system.screensaver": {
     "label": "화면 보호기"
@@ -61,18 +61,6 @@
   },
   "learn.hyprland": {
     "label": "Hyprland"
-  },
-  "learn.arch": {
-    "label": "Arch"
-  },
-  "learn.neovim": {
-    "label": "Neovim"
-  },
-  "learn.bash": {
-    "label": "Bash"
-  },
-  "learn.tmux-keybindings": {
-    "label": "Tmux"
   },
   "learn.herdr-keybindings": {
     "label": "Herdr"
@@ -258,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "플로팅"
   },
-  "appearance.unlock": {
-    "label": "잠금 해제"
-  },
   "trigger.toggle": {
     "label": "토글"
   },
@@ -360,8 +345,11 @@
   "setup.input": {
     "label": "입력"
   },
-  "setup.language": {
+  "setup.region.language": {
     "label": "언어"
+  },
+  "setup.region.timezone": {
+    "label": "시간대"
   },
   "setup.network": {
     "label": "네트워크"
@@ -386,54 +374,6 @@
   },
   "setup.default": {
     "label": "기본값"
-  },
-  "agent": {
-    "label": "에이전트"
-  },
-  "agent.harness.agy": {
-    "label": "Antigravity"
-  },
-  "agent.harness.claude": {
-    "label": "Claude"
-  },
-  "agent.harness.codex": {
-    "label": "Codex"
-  },
-  "agent.harness.copilot": {
-    "label": "Copilot"
-  },
-  "agent.harness.crush": {
-    "label": "Crush"
-  },
-  "agent.harness.cursor-agent": {
-    "label": "Cursor CLI"
-  },
-  "agent.harness.grok": {
-    "label": "Grok"
-  },
-  "agent.harness.hermes": {
-    "label": "Hermes"
-  },
-  "agent.harness.kimi": {
-    "label": "Kimi"
-  },
-  "agent.harness.muse": {
-    "label": "Muse Code"
-  },
-  "agent.harness.omp": {
-    "label": "omp"
-  },
-  "agent.harness.openclaw": {
-    "label": "OpenClaw"
-  },
-  "agent.harness.opencode": {
-    "label": "OpenCode"
-  },
-  "agent.harness.ori": {
-    "label": "Ori"
-  },
-  "agent.harness.pi": {
-    "label": "Pi"
   },
   "setup.default.browser": {
     "label": "브라우저",
@@ -565,11 +505,8 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
-  "setup.direct-boot": {
-    "label": "직접 부팅"
-  },
-  "setup.reset": {
-    "label": "컴퓨터 초기화"
+  "remove.factory-reset": {
+    "label": "공장 초기화"
   },
   "install.package": {
     "label": "패키지"
@@ -717,33 +654,6 @@
   },
   "install.terminal.kitty": {
     "label": "Kitty"
-  },
-  "install.ai.chatgpt": {
-    "label": "ChatGPT Desktop"
-  },
-  "install.ai.claude": {
-    "label": "Claude Desktop"
-  },
-  "install.ai.grok-bot": {
-    "label": "Grok Bot"
-  },
-  "install.ai.hermes": {
-    "label": "Hermes Desktop"
-  },
-  "install.ai.lm-studio": {
-    "label": "LM Studio"
-  },
-  "install.ai.ollama": {
-    "label": "Ollama"
-  },
-  "install.ai.openclaw": {
-    "label": "OpenClaw"
-  },
-  "install.ai.perplexity": {
-    "label": "Perplexity"
-  },
-  "install.ai.t3-code": {
-    "label": "T3 Code"
   },
   "install.gaming.steam": {
     "label": "Steam"
@@ -898,9 +808,6 @@
   "remove.security.sudoless-docker": {
     "label": "sudo 없는 Docker"
   },
-  "remove.ai.hermes": {
-    "label": "Hermes Desktop"
-  },
   "remove.browser.chrome": {
     "label": "Chrome"
   },
@@ -931,35 +838,11 @@
   "remove.service.ssh-agent": {
     "label": "SSH Agent"
   },
-  "remove.ai.chatgpt": {
-    "label": "ChatGPT Desktop"
-  },
-  "remove.ai.claude": {
-    "label": "Claude Desktop"
-  },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
   },
   "remove.dictation.voxtype": {
     "label": "Voxtype"
-  },
-  "remove.ai.grok-bot": {
-    "label": "Grok Bot"
-  },
-  "remove.ai.lm-studio": {
-    "label": "LM Studio"
-  },
-  "remove.ai.ollama": {
-    "label": "Ollama"
-  },
-  "remove.ai.openclaw": {
-    "label": "OpenClaw"
-  },
-  "remove.ai.perplexity": {
-    "label": "Perplexity"
-  },
-  "remove.ai.t3-code": {
-    "label": "T3 Code"
   },
   "remove.gaming.steam": {
     "label": "Steam"
@@ -1081,9 +964,6 @@
   "update.password": {
     "label": "비밀번호"
   },
-  "update.timezone": {
-    "label": "시간대"
-  },
   "update.time": {
     "label": "시간"
   },
@@ -1111,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1131,12 +1008,6 @@
   },
   "update.hardware.trackpad": {
     "label": "트랙패드"
-  },
-  "update.password.drive": {
-    "label": "드라이브 암호화"
-  },
-  "update.password.user": {
-    "label": "사용자"
   },
   "appearance.top-bar.indicators.battery-percentage-on": {
     "label": "배터리 % 표시"
@@ -1205,16 +1076,18 @@
     "label": "노트북 화면 끔"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "화면 미러링 켬"
+    "label": "디스플레이 미러링 켜기"
   },
   "trigger.hardware.mirror-display-off": {
     "label": "디스플레이 미러링 끄기"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "하이브리드 GPU로 전환"
+    "label": "dGPU로 전환",
+    "description": "하이브리드 전용 GPU 사용"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "내장 GPU로 전환"
+    "label": "iGPU로 전환",
+    "description": "내장 GPU만 사용"
   },
   "trigger.hardware.touchpad-on": {
     "label": "터치패드 켜기"
@@ -1228,34 +1101,7 @@
   "trigger.hardware.touchscreen-off": {
     "label": "터치스크린 끄기"
   },
-  "agent.harness.amp": {
-    "label": "Amp"
-  },
-  "agent.harness.commandcode": {
-    "label": "Command Code"
-  },
-  "agent.harness.devin": {
-    "label": "Devin CLI"
-  },
-  "agent.harness.dsh": {
-    "label": "DeepSeek Harness"
-  },
-  "agent.harness.freebuff": {
-    "label": "Freebuff"
-  },
-  "agent.harness.kilo": {
-    "label": "Kilo"
-  },
-  "agent.harness.kiro-cli": {
-    "label": "Kiro CLI"
-  },
-  "agent.harness.mcode": {
-    "label": "MiniMax Code"
-  },
-  "agent.harness.qwen": {
-    "label": "Qwen Code"
-  },
-  "setup.config.git": {
+  "setup.git": {
     "label": "Git"
   },
   "remove.service.1password": {
@@ -1282,15 +1128,6 @@
   "setup.keyboard.input-methods": {
     "label": "입력 방식"
   },
-  "install.ai.herdr": {
-    "label": "Herdr Desktop"
-  },
-  "install.ai.amp": {
-    "label": "Amp Desktop"
-  },
-  "remove.ai.amp": {
-    "label": "Amp Desktop"
-  },
   "install.service.notion": {
     "label": "Notion"
   },
@@ -1302,25 +1139,6 @@
   },
   "setup.default.editor.plain": {
     "label": "일반"
-  },
-  "agent.harness": {
-    "label": "하네스",
-    "title": "기본 하네스"
-  },
-  "agent.instructions": {
-    "label": "지침"
-  },
-  "agent.make": {
-    "label": "무언가 만들기"
-  },
-  "agent.make.theme": {
-    "label": "테마 만들기"
-  },
-  "agent.make.plugin": {
-    "label": "플러그인 만들기"
-  },
-  "agent.make.app": {
-    "label": "앱 만들기"
   },
   "install.browser.chromium": {
     "label": "Chromium"
@@ -1343,5 +1161,291 @@
   "system.firmware": {
     "label": "BIOS로 재시작",
     "description": "UEFI 펌웨어 설정으로 재시작"
+  },
+  "setup.region": {
+    "label": "지역"
+  },
+  "setup.region.formats": {
+    "label": "형식",
+    "description": "날짜, 시간, 숫자, 단위 표시 방식"
+  },
+  "install.gaming.vibes": {
+    "label": "Game Vibes"
+  },
+  "remove.gaming.vibes": {
+    "label": "Game Vibes 게임"
+  },
+  "update.games": {
+    "label": "Game Vibes 게임"
+  },
+  "setup.network.hostname": {
+    "label": "호스트명"
+  },
+  "install.service.wechat": {
+    "label": "WeChat"
+  },
+  "setup.network.dns.alidns": {
+    "label": "AliDNS"
+  },
+  "install.service.dingtalk": {
+    "label": "DingTalk"
+  },
+  "install.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "install.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "install.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "install.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "install.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "install.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "install.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "install.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "install.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "install.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "install.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "install.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "install.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "install.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "install.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "install.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "install.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "install.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop": {
+    "label": "데스크톱"
+  },
+  "install.ai.cli": {
+    "label": "CLI"
+  },
+  "install.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "install.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.desktop.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "install.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "install.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "install.cli.github": {
+    "label": "GitHub"
+  },
+  "install.cli.hey": {
+    "label": "HEY"
+  },
+  "install.cli.hunk": {
+    "label": "Hunk"
+  },
+  "install.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "install.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "install.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "remove.ai.cli.codex": {
+    "label": "Codex"
+  },
+  "remove.ai.cli.opencode": {
+    "label": "OpenCode"
+  },
+  "remove.ai.cli.amp": {
+    "label": "Amp"
+  },
+  "remove.ai.cli.antigravity": {
+    "label": "Antigravity"
+  },
+  "remove.ai.cli.copilot": {
+    "label": "GitHub Copilot"
+  },
+  "remove.ai.cli.crush": {
+    "label": "Crush"
+  },
+  "remove.ai.cli.cursor": {
+    "label": "Cursor CLI"
+  },
+  "remove.ai.cli.deepseek": {
+    "label": "DeepSeek Harness"
+  },
+  "remove.ai.cli.devin": {
+    "label": "Devin"
+  },
+  "remove.ai.cli.freebuff": {
+    "label": "Freebuff"
+  },
+  "remove.ai.cli.grok": {
+    "label": "Grok Build"
+  },
+  "remove.ai.cli.kilo": {
+    "label": "Kilo"
+  },
+  "remove.ai.cli.kimi": {
+    "label": "Kimi Code"
+  },
+  "remove.ai.cli.minimax": {
+    "label": "MiniMax Code"
+  },
+  "remove.ai.cli.muse": {
+    "label": "Muse Code"
+  },
+  "remove.ai.cli.oh-my-pi": {
+    "label": "Oh My Pi"
+  },
+  "remove.ai.cli.ori": {
+    "label": "Ori"
+  },
+  "remove.ai.cli.qwen": {
+    "label": "Qwen Code"
+  },
+  "remove.ai.desktop.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.desktop.opencode": {
+    "label": "OpenCode Desktop"
+  },
+  "remove.cli": {
+    "label": "CLI",
+    "title": "제거"
+  },
+  "remove.ai.desktop": {
+    "label": "데스크톱",
+    "title": "제거"
+  },
+  "remove.ai.cli": {
+    "label": "CLI",
+    "title": "제거"
+  },
+  "remove.ai.desktop.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.ai.desktop.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.desktop.antigravity": {
+    "label": "Antigravity Desktop"
+  },
+  "remove.ai.desktop.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.desktop.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.ai.desktop.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.desktop.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.cli.ollama": {
+    "label": "Ollama"
+  },
+  "remove.cli.basecamp": {
+    "label": "Basecamp"
+  },
+  "remove.cli.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "remove.cli.github": {
+    "label": "GitHub"
+  },
+  "remove.cli.hey": {
+    "label": "HEY"
+  },
+  "remove.cli.hunk": {
+    "label": "Hunk"
+  },
+  "remove.ai.cli.claude": {
+    "label": "Claude Code"
+  },
+  "remove.ai.desktop.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.desktop.t3-code": {
+    "label": "T3 Code"
+  },
+  "system.snapshots": {
+    "label": "스냅샷"
+  },
+  "system.snapshots.restore": {
+    "label": "이 스냅샷 복원"
+  },
+  "setup.security.passwordless-login": {
+    "label": "비밀번호 없는 로그인"
+  },
+  "setup.default.browser.ladybird": {
+    "label": "Ladybird"
+  },
+  "install.browser.ladybird": {
+    "label": "Ladybird"
+  },
+  "remove.browser.ladybird": {
+    "label": "Ladybird"
   }
 }

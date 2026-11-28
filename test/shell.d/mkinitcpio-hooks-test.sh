@@ -21,7 +21,7 @@ printf '%s\0' apple,j416c qcom,x1e80100 >"$test_tmp/platforms/contradiction/proc
 etc="$test_tmp/etc"
 devices="$test_tmp/devices"
 
-omarchy_hooks="base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt filesystems fsck btrfs-overlayfs"
+omarchy_hooks="base udev omarchy-splash keyboard autodetect microcode modconf kms keymap consolefont block encrypt filesystems fsck omarchy-snapshot-overlay omarchy-restore"
 omarchy_hooks_without_kms=${omarchy_hooks/ kms / }
 apple_hooks="base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block filesystems fsck"
 nvidia_modules="nvidia nvidia_modeset nvidia_uvm nvidia_drm"
@@ -41,8 +41,19 @@ else
 fi
 SH
 chmod +x "$test_tmp/modinfo"
+# The system's tools, less the boot splash's runtime, which the baseline checks
+# for before naming omarchy-splash, and less an installed Omarchy's commands:
+# the host's sway, Quickshell or platform detector must not decide it. Every
+# fixture has the runtime unless a case takes it away.
+mkdir -p "$test_tmp/tools"
+ln -s /usr/bin/* "$test_tmp/tools/"
+rm -f "$test_tmp/tools/sway" "$test_tmp/tools/seatd-launch" "$test_tmp/tools/quickshell" "$test_tmp"/tools/omarchy-*
 for fixture in "$test_tmp"/platforms/*; do
   cp "$test_tmp/modinfo" "$fixture/bin/"
+  for command in sway seatd-launch quickshell; do
+    printf '#!/bin/bash\n' >"$fixture/bin/$command"
+    chmod +x "$fixture/bin/$command"
+  done
 done
 
 # mkinitcpio's stock mkinitcpio.conf, which the baseline replaces, plus every
@@ -78,9 +89,12 @@ pci_devices() {
 
 # mkinitcpio appends the drop-ins to mkinitcpio.conf in its own order and
 # sources the result once. Do the same on a platform fixture and print what the
-# image is built from. The drop-ins read /etc/vconsole.conf, so point them at
-# $vconsole, which only the cases that need a layout write.
+# image is built from. The drop-ins read /etc/vconsole.conf and
+# /etc/systemd/system.conf.d/20-mount-events.conf, so point them at fixtures in
+# $test_tmp (only cases that need a keyboard layout write $vconsole).
 vconsole="$test_tmp/vconsole.conf"
+mount_events="$test_tmp/20-mount-events.conf"
+cp "$ROOT/etc/systemd/system.conf.d/20-mount-events.conf" "$mount_events"
 compose() {
   local fixture="$test_tmp/platforms/$1" config="$test_tmp/buildconfig" conf
   local -a conf_files=()
@@ -90,10 +104,11 @@ compose() {
   for conf in "${conf_files[@]}"; do
     cat -- "$etc/mkinitcpio.conf.d/$conf" >>"$config"
   done
-  sed -i "s|/etc/vconsole.conf|$vconsole|g" "$config"
+  sed -i -e "s|/etc/vconsole.conf|$vconsole|g" \
+    -e "s|/etc/systemd/system.conf.d/20-mount-events.conf|$mount_events|g" "$config"
 
-  local path="$fixture/bin:$ROOT/bin:$PATH"
-  [[ $1 != "no-detector" ]] || path="$fixture/bin"
+  local path="$fixture/bin:$ROOT/bin:$test_tmp/tools"
+  [[ $1 != "no-detector" ]] || path="$fixture/bin:$test_tmp/tools"
   KERNELVERSION=6.99.0-test OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" PATH="$path" "$BASH" -c '
     . "$1" || exit 1
     printf "HOOKS=%s\nMODULES=%s\nFILES=%s\n" "${HOOKS[*]}" "${MODULES[*]}" "${FILES[*]}"
@@ -125,6 +140,9 @@ assert_hooks "Apple Silicon starts from the systemd baseline" aarch64-apple "$ap
 assert_hooks "plain aarch64 starts from the Omarchy baseline" aarch64 "$omarchy_hooks"
 assert_hooks "x86 starts from the Omarchy baseline" x86 "$omarchy_hooks"
 assert_hooks "without the detector the Omarchy baseline stays" no-detector "$omarchy_hooks"
+rm "$test_tmp/platforms/x86/bin/seatd-launch"
+assert_hooks "without the splash's runtime yet, Plymouth draws the prompt" x86 "${omarchy_hooks/omarchy-splash/plymouth}"
+cp "$test_tmp/platforms/x86/bin/sway" "$test_tmp/platforms/x86/bin/seatd-launch"
 
 if composed=$(compose contradiction 2>"$test_tmp/contradiction.err"); then
   fail "a platform the detector cannot place stops the build" "composed: $composed"
@@ -179,15 +197,15 @@ CONF
 assert_hooks "a platform fragment's hooks survive on Apple Silicon" aarch64-apple \
   "base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block platform-firmware filesystems fsck platform-late"
 assert_hooks "a platform fragment's hooks survive on plain aarch64" aarch64 \
-  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
+  "base udev omarchy-splash keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck omarchy-snapshot-overlay omarchy-restore platform-late"
 assert_hooks "a platform fragment's hooks survive on x86" x86 \
-  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
+  "base udev omarchy-splash keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck omarchy-snapshot-overlay omarchy-restore platform-late"
 
 # The NVIDIA filter still runs after the fragment and removes only kms.
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 pci_devices 0x10de:0x030000
 assert_hooks "the NVIDIA filter keeps a platform fragment's hooks" x86 \
-  "base udev plymouth keyboard autodetect microcode modconf keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
+  "base udev omarchy-splash keyboard autodetect microcode modconf keymap consolefont block encrypt platform-firmware filesystems fsck omarchy-snapshot-overlay omarchy-restore platform-late"
 
 # Existing x86 configurations build the image they built before the baseline
 # moved: the same HOOKS, MODULES and FILES.
@@ -221,9 +239,9 @@ assert_composed "NVIDIA-only with hibernation and a provisioning key is unchange
   "$omarchy_hooks_without_kms resume" "$nvidia_modules thunderbolt" "/etc/omarchy/provisioning.key"
 
 new_etc
-drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
+drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
 assert_composed "a T2 Mac is unchanged" x86 \
-  "$omarchy_hooks" "t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
+  "$omarchy_hooks" "t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
 
 new_etc
 drop_in macbook_spi_modules.conf <<<"MODULES=(applespi intel_lpss_pci spi_pxa2xx_platform)"
@@ -266,7 +284,7 @@ KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "without the runtime's d
   "$omarchy_hooks" "thunderbolt" ""
 new_etc
 KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "an Apple Silicon Mac leaves i2c-hid-of out" aarch64-apple \
-  "$apple_hooks" "thunderbolt" ""
+  "$apple_hooks" "thunderbolt" "$mount_events"
 new_etc
 KERNEL_MODULES="thunderbolt" KERNEL_BUILTINS="i2c-hid-of" assert_composed "a kernel with i2c-hid-of built in leaves it out" aarch64-qualcomm \
   "$omarchy_hooks" "thunderbolt" ""
@@ -276,7 +294,7 @@ KERNEL_MODULES="thunderbolt" KERNEL_BUILTINS="i2c-hid-of" assert_composed "a ker
 # an optional thunderbolt? nor a module the kernel lacks may reach it.
 new_etc
 assert_composed "Apple Silicon early-loads the Aurora kernel's thunderbolt module" aarch64-apple \
-  "$apple_hooks" "thunderbolt" ""
+  "$apple_hooks" "thunderbolt" "$mount_events"
 new_etc
 KERNEL_MODULES="" assert_composed "a plain aarch64 kernel without thunderbolt leaves it out" aarch64 \
   "$omarchy_hooks" "" ""

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set the default browser for Omarchy and XDG handlers
-# omarchy:args=[chromium|chrome|brave|brave-origin|edge|firefox|zen]
+# omarchy:args=[chromium|chrome|brave|brave-origin|edge|firefox|zen|ladybird]
 # omarchy:examples=omarchy default browser firefox | omarchy default browser brave
 
 installing=false
@@ -20,6 +20,7 @@ if (($# == 0)); then
   microsoft-edge.desktop) echo "edge" ;;
   firefox.desktop) echo "firefox" ;;
   zen.desktop) echo "zen" ;;
+  org.ladybird.Ladybird.desktop) echo "ladybird" ;;
   *) echo "$current_browser" ;;
   esac
   exit 0
@@ -33,8 +34,9 @@ brave-origin) browser="brave-origin"; command="brave-origin"; desktop_id="brave-
 edge) browser="edge"; command="microsoft-edge-stable"; desktop_id="microsoft-edge.desktop"; name="Edge"; glyph=󰇩 ;;
 firefox) browser="firefox"; command="firefox"; desktop_id="firefox.desktop"; name="Firefox"; glyph=󰈹 ;;
 zen) browser="zen"; command="zen-browser"; desktop_id="zen.desktop"; name="Zen"; glyph=󰖟 ;;
+ladybird) browser="ladybird"; command="ladybird"; desktop_id="org.ladybird.Ladybird.desktop"; name="Ladybird"; glyph=󰠭 ;;
 *)
-  echo "Usage: omarchy-default-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-default-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen|ladybird>"
   exit 1
   ;;
 esac
@@ -45,13 +47,14 @@ if omarchy-cmd-missing "$command"; then
   else
     omarchy-install-browser "$browser" || exit 1
   fi
-elif [[ $browser != "firefox" && $browser != "zen" ]] && ! omarchy-install-browser-extensions --check "$browser"; then
+elif [[ $browser != "firefox" && $browser != "zen" && $browser != "ladybird" ]] && ! omarchy-install-browser-extensions --check "$browser"; then
   # The bundled extensions reach each browser through copies taken at setup,
   # which go stale when an extension or its id changes. Chrome's copy is a
   # root-owned policy, so repair it where a sudo prompt can be answered.
   if [[ $installing == "false" && $browser == "chrome" ]]; then
     exec omarchy-launch-floating-terminal-with-presentation omarchy-default-browser --install "$browser"
   else
+    [[ $installing == "true" ]] && echo "Updating $name browser extensions..."
     omarchy-install-browser-extensions "$browser" || exit 1
   fi
 fi

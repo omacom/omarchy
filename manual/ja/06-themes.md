@@ -1,12 +1,12 @@
 # テーマ
 
-Omarchy には22種類の美しいテーマが付属しています。Omarchy Menu（`Super + Space`）の _Appearance > Theme_ から選択することも、`Super + Ctrl + T` でテーマセレクターに直接移動することもできます。
+Omarchyには23の美しいテーマが付属している。Omarchy Menu（`Super + Space`）の_外観 > テーマ_から選択できるほか、`Super + Ctrl + T`でテーマセレクターに直接移動することもできる。
 
-各テーマはデスクトップ、ターミナル、neovim、アクティビティ画面（btop）、Chromium、そしてトップバー、メニュー、通知、OSD、ロック画面を含む Omarchy シェル全体のスタイルを決定します。（Obsidian については、アプリ内の _Appearance > Themes_ から Omarchy テーマを手動で選択する必要があります）。
+各テーマは、デスクトップ、ターミナル、neovim、アクティビティ画面（btop）、ブラウザ（Chrome、Chromium、EdgeまたはBrave）、そしてトップバー、メニュー、通知、OSD、ロック画面を含むOmarchyシェル全体のスタイルを決める。（Obsidianについては、アプリ内の_外観 > テーマ_からOmarchyテーマを手動で選択する必要がある）。
 
-テーマには背景画像のセットがあり、`Super + Ctrl + W` を使って切り替えることができます。
+テーマには背景画像のセットが用意されており、`Super + Ctrl + W`で切り替えることができる。
 
-さらに多くのテーマは[追加テーマのページ](https://omarchy.org/themes/)で見つけることも、[自分でテーマを作成する](43-making-your-own-theme.md)こともできます。
+さらに多くのテーマは[追加のテーマページ](https://omarchy.org/themes/)で見つけることができるし、[独自のテーマを作る](43-making-your-own-theme.md)こともできる。
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,75 +65,30 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+ ![last-horizon](../themes/last-horizon/preview.png)
+_Last Horizon_
+
+ ![lupine](../themes/lupine/preview.png)
+_Lupine_
+
+ ![solitude](../themes/solitude/preview.png)
+_Solitude_
+
+ ![starship](../themes/starship/preview.png)
+_Starship_
+
 ### アプリアイコン
 
-アプリランチャーとドックのアイコンは使用中のテーマの色で描画されるため、テーマと一緒に変わります。これらはアイコンセットから提供され、_Appearance > Icons_ でテーマとは別に選択できます。各セットのプレビューから、テーマを選ぶのと同じ方法で選択します。
+アプリランチャーやドックのアイコンはテーマの色で描画されるため、テーマと一緒に変わる。これらはアイコンセットによるもので、テーマとは別に_外観 > アイコン_から、テーマを選ぶのと同じように各セットのプレビューを見て選ぶ：
 
-- _Papercraft_ がデフォルトです。インストールされているすべてのものが1つのスタイルで描画されます。Chrome、HEY、YouTube のようにロゴで知られているアプリは、その形を維持したままテーマの色になります。
-- _Arcade_ は同じアプリを、昔のゲーム機のような8ビットのピクセルアートとして描画します。
-- _Original_ はすべてのアプリを、その製作者が用意したアイコンで表示します。
+- _Papercraft_がデフォルトだ：インストールされているすべてのものが、1つのスタイルで描かれる。Chrome、HEY、YouTubeのようにロゴで知られるアプリは、その形を保ちながらテーマの色を取り入れる。
+- _Arcade_は、同じアプリを昔のゲーム機のような8ビットのピクセルアートで描く。
+- _Original_は、すべてのアプリをその製作者が用意したアイコンで表示する。
 
-他の人が作成したアイコンセットは _Install > Style > Icons_（または `omarchy icons install <git url>`）でインストールでき、_Remove > Icons_ で再び削除できます。_Update > Extra Icons_ はインストール済みのセットの最新バージョンを取得します。
+誰かが作ったアイコンセットは_インストール > スタイル > アイコン_（または`omarchy icons install <git url>`）でインストールでき、_削除 > アイコン_で再度削除できる。_更新 > 追加のアイコン_は、インストール済みのセットの最新バージョンを取得する。
 
-自分で作成するには、アイコンを `~/.config/omarchy/icons/<name>/` に配置します。アプリごとに1ファイルとし、アプリの `.desktop` ファイルの `Icon=` 行に合わせて名前を付けます。`.svg` で終わるファイルはそのまま表示されます。`.svg.tpl` で終わるファイルはテーマの色で描画されます。色を指定する場所に `{{ icon_main }}`、`{{ icon_mark }}`、`{{ icon_paper }}`、`{{ icon_body }}`、`{{ icon_edge }}`、`{{ icon_ink }}`、または `{{ icon_shadow }}` と記述します。`/usr/share/omarchy/icons/papercraft/` にあるデフォルトセットは、作成を始めるのに適した出発点です。`preview.png` を追加すると、ピッカーに自分のセットを表示できます。ない場合は、Omarchy があなたのアイコンからプレビューを描画します。デフォルトセットのアイコンを1つだけ変更するには、自分のバージョンを `~/.config/omarchy/icons/papercraft/` に配置します。
+独自のものを作るには、`~/.config/omarchy/icons/<name>/`にアイコンを置く。1アプリにつき1ファイルとし、アプリの`.desktop`ファイルの`Icon=`行にちなんで名前を付ける。`.svg`で終わるファイルはそのまま表示される。`.svg.tpl`で終わるファイルはテーマの色で描画される：色が入る場所に`{{ icon_main }}`、`{{ icon_mark }}`、`{{ icon_paper }}`、`{{ icon_body }}`、`{{ icon_edge }}`、`{{ icon_ink }}`、または`{{ icon_shadow }}`と書く。`/usr/share/omarchy/icons/papercraft/`にあるデフォルトセットは、良い出発点になる。ピッカーで自分のセットを表示するには`preview.png`を追加する；なければ、Omarchyがアイコンからプレビューを描く。デフォルトセットのアイコンを1つだけ変更するには、自分のバージョンを`~/.config/omarchy/icons/papercraft/`に置く。
 
-### ロック解除
+### 起動とログイン
 
-テーマにはカスタムのロック解除デザインも用意でき、ブート時の復号プロセスに使用されます。これらは _Appearance > Unlock_ で選択できます。見た目は次のとおりです。
-
- ![catppuccin](../themes/catppuccin/preview-unlock.png)
-_Catppuccin_
-
- ![catppuccin-latte](../themes/catppuccin-latte/preview-unlock.png)
-_Catppuccin Latte_
-
- ![ethereal](../themes/ethereal/preview-unlock.png)
-_Ethereal_
-
- ![everforest](../themes/everforest/preview-unlock.png)
-_Everforest_
-
- ![flexoki-light](../themes/flexoki-light/preview-unlock.png)
-_Flexoki Light_
-
- ![gruvbox](../themes/gruvbox/preview-unlock.png)
-_Gruvbox_
-
- ![hackerman](../themes/hackerman/preview-unlock.png)
-_Hackerman_
-
- ![jade-horse](../themes/jade-horse/preview-unlock.png)
-_Jade Horse_
-
- ![kanagawa](../themes/kanagawa/preview-unlock.png)
-_Kanagawa_
-
- ![lumon](../themes/lumon/preview-unlock.png)
-_Lumon_
-
- ![matte-black](../themes/matte-black/preview-unlock.png)
-_Matte Black_
-
-![miasma](../themes/miasma/preview-unlock.png)
-_Miasma_
-
- ![nord](../themes/nord/preview-unlock.png)
-_Nord_
-
- ![retro-82](../themes/retro-82/preview-unlock.png)
-_Retro 82_
-
- ![ristretto](../themes/ristretto/preview-unlock.png)
-_Ristretto_
-
-![rose-pine](../themes/rose-pine/preview-unlock.png)
-_Rose Pine_
-
- ![tokyo-night](../themes/tokyo-night/preview-unlock.png)
-_Tokyo Night_
-
- ![vantablack](../themes/vantablack/preview-unlock.png)
-_Vantablack_
-
- ![white](../themes/white/preview-unlock.png)
-_White_
+コンピューターの起動時にドライブのパスワードを求める画面と、ログイン画面もテーマに従う。テーマを切り替えるたびに、その背景、テキスト、アクセント、赤の色が反映されるため、ロック解除用のデザインを別に選ぶ必要はない。Apple Silicon Macでは、ドライブのパスワード画面はテーマにかかわらずOmarchyのデフォルトの見た目のままになる。

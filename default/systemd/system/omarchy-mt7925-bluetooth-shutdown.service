@@ -1,0 +1,13 @@
+[Unit]
+Description=Unload MediaTek MT7925 Bluetooth before shutdown or reboot
+Before=bluetooth.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/true
+ExecStop=-/usr/bin/modprobe -r btusb btmtk
+TimeoutStopSec=3
+
+[Install]
+WantedBy=multi-user.target

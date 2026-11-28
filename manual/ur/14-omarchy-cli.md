@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy کو عام طور پر ہاٹ کیز اور Omarchy مینیو (`Super + Space`) کے ذریعے کنٹرول کیا جاتا ہے۔ لیکن آپ اسے `omarchy` CLI کے ذریعے بھی کنٹرول کر سکتے ہیں۔ یہ خاص طور پر اس وقت مددگار ہوتا ہے جب آپ کسی AI ایجنٹ سے تخصیص یا ترتیب پر اپنے ساتھ کام کروا رہے ہوں۔
+Omarchy ko aam tor par hotkeys aur Omarchy menu (`Super + Space`) ke zariye control kiya jata hai. Lekin aap ise `omarchy` CLI ke zariye bhi control kar sakte hain. Yeh khaas tor par us waqt madadgar hota hai jab aap kisi AI agent ko apne saath customization ya configuration par kaam karwa rahe hon.
 
-CLI کو ان تمام اندرونی اوزاروں تک رسائی حاصل ہے جو مینیو کے ذریعے بھی استعمال ہوتے ہیں اور دیگر طریقوں سے بھی۔ آپ ٹرمینل میں `omarchy` چلا کر سب کچھ دیکھ سکتے ہیں جو دستیاب ہے۔
+CLI ke paas us tamam internal tooling tak rasai hai jo menu aur deegar zariye istemal hoti hai. Aap terminal mein `omarchy` chala kar sab kuch dekh sakte hain jo dastiyab hai.
 
-یہ کچھ اس طرح دکھائی دیتا ہے:
+Yeh kuch is tarah dikhta hai:
 
 ```
 ~ ❯ omarchy
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,23 +42,23 @@ Groups:
   ...
 ```
 
-تشخیص کے لیے، براہِ راست `omarchy-debug --no-sudo --print` چلائیں۔ یہ تشخیصی معلومات پرنٹ کرتا ہے اور sudo کے لیے پوچھے بغیر `/tmp/omarchy-debug.log` لکھتا ہے، بشمول ان پیکیج تنصیبات پر جہاں `omarchy debug` "Unknown Omarchy command" کے ساتھ ناکام ہو سکتی ہے۔
+Tashkhees ke liye, seedha `omarchy-debug --no-sudo --print` chalayen. Yeh diagnostics print karta hai aur sudo ka istefsar kiye baghair `/tmp/omarchy-debug.log` mein likhta hai, in package installs par bhi jahan `omarchy debug` "Unknown Omarchy command" ke saath nakam ho sakta hai.
 
-اور آپ ہر گروپ میں مزید گہرائی تک جا سکتے ہیں:
+Aur aap har group ki mazid teh mein bhi ja sakte hain:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-ہر کمانڈ `--help` بھی لیتی ہے، چاہے آپ پورے گروپ سے پوچھیں (`omarchy capture --help`) یا کسی ایک کمانڈ سے (`omarchy capture screenshot --help`)۔
+Har command `--help` bhi leti hai, khawah aap kisi poore group (`omarchy capture --help`) se poochein ya sirf ek command (`omarchy capture screenshot --help`) se.
 
-### ٹرمینل سے مینیو کھولنا
+### Terminal se menu kholna
 
-Omarchy مینیو اسکرپٹ کے قابل بھی ہے، جو آپ کی اپنی کی بائنڈنگز کے لیے کارآمد ہے۔ `omarchy menu` اسے روٹ پر کھولتا ہے، اور آپ اس کا نام بتا کر درخت میں کسی بھی مقام پر براہِ راست چھلانگ لگا سکتے ہیں: `omarchy menu summon appearance.theme` براہِ راست تھیم منتخب کرنے والے تک لے جاتا ہے، `omarchy menu toggle system` سسٹم مینیو کھولتا ہے اور اگر وہ پہلے سے کھلا ہو تو اسے دوبارہ بند کر دیتا ہے، اور `omarchy menu close` اسے ہٹا دیتا ہے۔
+Omarchy menu scriptable bhi hai, jo aapki apni keybindings ke liye kaar-aamad hai. `omarchy menu` ise root par kholta hai, aur aap is ka naam bata kar tree mein kisi bhi nuqte par seedha pohanch sakte hain: `omarchy menu summon appearance.theme` seedha theme picker par le jata hai, `omarchy menu toggle system` system menu kholta hai, aur agar woh pehle se khula ho to use dobara band kar deta hai, aur `omarchy menu close` ise wahan se hata deta hai.

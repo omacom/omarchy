@@ -744,6 +744,7 @@ def fetch_remote_quota(force: bool = False) -> dict[str, Any]:
   identity, token = github_credential()
   if not identity:
     return {"available": False, "reason": "no-token"}
+  account_name = identity.removeprefix("gh:github.com:") if identity.startswith("gh:github.com:") else ""
 
   # The cache keeps GitHub's answer itself rather than meter rows: the meter
   # is drawn from it at print time, budget and reset date included.
@@ -752,7 +753,7 @@ def fetch_remote_quota(force: bool = False) -> dict[str, Any]:
   # A panel opened and shut repeatedly must not turn into a request (and a
   # gh process) per flick, so an answer this recent is the answer.
   if cached.get("available") and cache.fresh(force, allow_empty=True):
-    return open_quota(dict(cached, stale=False))
+    return open_quota(dict(cached, stale=False, accountName=account_name))
 
   # hosts.yml still naming the account while `gh auth token` fails is gh or
   # its credential store having a bad moment, not a sign-out (signing out
@@ -768,10 +769,13 @@ def fetch_remote_quota(force: bool = False) -> dict[str, Any]:
   if quota.get("available"):
     quota["stale"] = False
     quota["fetchedAtMs"] = cache.save([], **quota)
+    quota["accountName"] = account_name
     return quota
 
   if cached.get("available"):
-    return open_quota(dict(cached, stale=True, failure=quota.get("reason", "")))
+    return open_quota(dict(cached, stale=True, failure=quota.get("reason", ""), accountName=account_name))
+  if account_name:
+    quota["accountName"] = account_name
   return quota
 
 
@@ -819,6 +823,7 @@ def allowance_limits(
   result = {
     "limits": [],
     "tierLabel": "",
+    "accountName": "",
     "usageStatusText": "",
     "authHelpText": "",
     "limitsStale": False,
@@ -831,6 +836,7 @@ def allowance_limits(
 
   if remote.get("available"):
     result["tierLabel"] = str(remote.get("planLabel") or "")
+    result["accountName"] = str(remote.get("accountName") or "")
     if remote.get("stale"):
       result["authHelpText"] = quota_trouble(reason) + " Showing the last known allowance."
       # A refused token is a sign-in to redo, kept allowance or not.
@@ -922,6 +928,8 @@ def main() -> int:
     limitsFetchedAt=allowance["limitsFetchedAt"],
   )
   # The first probe after login often fires before the network is up.
+  if allowance["accountName"]:
+    record["accountName"] = allowance["accountName"]
   if allowance["retryAdvised"]:
     record["retryAdvised"] = True
   for key in (

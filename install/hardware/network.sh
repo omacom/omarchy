@@ -1,20 +1,22 @@
 # NetworkManager enablement is centralized in enable-services.sh.
-systemctl disable iwd.service 2>/dev/null || true
-
 # Fresh Omarchy uses NetworkManager. Archinstall's legacy "copy ISO network"
 # mode enabled systemd-networkd and dropped DHCP .network files that compete
 # with NetworkManager, so retire that state whenever hardware setup runs.
-for unit in \
-  systemd-networkd.service \
-  systemd-networkd.socket \
-  systemd-networkd-varlink.socket \
-  systemd-networkd-varlink-metrics.socket \
-  systemd-networkd-resolve-hook.socket; do
-  systemctl disable "$unit" 2>/dev/null || true
-done
-
 # Prevent systemd-networkd-wait-online timeout on boot.
-systemctl disable systemd-networkd-wait-online.service 2>/dev/null || true
+disable_units=(
+  iwd.service
+  systemd-networkd.service
+  systemd-networkd.socket
+  systemd-networkd-varlink.socket
+  systemd-networkd-varlink-metrics.socket
+  systemd-networkd-resolve-hook.socket
+  systemd-networkd-wait-online.service
+)
+if ! systemctl disable "${disable_units[@]}" 2>/dev/null; then
+  for unit in "${disable_units[@]}"; do
+    systemctl disable "$unit" 2>/dev/null || true
+  done
+fi
 systemctl mask systemd-networkd-wait-online.service 2>/dev/null || true
 
 stock_networkd_file() {

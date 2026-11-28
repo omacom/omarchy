@@ -14,6 +14,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 fake_platform "$tmp/apple" aarch64-apple
+fake_platform "$tmp/qualcomm" aarch64-qualcomm
 fake_platform "$tmp/x86" x86
 
 # The hooks record what they were called with and which flags files the
@@ -60,9 +61,9 @@ run() {
 
 declare -A flags=(
   [chromium]=chromium-flags.conf [chrome]=chrome-flags.conf [edge]=microsoft-edge-stable-flags.conf
-  [brave]=brave-flags.conf [brave-origin]=brave-origin-flags.conf [firefox]="" [zen]=""
+  [brave]=brave-flags.conf [brave-origin]=brave-origin-flags.conf [firefox]="" [zen]="" [ladybird]=""
 )
-for browser in chromium chrome edge brave brave-origin firefox zen; do
+for browser in chromium chrome edge brave brave-origin firefox zen ladybird; do
   run apple "$ROOT/bin/omarchy-install-browser" "$browser" || fail "apple: $browser installs" "$(cat "$tmp/output")"
   [[ $(grep -c '^post-install ' "$tmp/calls") == 1 ]] && grep -qx "post-install $browser" "$tmp/calls" ||
     fail "apple: a $browser install runs post-install $browser once" "$(cat "$tmp/calls")"
@@ -72,6 +73,19 @@ for browser in chromium chrome edge brave brave-origin firefox zen; do
     fail "apple: the $browser hook runs after its package step" "$(cat "$tmp/calls")"
 done
 pass "apple: every browser install runs post-install <browser> after its package and flags"
+
+# Both write a fresh flags file, which starts without the Snapdragon settings.
+for browser in chromium chrome; do
+  run qualcomm "$ROOT/bin/omarchy-install-browser" "$browser" ||
+    fail "qualcomm: $browser installs" "$(cat "$tmp/output")"
+  grep -Eq '^--enable-features=([^[:space:]]*,)?WebRtcPipeWireCamera(,|$)' "$tmp/home/.config/${flags[$browser]}" ||
+    fail "qualcomm: $browser's flags enable the PipeWire camera" "$(cat "$tmp/home/.config/${flags[$browser]}")"
+  run x86 "$ROOT/bin/omarchy-install-browser" "$browser" ||
+    fail "x86: $browser installs" "$(cat "$tmp/output")"
+  cmp -s "$ROOT/config/chromium-flags.conf" "$tmp/home/.config/${flags[$browser]}" ||
+    fail "x86: $browser keeps the shipped flags" "$(cat "$tmp/home/.config/${flags[$browser]}")"
+done
+pass "qualcomm: Chromium and Chrome install with PipeWire camera support, and x86 keeps the shipped flags"
 
 touch "$tmp/fail"
 for browser in chromium brave; do

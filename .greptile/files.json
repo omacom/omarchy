@@ -150,10 +150,11 @@
     },
     {
       "path": "agents/skills/mise-tools.md",
-      "description": "How default mise tools are declared",
+      "description": "Where tools go instead of mise, and what Omarchy still uses mise for",
       "scope": [
         "etc/mise/**",
-        "install/user/mise.sh"
+        "install/omarchy-base.packages",
+        "bin/omarchy-install-ai-cli"
       ]
     },
     {

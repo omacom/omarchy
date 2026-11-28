@@ -11,7 +11,11 @@ history_path="$HOME/.local/state/omarchy/clipboard-history.json"
 while (( $# > 0 )); do
   case "$1" in
     --history-index)
-      history_index="${2:-}"
+      if (( $# < 2 )); then
+        echo "Usage: omarchy-clipboard-open --history-index <index>" >&2
+        exit 1
+      fi
+      history_index="$2"
       shift 2
       ;;
     *)
@@ -24,7 +28,18 @@ done
 [[ $history_index =~ ^[0-9]+$ ]] || exit 1
 [[ -r $history_path ]] || exit 1
 
-entry_type=$(jq -er --argjson index "$history_index" '.[$index].type' "$history_path") || exit 1
+entry_data=$(jq -er --argjson index "$history_index" '
+  .[$index] |
+  if type != "object" then error("missing")
+  elif .type == "image" and (.path | type == "string") then "image\n" + .path + "x"
+  elif .type == "text" and (.text | type == "string") then "text\n" + .text + "x"
+  else error("unsupported")
+  end
+' "$history_path" 2>/dev/null) || exit 1
+
+entry_data=${entry_data%x}
+entry_type=${entry_data%%$'\n'*}
+entry_value=${entry_data#*$'\n'}
 
 open_image() {
   local path="$1"
@@ -57,12 +72,10 @@ open_text() {
 
 case "$entry_type" in
   image)
-    path=$(jq -er --argjson index "$history_index" '.[$index].path' "$history_path") || exit 1
-    open_image "$path"
+    open_image "$entry_value"
     ;;
   text)
-    text=$(jq -er --argjson index "$history_index" '.[$index].text' "$history_path") || exit 1
-    open_text "$text"
+    open_text "$entry_value"
     ;;
   *)
     exit 1

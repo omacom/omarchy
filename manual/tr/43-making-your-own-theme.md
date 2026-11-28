@@ -1,41 +1,41 @@
-# Kendi temanızı oluşturma
+# Kendi temanızı oluşturmak
 
-Kendi temalarınızı `~/.config/omarchy/themes` içine ekleyebilirsiniz. Mevcut temalardan birini temel olarak kopyalamanız (bkz. `/usr/share/omarchy/themes`), sonra da keyfinize göre ince ayar yapmanız yeterli. Temanız o klasörün içinde olduğu sürece tema seçim menüsüne dahil edilecektir.
+Kendi temalarınızı `~/.config/omarchy/themes` konumuna ekleyebilirsiniz. Mevcut temalardan birini temel olarak kopyalayın (`/usr/share/omarchy/themes` konumuna bakın), sonra gönlünüzce ince ayar yapın. Temanız o klasörün içinde olduğu sürece tema seçim menüsüne dahil edilir.
 
-Asıl ince ayar yapacağınız dosya `colors.toml`. Bu, daha sonra terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian ve tüm Omarchy kabuğu (üst çubuk, menü, bildirimler, OSD ve kilit ekranı) için yapılandırmalar üretmekte kullanılan renk kümesini tanımlar.
+Düzenlemeniz gereken ana dosya `colors.toml` dosyasıdır. Bu dosya, daha sonra terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian, Qt uygulamaları, klavye arka aydınlatması, giriş yöntemi, ekran paylaşımı seçici, uygulama simgeleri, çeşitli AI araçları (Claude, Pi, Hermes, T3 Code, Herdr) ve tüm Omarchy kabuğu (üst çubuk, menü, bildirimler, OSD ve kilit ekranı) için yapılandırmalar oluşturmakta kullanılan renk kümesini tanımlar.
 
-Birlikte gelen Aether uygulamasını kullanarak da yeni bir tema oluşturabilirsiniz; renklerle oynamak ve arka plan aramak için hoş bir GUI arayüzü sunar. Onu `Super + Alt + Space` ile uygulama ızgarasından başlatmanız yeterli.
+Dahil edilen Aether uygulamasını da renklerle oynayıp arka planlar aramanıza olanak tanıyan hoş bir GUI arayüzüyle yeni bir tema oluşturmak için kullanabilirsiniz. Uygulama ızgarasından `Super + Alt + Space` ile başlatmanız yeterli.
 
-### Kurulu bir tema neleri içerebilir
+### Yüklü bir tema neleri içerebilir
 
-`~/.config/omarchy/themes` içinde kendiniz yazdığınız bir tema ne isterseniz onu içerebilir — bu sizin makineniz ve sizin dosyanız, Omarchy de hepsini uygular.
+`~/.config/omarchy/themes` içinde kendiniz yazdığınız bir tema dilediğiniz her şeyi içerebilir — bu sizin makineniz ve sizin dosyanız, Omarchy de hepsini uygular.
 
-Başkasının bir reposundan `omarchy theme install` ile kurduğunuz bir tema renk olan her şeyi korur, makinenizde kod çalıştıracak bir avuç dosyayı ise kaybeder: her türlü `.lua` dosyası, terminal yapılandırmaları (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`) ve `vscode.json`. Bir temanın `hyprland.lua` dosyası, dizgicinizin oturum açarken çalıştırdığı Lua'dır; bir terminal yapılandırması, terminalinizin başlattığı programı adlandırır; `vscode.json` ise kurulacak bir VSCode uzantısını adlandırır. Birinin temasını kurmak masaüstünüzün nasıl göründüğünü değiştirmeli, asla ne çalıştırdığını değiştirmemelidir.
+Başkasının repo'sundan `omarchy theme install` ile yüklediğiniz bir tema, renk olan her şeyi korur ve makinenizde kod çalıştıracak bir avuç dosyayı kaybeder: herhangi bir `.lua` dosyası, terminal yapılandırmaları (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`) ve `vscode.json`. Bir temanın `hyprland.lua` dosyası, compositor'ınızın oturum açarken çalıştırdığı Lua'dır, bir terminal yapılandırması terminalinizin başlattığı programı adlandırır ve `vscode.json` yüklenecek bir VSCode uzantısını adlandırır. Birinin temasını yüklemek masaüstünüzün nasıl göründüğünü değiştirmelidir, ne çalıştırdığını asla.
 
-Geri kalan her şey tema yazarının yazdığı gibi aynen çalışır — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, arka planlar ve önizlemelerin hepsi korunur. Yalnızca atılanlar makinenizde `colors.toml` dosyasından yeniden üretilir.
+Geriye kalan her şey tema yazarının yazdığı gibi aynen çalışmaya devam eder — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, arka planlar ve önizlemelerin hepsi korunur. Yalnızca düşürülenler makinenizde `colors.toml` dosyasından yeniden oluşturulur.
 
-Omarchy ikisini, temanın içinde kendine ait bir git reposu olup olmadığına bakarak ayırt eder; bu, `omarchy theme install` klonlarken geride bıraktığı şeydir. Böylece kendiniz yazdığınız bir tema sizin olarak kalır, internetten çektiğiniz bir tema ise renkler olarak kalır.
+Omarchy ikisini, temanın içinde kendi git repo'su olup olmadığına bakarak ayırt eder; `omarchy theme install` klonladığında geride bıraktığı şey de budur. Böylece yazdığınız tema sizde kalır, internetten çektiğiniz bir tema ise sadece renkler olarak kalır.
 
-### Açık mod
+### Aydınlık mod
 
-Açık mod teması yapıyorsanız `colors.toml` dosyanızın en üstüne `mode = "light"` yazın. O zaman tüm uygulamalar için otomatik olarak açık modla eşleştirilir. (Temanızın köküne `light.mode` adlı boş bir dosya bırakma şeklindeki eski yöntem de hâlâ çalışıyor.)
+Aydınlık mod teması yapıyorsanız, `colors.toml` dosyanızın en üstüne `mode = "light"` yazın. Böylece tüm uygulamalar için otomatik olarak aydınlık mod ile eşleştirilir. (Temanızın köküne `light.mode` adlı boş bir dosya bırakma şeklindeki eski yöntem de hâlâ çalışır.)
 
-### Kilit açma görseli
+### Açılış ve oturum açma ekranları
 
-`unlock.png` ve `preview-unlock.png` görselleriyle gelen temalar _Görünüm > Kilit Açma_ altında listelenir. `unlock.png` dosyanız tercihen şeffaf bir png olmalı. Önizleme görselini de `omarchy plymouth preview` kullanarak oluşturabilirsiniz.
+Açılışta sürücü parolasını soran ekran ve oturum açma ekranı, Omarchy logosunu temanızın `background` rengi üzerine `accent` rengiyle çizer; parola alanı `foreground` rengindedir ve yanlış parola için `red` kullanılır. Bunlar için fazladan göndereceğiniz bir şey yoktur: Omarchy artık bir temanın `unlock.png` veya `preview-unlock.png` dosyalarını kullanmıyor. Apple Silicon Mac'lerde sürücü parolası ekranı tema ne olursa olsun Omarchy'nin varsayılan görünümünü korur.
 
 ### Omarchy'nin kapsamadığı uygulamaları temalandırma
 
-O listede olmayan bir uygulama kullanıyorsanız, bir şablonla Omarchy'ye onu nasıl temalandıracağını kendiniz öğretebilirsiniz. `~/.config/omarchy/themed/` içine, ürettiği yapılandırmanın adını taşıyan ve üstüne bir `.tpl` uzantısı eklenmiş bir dosya bırakın ve yapılandırmayı `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` ile `{{ color15 }}` arasını ve paletin geri kalanını yer tutucu olarak kullanarak yazın. Tema her değiştirdiğinizde dosya o temanın renkleriyle yeniden üretilir.
+O listede olmayan bir uygulama kullanıyorsanız, bir şablonla Omarchy'ye onu kendiniz temalandırmayı öğretebilirsiniz. `~/.config/omarchy/themed/` içine, oluşturduğu yapılandırmanın adını artı `.tpl` uzantısını taşıyan bir dosya bırakın ve yapılandırmayı yer tutucu olarak `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` ile `{{ color15 }}` arası ve paletin geri kalanıyla yazın. Tema değiştirdiğiniz her seferde dosya o temanın renkleriyle yeniden oluşturulur.
 
-O klasörde kopyalayabileceğiniz baştan sona yorumlanmış bir `alacritty.toml.tpl.sample` var — kullanabileceğiniz her değişkeni, üstüne renklerini `#` olmadan ya da ondalık RGB olarak isteyen uygulamalar için `_strip` ve `_rgb` değiştiricilerini listeler. Şablonlarınız Omarchy'nin kendi şablonlarına göre önceliklidir, dolayısıyla bunu yerleşik bir uygulamanın nasıl temalandırıldığını geçersiz kılmak için de kullanabilirsiniz.
+O klasörde kopyalamanız için tamamen açıklamalı bir `alacritty.toml.tpl.sample` vardır — kullanabileceğiniz her değişkeni, ayrıca renklerini `#` olmadan veya ondalık RGB olarak isteyen uygulamalar için `_strip` ve `_rgb` değiştiricilerini listeler. Şablonlarınız Omarchy'nin kendi şablonlarına göre önceliklidir, dolayısıyla bunu yerleşik bir uygulamanın nasıl temalandırılacağını geçersiz kılmak için de kullanabilirsiniz.
 
 ### Temanızı dağıtma
 
-Temanızı başkalarının da kullanabilmesi için dağıtmak istiyorsanız onu GitHub gibi herkese açık bir git sunucusuna koymanız gerekir. Sonra insanlar Omarchy menüsünde _Kur > Stil > Tema_ yolunu kullanarak ve o URL'yi girerek onu kurabilir. `omarchy-[themename]-theme` adlandırma kuralına uymanız önerilir, çünkü tema kurulumdan sonra tema seçim menüsünde doğru şekilde yalnızca `[themename]` olarak görünür.
+Temanızı başkalarının kullanabilmesi için dağıtmak istiyorsanız, onu GitHub gibi herkese açık bir git sunucusuna koymanız gerekir. Ardından insanlar o URL'yi kullanarak Omarchy menüsünde _Install > Style > Theme_ yoluyla yükleyebilir. `omarchy-[themename]-theme` adlandırma kuralını izlemeniz önerilir, çünkü tema yükleme sonrasında tema seçim menüsünde doğru şekilde yalnızca `[themename]` olarak görünür.
 
-Geriye kalan o `[themename]` kısmı temanın dizin adı hâline gelir, dolayısıyla Omarchy'nin güvenle elden ele taşıyabileceği bir ad olmalı: bir harf, bir rakam ya da bir alt çizgiyle başlamalı ve geri kalanında harfler, rakamlar, `.`, `_`, `+` ve `-` bulunabilir. Büyük harfler sizin için küçük harfe çevrilir, ancak geri kalan her şey — boşluk, tırnak işareti, İngilizce dışı bir karakter — bir dizin adına dönüştürülmek yerine kurulum sırasında reddedilir. Dolayısıyla `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme` ve `omarchy-c++-theme` sorunsuzca kurulur.
+Geride kalan o `[themename]` temanın dizin adı olur, dolayısıyla Omarchy'nin güvenle oradan oraya verebileceği bir ad olmalıdır: bir harf, bir rakam veya bir alt çizgi ile başlamalı, geri kalanı harfler, rakamlar, `.`, `_`, `+` ve `-` içerebilir. Büyük harfler sizin için küçük harfe çevrilir, ancak başka herhangi bir şey — bir boşluk, bir tırnak işareti, İngilizce olmayan bir karakter — bir dizin adına dönüştürülmek yerine yükleme sırasında reddedilir. Dolayısıyla `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme` ve `omarchy-c++-theme` temalarının hepsi sorunsuz yüklenir.
 
-Bir repodan kurulduktan sonra, birlikte geldiği her türlü `.lua`, terminal yapılandırması ya da `vscode.json` dosyasının atılacağını unutmayın; bu yüzden temayı bunların üzerine kurmayın.
+Bir repo'dan yüklendikten sonra, beraberinde gelen herhangi bir `.lua`, terminal yapılandırması veya `vscode.json` dosyasının düşürüleceğini unutmayın, bu yüzden temayı bunların etrafında kurmayın.
 
-Temanızın [ek temalar sayfasına](https://omarchy.org/themes/) eklenmesini, [omarchy-site reposuna](https://github.com/omacom-io/omarchy-site) bir pull request göndererek sağlayabilirsiniz.
+[omarchy-site repo'suna](https://github.com/omacom-io/omarchy-site) bir pull request göndererek temanızın [ekstra temalar sayfasına](https://omarchy.org/themes/) eklenmesini sağlayabilirsiniz.

@@ -2,7 +2,7 @@ import QtQuick
 import "Plural.js" as Plural
 
 // Strings for a plugin that ships its own catalogs, following the language
-// picked under Setup > Language the same way the shell's I18n does. Point it
+// picked under Setup > Region > Language the same way the shell's I18n does. Point it
 // at a directory of flat JSON catalogs, one per registry code (en.json,
 // da.json, pt-BR.json, ...):
 //

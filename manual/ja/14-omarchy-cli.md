@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy は通常、ホットキーと Omarchy メニュー（`Super + Space`）で操作する。だが、`omarchy` CLI からも操作できる。AI エージェントにカスタマイズや設定を手伝わせているときは特に便利だ。
+Omarchy は通常、ホットキーと Omarchy メニュー（`Super + Space`）で操作します。しかし、`omarchy` CLI から操作することもできます。これは、AI エージェントにカスタマイズや設定を手伝ってもらっているときに特に便利です。
 
-この CLI は、メニュー経由でもそれ以外でも使われる内部ツールすべてにアクセスできる。利用可能なものはすべて、ターミナルで `omarchy` を実行すれば確認できる。
+CLI からは、メニュー経由でもそれ以外でも使われる内部ツールのすべてにアクセスできます。ターミナルで `omarchy` を実行すれば、利用できるものすべてを確認できます。
 
-こんな感じだ:
+だいたい次のような感じです：
 
 ```
 ~ ❯ omarchy
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,23 +42,23 @@ Groups:
   ...
 ```
 
-診断には、`omarchy-debug --no-sudo --print` を直接実行する。これで sudo の入力を求められることなく診断情報が表示され、`/tmp/omarchy-debug.log` に書き込まれる。パッケージのインストール時のように、`omarchy debug` が "Unknown Omarchy command" で失敗する場合でも使える。
+診断を行うには、`omarchy-debug --no-sudo --print` を直接実行してください。sudo を求めることなく診断結果を表示し、`/tmp/omarchy-debug.log` に書き込みます。パッケージのインストール時など、`omarchy debug` が "Unknown Omarchy command" で失敗する場合でも使えます。
 
-さらに、すべてのグループを掘り下げることもできる:
+どのグループについても、さらに深く掘り下げることができます：
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-どのコマンドも `--help` に対応している。グループ全体に聞いても（`omarchy capture --help`）、単一のコマンドに聞いても（`omarchy capture screenshot --help`）使える。
+どのコマンドも `--help` に対応しています。グループ全体に対してでも（`omarchy capture --help`）、単体のコマンドに対してでも（`omarchy capture screenshot --help`）使えます。
 
 ### ターミナルからメニューを開く
 
-Omarchy メニューはスクリプトからも操作できる。独自のキーバインドを作るときに便利だ。`omarchy menu` でルートから開き、名前を指定すればツリー内の任意の場所へ直接ジャンプできる: `omarchy menu summon appearance.theme` ならテーマピッカーへまっすぐ進み、`omarchy menu toggle system` ならシステムメニューを開き、すでに開いている場合は閉じ、`omarchy menu close` で片付ける。
+Omarchy メニューはスクリプトからも操作できるので、独自のキーバインドに組み込むときに便利です。`omarchy menu` でルートから開け、名前を指定すればツリー内の任意の場所へ直接ジャンプできます：`omarchy menu summon appearance.theme` ならテーマピッカーへ直行し、`omarchy menu toggle system` ならシステムメニューを開き、すでに開いている場合は閉じます。そして `omarchy menu close` でしまうことができます。

@@ -11,12 +11,19 @@ rsw() {
 }
 
 lsw() {
-  local pid cmd rest found=0
-  while read -r pid cmd; do
-    rest="${cmd##*rsw-watch }"
-    echo "$pid: ${rest% *} -> ${rest##* }"
-    found=1
-  done < <(pgrep -af 'rsw-watch ')
+  local pid i found=0
+  local -a args
+  while read -r pid; do
+    [[ -r /proc/$pid/cmdline ]] || continue
+    mapfile -d '' -t args <"/proc/$pid/cmdline"
+    for ((i = 0; i < ${#args[@]}; i++)); do
+      if [[ ${args[i]} == "rsw-watch" ]] && (( i + 2 < ${#args[@]} )); then
+        echo "$pid: ${args[i + 1]} -> ${args[i + 2]}"
+        found=1
+        break
+      fi
+    done
+  done < <(pgrep -f 'rsw-watch ')
   (( found )) || echo "No active watches"
 }
 

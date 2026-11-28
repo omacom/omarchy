@@ -180,21 +180,39 @@ Item {
   // refresh can't clobber the resolvedOptions of a newer refresh, and
   // a runaway command can be detected after a timeout.
   property int refreshSeq: 0
+  property bool _completed: false
+  property var activeProcess: null
   readonly property int refreshTimeoutMs: 6000
+
+  function stopActiveProcess() {
+    if (!activeProcess) return
+    var proc = activeProcess
+    activeProcess = null
+    proc.running = false
+    proc.destroy()
+  }
 
   function refresh() {
     var cmd = arrayFrom(optionsCommand)
     if (cmd.length === 0) {
+      refreshSeq++
+      refreshTimeoutTimer.stop()
+      stopActiveProcess()
+      loadingOptions = false
+      optionsError = ""
       rebuildFromStatic()
       return
     }
-    refreshSeq++
+    var seq = ++refreshSeq
     loadingOptions = true
     optionsError = ""
-    optionsProcess.command = cmd
-    optionsProcess.workingDirectory = optionsCommandCwd
-    optionsProcess.running = false
-    optionsProcess.running = true
+    stopActiveProcess()
+    activeProcess = optionsProcessComponent.createObject(root, {
+      seq: seq,
+      command: cmd,
+      workingDirectory: optionsCommandCwd,
+      running: true
+    })
     refreshTimeoutTimer.restart()
   }
 
@@ -204,50 +222,74 @@ Item {
     repeat: false
     onTriggered: {
       if (!root.loadingOptions) return
-      optionsProcess.running = false
+      root.refreshSeq++
+      root.stopActiveProcess()
       root.loadingOptions = false
       root.optionsError = Commons.I18n.t("multiSelect.timedOut")
     }
   }
 
   onOptionsChanged: if (arrayFrom(optionsCommand).length === 0) rebuildFromStatic()
-  onOptionsCommandChanged: refresh()
-  Component.onCompleted: refresh()
+  onOptionsCommandChanged: if (_completed) refresh()
+  Component.onCompleted: {
+    _completed = true
+    refresh()
+  }
+  Component.onDestruction: {
+    refreshTimeoutTimer.stop()
+    stopActiveProcess()
+  }
 
-  Process {
-    id: optionsProcess
-    running: false
-    command: []
+  // One Process per refresh with an immutable seq so buffered stdout/exit
+  // signals from a canceled run can never finish a newer refresh.
+  Component {
+    id: optionsProcessComponent
 
-    property int seq: 0
+    Process {
+      id: proc
+      required property int seq
+      property bool streamDone: false
+      property bool processExited: false
+      property string collectedStdout: ""
+      property int lastExitCode: 0
 
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        if (optionsProcess.seq !== root.refreshSeq) return
-        var result = root.parseCommandOutput(text)
-        if (result.error) {
-          root.optionsError = result.error
-          root.resolvedOptions = root.normalizeAll(root.options)
-        } else {
-          var combined = root.arrayFrom(root.options)
-          for (var j = 0; j < result.options.length; j++) combined.push(result.options[j])
-          root.resolvedOptions = root.normalizeAll(combined)
+      function maybeFinish() {
+        if (!streamDone || !processExited) return
+        if (root.activeProcess === proc) root.activeProcess = null
+        if (seq === root.refreshSeq) {
+          refreshTimeoutTimer.stop()
+          root.loadingOptions = false
+          if (lastExitCode !== 0) {
+            root.optionsError = Commons.I18n.t("multiSelect.exited").arg(Commons.I18n.formatNumber(lastExitCode))
+          } else {
+            var result = root.parseCommandOutput(collectedStdout)
+            if (result.error) {
+              root.optionsError = result.error
+              root.resolvedOptions = root.normalizeAll(root.options)
+            } else {
+              var combined = root.arrayFrom(root.options)
+              for (var j = 0; j < result.options.length; j++) combined.push(result.options[j])
+              root.resolvedOptions = root.normalizeAll(combined)
+            }
+            root.recomputeFiltered()
+          }
         }
-        root.recomputeFiltered()
-        root.loadingOptions = false
-        refreshTimeoutTimer.stop()
+        proc.destroy()
       }
-    }
 
-    onRunningChanged: if (running) seq = root.refreshSeq
+      stdout: StdioCollector {
+        waitForEnd: true
+        onStreamFinished: {
+          proc.collectedStdout = text
+          proc.streamDone = true
+          proc.maybeFinish()
+        }
+      }
 
-    onExited: function(exitCode, exitStatus) {
-      if (seq !== root.refreshSeq) return
-      refreshTimeoutTimer.stop()
-      if (exitCode !== 0) {
-        root.loadingOptions = false
-        root.optionsError = Commons.I18n.t("multiSelect.exited").arg(Commons.I18n.formatNumber(exitCode))
+      onExited: function(exitCode, exitStatus) {
+        proc.lastExitCode = exitCode
+        proc.processExited = true
+        proc.maybeFinish()
       }
     }
   }

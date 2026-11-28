@@ -19,7 +19,6 @@ echo "Resetting Omarchy user configs to shipped defaults..."
 cp -af /etc/skel/. ~/
 
 omarchy-refresh-limine
-omarchy-refresh-plymouth
 
 if omarchy-cmd-present omarchy-nvim-refresh; then
   omarchy-nvim-refresh
@@ -27,6 +26,7 @@ elif omarchy-cmd-present omarchy-nvim-setup; then
   omarchy-nvim-setup --force
 fi
 
-# /etc/skel holds the shared defaults, so put the Snapdragon video decoding
-# settings back.
+# /etc/skel holds the shared defaults, so put the Snapdragon camera and video
+# decoding settings back.
+omarchy-install-camera
 omarchy-install-video-decode

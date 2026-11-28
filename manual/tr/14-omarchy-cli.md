@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy genellikle kısayol tuşları ve Omarchy menüsü (`Super + Space`) üzerinden kontrol edilir. Ancak `omarchy` CLI üzerinden de kontrol edebilirsiniz. Bu, özellikle bir AI agent ile birlikte özelleştirme veya yapılandırma üzerinde çalışırken faydalıdır.
+Omarchy genellikle kısayol tuşları ve Omarchy menüsü (`Super + Space`) üzerinden kontrol edilir. Ancak bunu `omarchy` CLI üzerinden de kontrol edebilirsiniz. Bu, özellikle bir AI agent ile birlikte özelleştirme veya yapılandırma üzerinde çalışırken çok işe yarar.
 
-CLI, hem menü üzerinden hem de başka yollarla kullanılan tüm dahili araçlara erişime sahiptir. Terminalde `omarchy` çalıştırarak mevcut olan her şeyi görebilirsiniz.
+CLI, hem menü üzerinden hem de başka yollarla kullanılan tüm dahili araçlara erişebilir. Mevcut her şeyi terminalde `omarchy` çalıştırarak görebilirsiniz.
 
 Görünümü şuna benzer:
 
@@ -26,6 +26,7 @@ Common commands:
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
+  ascii          Text drawn as ASCII art
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
@@ -41,23 +42,23 @@ Groups:
   ...
 ```
 
-Tanılama için doğrudan `omarchy-debug --no-sudo --print` çalıştırın. Sudo istemeden tanılama çıktısını yazdırır ve `/tmp/omarchy-debug.log` dosyasına yazar; bu, `omarchy debug` komutunun "Unknown Omarchy command" hatasıyla başarısız olabildiği paket kurulumlarında da geçerlidir.
+Tanılama için doğrudan `omarchy-debug --no-sudo --print` çalıştırın. Bu komut tanılama bilgilerini yazdırır ve sudo istemeden `/tmp/omarchy-debug.log` dosyasını yazar; buna, `omarchy debug` komutunun "Unknown Omarchy command" hatasıyla başarısız olabildiği paket kurulumları da dahildir.
 
-Ve her grupta daha derine inebilirsiniz:
+Her grupta daha derine de inebilirsiniz:
 
 ```
 ~ ❯ omarchy capture
 Capture commands — Screenshots and screen recording:
   omarchy capture qr                                                                                                                                                                                                       Decode a QR code from a screenshot region
-  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]  Start or stop screen recording
+  omarchy capture screenrecording [--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]  Start or stop screen recording
   omarchy capture screenrecording with webcam                                                                                                                                                                              Pick a webcam and start a screen recording with it
   omarchy capture screenshot [smart|region|windows|fullscreen|scroll] [copy|save]                                                                                                                                          Take a screenshot
   omarchy capture text                                                                                                                                                                                                     Extract text from a screenshot region with OCR
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Her komut `--help` de kabul eder; ister tüm bir grubu (`omarchy capture --help`) ister tek bir komutu (`omarchy capture screenshot --help`) sorgulayın.
+Her komut `--help` de kabul eder; ister tüm bir grup (`omarchy capture --help`) ister tek bir komut (`omarchy capture screenshot --help`) olsun.
 
 ### Menüyü terminalden açma
 
-Omarchy menüsü de scriptlenebilir, bu da kendi tuş atamalarınız için kullanışlıdır. `omarchy menu` menüyü kök düzeyde açar ve adını belirterek ağaçtaki herhangi bir noktaya doğrudan atlayabilirsiniz: `omarchy menu summon appearance.theme` doğrudan tema seçiciye gider, `omarchy menu toggle system` sistem menüsünü açar ve zaten açıksa tekrar kapatır, `omarchy menu close` ise menüyü kaldırır.
+Omarchy menüsü de betiklenebilir ve bu, kendi tuş atamalarınız için kullanışlıdır. `omarchy menu` menüyü kök düzeyde açar ve adını vererek ağacın herhangi bir noktasına doğrudan atlayabilirsiniz: `omarchy menu summon appearance.theme` doğrudan tema seçiciye gider, `omarchy menu toggle system` sistem menüsünü açar ve zaten açıksa tekrar kapatır, `omarchy menu close` ise menüyü ortadan kaldırır.

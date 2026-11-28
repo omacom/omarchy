@@ -136,6 +136,25 @@ run omarchy-theme-set-glass "$theme_dir"
 diff -r "$tmpdir/theme-before" "$theme_dir" || fail "leaving glassy restores the terminal files"
 pass "leaving glassy restores the terminal files byte for byte"
 
+# Symlinked gtk.css and theme files stay linked through glassy on and off.
+dot_dir="$tmpdir/dotfiles"
+mkdir -p "$dot_dir"
+printf 'label { color: blue; }\n' >"$dot_dir/gtk.css"
+printf '[colors-dark]\nbackground=000000\n' >"$dot_dir/foot.ini"
+rm -f "$gtk_css" "$theme_dir/foot.ini"
+ln -s "$dot_dir/gtk.css" "$gtk_css"
+ln -s "$dot_dir/foot.ini" "$theme_dir/foot.ini"
+run omarchy-hyprland-window-transparency glassy
+run omarchy-theme-set-glass "$theme_dir"
+[[ -L $gtk_css && -L $theme_dir/foot.ini ]] || fail "glassy keeps symlinked gtk.css and theme files linked"
+grep -qx 'blur=yes' "$dot_dir/foot.ini" || fail "glassy writes through symlinked foot.ini"
+run omarchy-hyprland-window-transparency transparent
+run omarchy-theme-set-glass "$theme_dir"
+[[ -L $gtk_css && -L $theme_dir/foot.ini ]] || fail "leaving glassy keeps symlinked gtk.css and theme files linked"
+[[ $(<"$dot_dir/gtk.css") == 'label { color: blue; }' ]] || fail "leaving glassy restores symlinked gtk.css"
+! grep -q 'omarchy-glass' "$dot_dir/foot.ini" || fail "leaving glassy cleans symlinked foot.ini"
+pass "glassy preserves symlinked gtk.css and theme files"
+
 # Running foot terminals take the theme's background alpha over OSC, so a
 # change of transparency reaches them without a restart. script stands in for
 # foot: its child sits on a real pty, and whatever reaches the pty lands in the
@@ -195,3 +214,33 @@ if command -v script >/dev/null; then
 else
   skip "script is not installed"
 fi
+
+# Signal-based app reloaders must match exact process names (never substring
+# pkill) and tolerate processes that are absent or exit mid-signal (exit 1).
+sig_bin="$tmpdir/sig-bin"
+sig_log="$tmpdir/pkill.log"
+mkdir -p "$sig_bin"
+cat >"$sig_bin/pgrep" <<'FAKE'
+#!/bin/bash
+exit 0
+FAKE
+cat >"$sig_bin/killall" <<'FAKE'
+#!/bin/bash
+exit 1
+FAKE
+cat >"$sig_bin/pkill" <<'FAKE'
+#!/bin/bash
+printf '%s\n' "$*" >>"$SIG_LOG"
+exit 1
+FAKE
+chmod +x "$sig_bin/pgrep" "$sig_bin/killall" "$sig_bin/pkill"
+for cmd in omarchy-restart-helix omarchy-restart-opencode omarchy-restart-terminal; do
+  : >"$sig_log"
+  HOME="$home_dir" SIG_LOG="$sig_log" PATH="$sig_bin:$ROOT/bin:$PATH" "$ROOT/bin/$cmd" ||
+    fail "$cmd succeeds when no matching process is running or exits mid-signal"
+  [[ -s $sig_log ]] || fail "$cmd invokes pkill directly"
+  while IFS= read -r args; do
+    [[ " $args " == *" -x "* ]] || fail "$cmd passes -x to pkill (got: $args)"
+  done <"$sig_log"
+done
+pass "signal reloaders use exact pkill -x and tolerate absent/exiting processes"

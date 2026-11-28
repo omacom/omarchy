@@ -1,0 +1,98 @@
+#!/bin/bash
+# Builds the Omarchy boot splash into the initramfs in place of Plymouth: sway
+# drawing with its software renderer through the kernel's KMS driver (there is
+# no Mesa or NVIDIA userspace in the image), with Quickshell on Qt Quick's
+# software backend for the logo, the unlock prompt and the progress bar.
+#
+# The scripts it carries (default/splash/) run under the initramfs's busybox
+# ash, as mkinitcpio's own runtime hooks do.
+
+build() {
+  local source=/usr/share/omarchy/default/splash
+  local qt=/usr/lib/qt6 module plugin file script keyboard
+  local font=/usr/share/fonts/noto/NotoSansMono-Regular.ttf
+  local arrow=/usr/share/icons/Adwaita/cursors/default
+
+  if [[ " ${HOOKS[*]} " == *" plymouth "* ]]; then
+    error "omarchy-splash replaces the plymouth hook; remove plymouth from HOOKS"
+    return 1
+  fi
+
+  # Untested with systemd-boot, so no image for it, whether the machine boots
+  # it or is switching to it (--managed). Integrating the two is its own work.
+  if omarchy-boot-backend --managed 2>/dev/null | grep -qx systemd-boot; then
+    error "omarchy-splash does not support systemd-boot yet"
+    return 1
+  fi
+
+  map add_binary sway seatd seatd-launch quickshell
+
+  # What Qt and Quickshell load at run time, which no ELF dependency names.
+  for plugin in platforms/libqwayland.so wayland-shell-integration/libxdg-shell.so; do
+    add_binary "$qt/plugins/$plugin"
+  done
+  for module in QML QtQml QtQml/Models QtQml/WorkerScript QtQuick QtQuick/Shapes \
+    Quickshell Quickshell/_Window Quickshell/Io Quickshell/I3 Quickshell/I3/_Ipc Quickshell/Wayland "$qt"/qml/Quickshell/Wayland/_*; do
+    module=${module#"$qt/qml/"}
+    # The .qmltypes are for tools such as qmllint.
+    for file in "$qt/qml/$module"/*; do
+      if [[ ! -f $file || $file == *.qmltypes ]]; then
+        continue
+      elif [[ $file == *.so ]]; then
+        add_binary "$file"
+      else
+        add_file "$file"
+      fi
+    done
+  done
+
+  # The keyboard the unlock prompt types with (layouts), built from
+  # vconsole.conf rather than carrying it: a layout that types no Latin
+  # letters comes along behind US, where omarchy_vconsole.conf keeps
+  # vconsole.conf itself out of the image (#6229). Then the XKB data and the
+  # compose tables, as Plymouth's hook carried for its keyboard. libinput also
+  # needs input devices tagged as such, and its quirks.
+  if ! keyboard=$("$source/layouts" /etc/vconsole.conf); then
+    error "omarchy-splash: cannot read the keyboard layout from /etc/vconsole.conf"
+    return 1
+  fi
+  printf '%s\n' "$keyboard" | add_file - /usr/lib/omarchy-splash/vconsole.conf 644
+  add_full_dir /usr/share/X11/xkb
+  add_full_dir /usr/share/X11/locale
+  add_full_dir /usr/share/libinput
+  add_udev_rule 60-input-id.rules
+
+  # The font a shown password is drawn in (ui/Splash.qml), at its own path.
+  if [[ -f $font ]]; then
+    add_file "$font"
+  else
+    warning "omarchy-splash: $font (noto-fonts) is missing; the unlock prompt cannot show the typed password"
+  fi
+  # The pointer's arrow (sway.conf), at its own path.
+  if [[ -f $arrow ]]; then
+    add_file "$arrow"
+  else
+    warning "omarchy-splash: $arrow (adwaita-cursors) is missing; the pointer is drawn unscaled"
+  fi
+
+  for script in answer plymouth power-button session stop ui-launch; do
+    add_file "$source/$script" "/usr/lib/omarchy-splash/$script" 755
+  done
+  add_symlink /usr/bin/plymouth /usr/lib/omarchy-splash/plymouth
+  add_file "$source/sway.conf" /usr/lib/omarchy-splash/sway.conf
+  # The login screen shares these files and runs from the real root.
+  for file in "$source"/ui/*.qml; do
+    [[ $file == */greeter.qml ]] && continue
+    add_file "$file" "/usr/lib/omarchy-splash/ui/${file##*/}"
+  done
+
+  add_runscript
+}
+
+help() {
+  cat <<HELPEOF
+This hook shows the Omarchy boot splash and drive unlock prompt in place of
+Plymouth when the 'splash' kernel parameter is set and 'plymouth.enable=0'
+isn't. It replaces the plymouth hook and goes in its place, after udev.
+HELPEOF
+}

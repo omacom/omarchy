@@ -199,7 +199,7 @@ PanelWindow {
   // from vertical centering of the widget row), which is why `cardOrigin`
   // below uses `barThickness` for the perpendicular axis instead of this y.
   readonly property point anchorScreenPos: {
-    anchorWatcher.transform  // reactive dependency
+    const _ = anchorWatcher.transform  // reactive dependency
     if (!anchorItem || !anchorWindow) return Qt.point(0, 0)
     return anchorItem.mapToItem(anchorWindow.contentItem, 0, 0)
   }
@@ -240,9 +240,9 @@ PanelWindow {
   // directly — not the anchor item's y/x — because mapToItem(barContent)
   // returns coordinates in the bar's content space, which can be offset
   // from the strip's screen-anchored corner by internal layout (centering
-  // wrappers, padding). The bar window spans its whole screen, so its
-  // dimensions say nothing about the strip; the painted strip hugs the
-  // bar's anchored screen edge at the bar's thickness for this screen
+  // wrappers, padding). The bar window's size trails the strip while it
+  // settles into a new edge or thickness; the strip itself hugs the bar's
+  // anchored screen edge at the bar's thickness for this screen
   // (notch floor included), so `barThickness` gives the strip's inner edge
   // regardless of how the bar's internal widgets are positioned. For the
   // parallel axis (along the bar) the anchor item's reported position is

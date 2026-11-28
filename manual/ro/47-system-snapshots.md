@@ -1,27 +1,37 @@
-# Instantanee de sistem
+# Instantanee ale sistemului
 
-Creăm instantanee automat la fiecare actualizare Omarchy, dar dacă vrei să creezi unul propriu, poți folosi `omarchy-snapshot create`.
+Creăm instantanee automat la fiecare actualizare Omarchy, dar dacă vrei să-ți creezi propriul instantaneu, poți folosi `omarchy-snapshot create`.
 
-Pentru a porni și a restaura un instantaneu, îl selectezi din încărcătorul de pornire Limine. (Dacă în prezent pornești direct în ecranul de decriptare Omarchy, va trebui mai întâi să selectezi Limine ca opțiune de pornire din BIOS).
+Modul în care pornești și restaurezi un instantaneu depinde de încărcătorul de pornire cu care pornește computerul tău. Instalările noi UEFI folosesc systemd-boot; instalările mai vechi și computerele cu BIOS folosesc Limine. `omarchy-boot-backend` îți spune pe care îl ai.
 
-Din acel ecran, alege instantaneul în care vrei să pornești, în funcție de dată și versiune. Versiunea Omarchy din momentul instantaneului poate fi văzută în colțul din stânga jos.
+## Cu systemd-boot
+
+Alege _Sistem > Instantanee_ din meniul Omarchy și alege instantaneul în care vrei să pornești. Computerul repornește în el o singură dată. Sau ține apăsat Space în timp ce computerul pornește pentru a vedea meniul de pornire, unde fiecare instantaneu este listat de la cel mai nou la cel mai vechi, cu versiunea Omarchy și data lui.
+
+Un instantaneu pornește cu un strat temporar deasupra, așa că îl poți folosi ca de obicei, dar orice modifici dispare la următoarea repornire. Pentru a-l păstra, fă-l sistemul tău: dă clic pe notificarea care apare când te autentifici, alege _Sistem > Instantanee > Restaurează acest instantaneu_ sau rulează `omarchy-snapshot restore`. Restaurarea are loc în timp ce computerul repornește. Sistemul, așa cum era înainte, rămâne în meniul de pornire ca _Înainte de restaurare_, iar `omarchy-snapshot restore backup` îl pune la loc.
+
+Din terminal:
+
+- `omarchy-snapshot list` listează instantaneele în care poți porni;
+- `omarchy-snapshot boot 12` repornește o singură dată în instantaneul 12;
+- `omarchy-snapshot restore 12` face din instantaneul 12 sistemul la următoarea repornire, iar `omarchy-snapshot restore --cancel` te răzgândește înainte de acea repornire.
+
+## Cu Limine
+
+Pentru a porni și restaura un instantaneu, îl selectezi din încărcătorul de pornire Limine. Meniul de pornire rămâne ascuns în mod implicit, așa că apasă orice tastă imediat ce pornește Limine pentru a-l afișa.
+
+Din acel ecran, alege instantaneul în care vrei să pornești în funcție de dată și versiune. Versiunea Omarchy de la momentul instantaneului poate fi văzută în colțul din stânga jos.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Când ajungi în sistem, va apărea o notificare care te anunță că ești într-un instantaneu bootabil și, dacă dai clic pe ea, va porni procesul de restaurare. Alternativ, poți folosi `omarchy-snapshot restore`.
+Când ajungi înăuntru, va apărea o notificare care te anunță că ești într-un instantaneu pornibil și dacă dai clic pe ea, va începe procesul de restaurare. Alternativ, poți utiliza `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Aceasta îți va restaura sistemul de fișiere rădăcină, dar nu și `/home`. Așa că funcționează pentru a reveni de la o actualizare de sistem defectuoasă, dar nu pentru a recupera fișiere personale pierdute.
+## Ce acoperă o restaurare
 
-Asta înseamnă și că directorul tău `~/.config` rămâne așa cum este. Așa că, dacă revii la o versiune anterioară a unei biblioteci sau aplicații care stochează fișiere de configurare într-un format nou, va trebui să rezolvi asta manual.
+O restaurare readuce sistemul tău de fișiere rădăcină, dar nu și `/home`-ul tău. Așa că funcționează pentru a anula o actualizare de sistem defectuoasă, dar nu pentru a recupera fișiere personale pierdute.
 
-Același lucru este valabil și pentru evidența proprie a Omarchy privind migrările care au rulat deja: se află în directorul tău personal, așa că supraviețuiește restaurării. Migrările care au rulat după ce a fost făcut instantaneul rămân marcate ca finalizate, chiar dacă modificările pe care le-au făcut în sistemul de fișiere rădăcină au fost anulate, iar următoarea comandă `omarchy update` nu le va rula din nou. Așa că, dacă actualizezi din nou după o restaurare și încă lipsește ceva ce o actualizare anterioară configurase, acesta este probabil motivul.
+Asta înseamnă și că directorul tău `~/.config` este păstrat ca atare. Așa că dacă revii la o versiune mai veche a unei biblioteci sau aplicații care stochează fișiere de configurare într-un format nou, va trebui să rezolvi asta manual.
 
-_Notă: Această funcție este disponibilă doar pe instalările care folosesc încărcătorul de pornire Limine, care este opțiunea implicită începând cu Omarchy 2.0. Nu este disponibilă dacă folosești GRUB sau systemd-boot._
-
-### Omiterea meniului de pornire
-
-Dacă nu atingi niciodată meniul de pornire și vrei pur și simplu ca aparatul să ajungă direct la ecranul de decriptare, rulează _Setup > Direct Boot_ în meniul Omarchy. Asta adaugă o intrare EFI care indică direct spre Omarchy, astfel încât firmware-ul îl pornește fără să se oprească la Limine.
-
-Compromisul este cel menționat la început: cu pornirea directă activată, accesarea unui instantaneu înseamnă să alegi mai întâi Limine din meniul de pornire al BIOS-ului. Rulează din nou _Setup > Direct Boot_ pentru a elimina intrarea și a reveni la pornirea prin Limine. Unele firmware-uri nu acceptă cu plăcere intrările EFI personalizate, așa că configurarea refuză să ruleze pe firmware American Megatrends și Apple.
+Același lucru este valabil și pentru evidența proprie a Omarchy privind migrările care au rulat deja: ea se află în directorul tău personal, așa că supraviețuiește restaurării. Migrările care au rulat după ce a fost făcut instantaneul rămân marcate ca finalizate, chiar dacă modificările pe care le-au făcut în sistemul de fișiere rădăcină au fost anulate, iar următorul `omarchy update` nu le va rula din nou. Așa că dacă actualizezi din nou după o restaurare și încă lipsește ceva ce configurase o actualizare anterioară, acesta este motivul probabil.

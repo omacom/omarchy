@@ -1,18 +1,6 @@
 # Branding
 
-Omarchy allows you to set your company logo or personal image for both the boot unlock, the screensaver, and the about screen.
-
-### Boot unlock
-
-You can use `omarchy plymouth preview` to see what your custom logo and colors would look like. It takes a background color, a text color, a logo png, and a path for the preview image:
-
-```
-omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
-```
-
-Then apply the setup with `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png`, which will also give the SDDM login screen the same colors and logo. If you want to revert, you can use `omarchy plymouth reset`.
-
- ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
+Omarchy allows you to set your company logo or personal image for both the screensaver and the about screen.
 
 ### Screensaver
 
@@ -30,7 +18,7 @@ There are three entries in that menu:
 
 The same three options are under _Appearance > Branding > About_ for the _About_ screen you get from the Omarchy menu, and they work identically — the file is `~/.config/omarchy/branding/about.txt`, and the About window pops up after each change. The About art is converted to a smaller size than the screensaver's, since it has to fit in a window rather than fill your display.
 
-While the window is open a glint of green leans across the art every few seconds and then leaves it still again. Your own art gets it too, as long as every character in it is one column wide — anything _Set From Image_ produces is. Art built from emoji or double-width characters stays still instead, and so does the screen if you keep a fastfetch config of your own: a still logo in those cases is the animation keeping out of the way rather than failing, since sliding a glint across them would land the rest of the line in the wrong place.
+While the window is open a band of bright white light leans across the art every few seconds and then leaves it still again. Your own art gets it too, as long as every character in it is one column wide — anything _Set From Image_ produces is. Art built from emoji or double-width characters stays still instead, and so does the screen if you keep a fastfetch config of your own: a still logo in those cases is the animation keeping out of the way rather than failing, since sliding a glint across them would land the rest of the line in the wrong place.
 
  ![branding-about](images/branding-about.webp)
 

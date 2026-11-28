@@ -4,6 +4,8 @@ A single long-running [Quickshell](https://quickshell.org/) instance
 that hosts the Omarchy desktop. The bar, panels, overlays, menus, and
 services all run inside as plugins. Hyprland autostart launches the
 shell via `omarchy-launch-shell`; restart it with `omarchy-restart-shell`.
+On a new login the launcher also starts the startup cover, a short-lived
+instance of its own (`shell/startup-cover.qml`).
 IPC is the canonical way for CLIs to talk to a running shell —
 `omarchy-shell` forwards a call and fails when the shell is not running
 (`-q` makes it quiet best-effort; `OMARCHY_SHELL_IPC_TIMEOUT` bounds the
@@ -96,6 +98,14 @@ section; enabling a full bar replaces the one in use. `omarchy bar` drives the
 bar from the CLI — `use | reset | defaults | position | background | put |
 move | set | get`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
+
+## Keeping the clock current
+
+The clock's `WallClock` moves only on its next whole-minute tick (whole-second with a seconds format), and its Qt timer counts on `CLOCK_MONOTONIC`. So after a resume, a stepped clock or a new timezone the label keeps the old time until that tick, up to a minute later. `omarchy-clock-resync.timer` closes that gap without a process or a poll. `omarchy-settings` ships it and `omarchy-clock-resync.service` in `/usr/lib/systemd/user`; first-run enables the timer on new installs and a migration enables it on existing ones.
+
+`OnClockChange=yes` makes the user manager wait on a `timerfd` created with `TFD_TIMER_CANCEL_ON_SET`. The kernel cancels that timerfd when `CLOCK_REALTIME` jumps against `CLOCK_MONOTONIC`, which a resume from suspend, an NTP step, `settimeofday` and `timedatectl set-time` all do. `OnTimezoneChange=yes` fires when `/etc/localtime` is replaced or relinked, which `timedatectl set-timezone` and `ln -sf` both do. The timer starts the service, which runs `omarchy-shell -q omarchy.clock resync`.
+
+`resync` makes the label's `WallClock` and the calendar's re-read the time and arm their next tick from now. Unlike `refresh`, it leaves a month the user is browsing in the calendar where it is. A plugin with a clock of its own can register an IPC method that does the same and have a user unit call it.
 
 ## Elsewhen
 

@@ -636,8 +636,7 @@ def opencode_auth(path: str | Path | None, provider: str, key: str) -> Path:
 
 def registry(agent_id: str, accounts: list, active: str | None = None, **switch: Any) -> Path:
   """The accounts `omarchy agent account` registered: each account a dict or
-  an id; `switch` adds the registry's own settings (switch="auto",
-  threshold=90)."""
+  an id; `switch` adds the registry's own settings (threshold=90)."""
   entries = [{"id": account} if isinstance(account, str) else account for account in accounts]
   data: dict[str, Any] = {"accounts": entries, **switch}
   if active is not None:

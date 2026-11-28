@@ -29,13 +29,22 @@ if [[ -n $progress ]]; then
   progress_text="$(omarchy-i18n --number "$progress" 2>/dev/null || printf '%s' "$progress")%"
 fi
 
-payload=$(jq -cn \
-  --arg icon "$icon" \
-  --arg message "$message" \
-  --arg value "$progress" \
-  --arg progressText "$progress_text" \
-  --arg max "$max" \
-  --arg duration "$duration" \
-  '{icon:$icon,message:$message,value:$value,progressText:$progressText,max:$max,duration:$duration}')
+json_safe() {
+  [[ $1 != *[\"\\]* && $1 != *[[:cntrl:]]* ]]
+}
+
+if json_safe "$icon" && json_safe "$message" && json_safe "$progress" && json_safe "$progress_text" && json_safe "$max" && json_safe "$duration"; then
+  payload=$(printf '{"icon":"%s","message":"%s","value":"%s","progressText":"%s","max":"%s","duration":"%s"}' \
+    "$icon" "$message" "$progress" "$progress_text" "$max" "$duration")
+else
+  payload=$(jq -cn \
+    --arg icon "$icon" \
+    --arg message "$message" \
+    --arg value "$progress" \
+    --arg progressText "$progress_text" \
+    --arg max "$max" \
+    --arg duration "$duration" \
+    '{icon:$icon,message:$message,value:$value,progressText:$progressText,max:$max,duration:$duration}')
+fi
 
 omarchy-shell -q osd show "$payload"

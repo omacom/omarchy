@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# omarchy:summary=Install a coding agent's CLI
+# omarchy:args=[--check|--package] <agent>
+# omarchy:examples=omarchy install ai cli claude | omarchy install ai cli --check codex
+# omarchy:requires-sudo=true
+
+# Every coding agent ships as a package in Omarchy's repository, on the fast
+# ring, so `omarchy update` keeps it current. Only Pi comes with the base
+# install; the others are installed from Install > AI > CLI, or by picking one
+# in the agents panel. --check answers whether the agent is installed, and
+# --package names its package.
+
+mode=install
+if [[ ${1:-} == "--check" || ${1:-} == "--package" ]]; then
+  mode=${1#--}
+  shift
+fi
+
+agent=${1:-}
+case "$agent" in
+claude) package=claude-code ;;
+codex) package=openai-codex ;;
+grok) package=grok-cli ;;
+opencode) package=opencode ;;
+copilot) package=github-copilot-cli ;;
+crush) package=crush-bin ;;
+cursor-agent) package=cursor-cli ;;
+agy) package=antigravity-cli ;;
+muse) package=muse-code ;;
+omp) package=oh-my-pi ;;
+ori) package=openrouter-ori ;;
+kimi) package=kimi-code ;;
+qwen) package=qwen-code ;;
+dsh) package=deepseek-dsh ;;
+mcode) package=minimax-code ;;
+freebuff) package=freebuff ;;
+kilo) package=kilocode-cli ;;
+devin) package=devin-cli ;;
+amp) package=amp-cli ;;
+*)
+  echo "Usage: omarchy-install-ai-cli [--check|--package] <agent>" >&2
+  exit 1
+  ;;
+esac
+
+if [[ $mode == "package" ]]; then
+  echo "$package"
+  exit 0
+fi
+
+# Installed is the command on PATH: Omarchy's package, or an install of the
+# user's own, such as the link Cursor's installer leaves in ~/.local/bin or an
+# agent the user's own mise config asks for. An account dispatcher isn't the CLI
+# itself, so its directory doesn't count.
+agent_path=""
+IFS=: read -r -a dirs <<<"$PATH"
+for dir in "${dirs[@]}"; do
+  [[ $dir == "$HOME/.local/share/omarchy/agent-accounts/bin" ]] || agent_path+="${agent_path:+:}$dir"
+done
+installed() {
+  PATH=$agent_path type -P "$agent"
+}
+
+if location=$(installed); then
+  # The menu offers the package whenever it's missing, so a copy of the user's
+  # own explains why nothing happens.
+  if [[ $mode == "install" ]] && ! omarchy-pkg-present "$package"; then
+    echo "$agent is already installed at $location, so the $package package isn't needed"
+  fi
+  [[ $mode == "install" ]] && omarchy-agent-account-dispatch "$agent"
+  exit 0
+elif [[ $mode == "check" ]]; then
+  exit 1
+fi
+
+# Every agent is one of Omarchy's curated apps, so installing it asks for no
+# password at the machine. pkexec's 126, a prompt dismissed where one is shown,
+# is passed on as is.
+omarchy-pkg-add-curated "$package" || exit
+installed >/dev/null || exit 1
+
+# An installed agent gets its account dispatcher, herdr's hooks, a launcher of
+# its own beside Agent, and the shared ~/.agents/AGENTS.md from its first
+# session.
+omarchy-agent-account-dispatch "$agent"
+omarchy-agent-integrate-herdr "$agent"
+omarchy-agent-launcher "$agent" || true
+omarchy-agent-instructions "$agent" >/dev/null || true

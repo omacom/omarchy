@@ -1,8 +1,8 @@
 # FAQ
 
-### 如何在鍵盤配置之間切換？
+### 我要如何切換鍵盤版面配置？
 
-編輯你的 `~/.config/hypr/input.lua` 檔案，並加入以下內容，就能用 `Left Alt + Right Alt` 在不同配置之間切換：
+編輯你的 `~/.config/hypr/input.lua` 檔案，並加入以下內容，即可使用 `Left Alt + Right Alt` 切換版面配置：
 
 ```
 hl.config({
@@ -14,68 +14,68 @@ hl.config({
 })
 ```
 
-一旦你設定了多個配置，工具列就會自動顯示你目前的鍵盤配置（你也可以點它來切換）。
+一旦你設定了多個版面配置，狀態列就會自動顯示你目前的鍵盤版面配置（你也可以點按它來切換）。
 
-### 如何將時鐘格式改為 12 小時制？
+### 我要如何將時鐘格式改為 12 小時制？
 
-在工具列的時鐘上按右鍵，就可以在常見格式之間循環切換，包括 12 小時制的格式。你也可以直接設定格式：
+在狀態列的時鐘上按一下右鍵，即可循環切換常見格式，包括 12 小時制格式。你也可以直接設定格式：
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-這會顯示星期日 10:55 AM。
+這會顯示為星期日 10:55 AM。
 
-### 如何變更我的時區？
+### 我要如何變更我的時區？
 
-執行 Omarchy 選單中的 _更新 > 時區_，再從清單中挑選。如果時區正確，但時鐘本身已經漂移，_更新 > 時間_ 會為你重新啟動時間同步。
+在 Omarchy 選單中執行 _Setup > Region > Timezone_，然後從清單中選取。如果時區正確，但時鐘本身已經偏移，_Update > Time_ 會為你重新啟動時間同步。
 
-### 如何變更我的 DNS、分享我的 Wi-Fi，或檢查我的連線速度？
+### 我要如何變更我的 DNS、分享我的 Wi-Fi，或檢查我的連線速度？
 
-這些全都在[網路](35-networking.md)裡。
+這些全都在[網路設定](35-networking.md)中。
 
-### 如何檢查我的磁碟有多快？
+### 我要如何檢查我的硬碟速度有多快？
 
-_觸發 > 速度測試 > 磁碟速度測試_ 會測量你磁碟的即時讀取與寫入速度，或從終端機執行 `omarchy disk speedtest`。
+_Trigger > Speed Test > Disk Speed Test_ 會測量你硬碟的即時讀取和寫入速度，或從終端機執行 `omarchy disk speedtest`。
 
-### 如何新增印表機？
+### 我要如何新增印表機？
 
-列印功能開箱即已設定好並正在執行，而每台印表機都要由你自己從應用程式啟動器（`Super + Space`）中的 _列印設定_ 新增。
+列印功能開箱即用，已經設定好並正在執行，而每台印表機都要由你自己從應用程式啟動器（`Super + Alt + Space`）中的 _Print Settings_ 新增。
 
-選擇 _新增_，並給它一點時間尋找：透過 USB 接上的印表機，以及大多數網路印表機，都會自動替你找到。如果你的印表機不在清單中，選 _網路印表機 > Internet Printing Protocol (ipp)_ 並輸入其位址 — 印表機自己的顯示器或它的網頁會告訴你那是什麼，通常像 `192.168.1.50` 這樣，佇列則是 `ipp/print`。_下一步_ 接著會提供驅動程式，其中現代印表機在免驅動程式的 _IPP Everywhere_ 設定檔上效果最佳，較舊的則需要該型號自己的驅動程式。
+選擇 _Add_，並給它一點時間搜尋：透過 USB 連接的印表機，以及大多數網路印表機，都會為你找到。如果你的印表機不在清單中，請選取 _Network Printer > Internet Printing Protocol (ipp)_ 並輸入其位址——印表機本身的顯示器或其網頁會告訴你該位址是什麼，通常類似 `192.168.1.50`，佇列為 `ipp/print`。接著 _Forward_ 會提供一個驅動程式，其中現代印表機最適合使用無驅動程式的 _IPP Everywhere_ 設定檔，較舊的印表機則需要該型號專用的驅動程式。
 
-在印表機上按右鍵並選 _設為預設_，就能挑選你的應用程式會優先使用哪一台，選 _屬性_ 則可設定紙張大小、雙面列印與品質。
+在印表機上按一下右鍵，並選擇 _Set as Default_ 來選取你的應用程式優先使用的印表機，以及選擇 _Properties_ 來設定紙張大小、雙面列印和品質。
 
-自動探索，也就是讓網路上的印表機不需新增就自動出現的功能，在重新改造期間暫時關閉，這就是為什麼上面的第一步要由你來做，而不是自動完成。完全不需要任何印表機，也能列印成 PDF 檔案。
+自動探索功能，也就是讓網路上的印表機無需新增就能出現的功能，在重新改版期間暫時關閉，這就是為什麼上述第一步要由你來做，而不是自動完成。完全不需要任何印表機，也能列印成 PDF 檔案。
 
-### 如何變更螢幕截圖或螢幕錄影的儲存位置？
+### 我要如何變更截圖或螢幕錄影的儲存位置？
 
-儲存的螢幕截圖預設會放到 `~/Pictures/Screenshots`。若要改用其他目錄，請將以下內容加入 `~/.config/uwsm/env.d/` 底下的一個檔案（例如 `~/.config/uwsm/env.d/capture`）：
+儲存的截圖預設會放在 `~/Pictures/Screenshots`。若要使用其他目錄，請將以下內容加入 `~/.config/uwsm/env.d/` 下的一個檔案（例如 `~/.config/uwsm/env.d/capture`）：
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-你可以用 `OMARCHY_SCREENRECORD_DIR` 對螢幕錄影做同樣的事。
+你也可以使用 `OMARCHY_SCREENRECORD_DIR` 對螢幕錄影做相同的設定。
 
-Omasnap 會自動建立它的螢幕截圖目錄。螢幕錄影目錄請你自己建立，然後重新啟動 Omarchy，任一環境變更才會生效。
+Omasnap 會自動建立其截圖目錄。請自己建立螢幕錄影目錄，然後重新啟動 Omarchy，讓任一環境變更生效。
 
-### 如何讓我 Apple Studio Display 上的喇叭 + 網路攝影機運作？
+### 我要如何讓我的 Apple Studio Display 的喇叭 + 網路攝影機正常運作？
 
-你會以為只要插上 USB C 就應該全部都能運作，但很不幸地並非如此。我找到能可靠讓它運作的解決辦法，是使用 [the WJESOG DisplayPort + USB-A => USB-C cable](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/)。如此一來，喇叭與網路攝影機就運作得完美無瑕。
+你可能會以為只要插上 USB C 就應該全部能運作，但很遺憾，事實並非如此。我找到能讓它可靠運作的解決方案是使用 [WJESOG DisplayPort + USB-A => USB-C 連接線](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/)。之後喇叭和網路攝影機就能完美運作。
 
-請記得，Omarchy 針對 Apple 顯示器（Studio 與 XDR 兩者）內建了亮度控制，使用一般的鍵盤亮度按鈕即可。
+請記住，Omarchy 為 Apple 顯示器（Studio 和 XDR 兩者）內建了亮度控制，使用一般的鍵盤亮度按鈕即可。
 
-### 如何移除所有多餘的軟體？
+### 我要如何移除所有額外的軟體？
 
-如果你不想要 Obsidian、LibreOffice 這類程式，或任何其他預先安裝的東西，你可以非常輕鬆地將它移除。
+如果你不想要 Obsidian 或 LibreOffice 等程式，或任何其他預先安裝的東西，你可以非常輕鬆地將它移除。
 
-執行 _移除 > 套件_ 就能看到所有已安裝的套件。接著你能用 tab 選取任何想移除的套件，並用 return 開始移除你所選的一切。
+執行 _Remove > Package_ 來查看每個已安裝的套件。然後你可以用 tab 選取任何你想移除的套件，並用 return 開始移除你已選取的所有套件。
 
-你還可以使用 Omarchy 選單中的 _移除 > Web App_，來移除任何你不要的預先安裝 Web App。
+而且你可以使用 Omarchy 選單中的 _Remove > Web App_ 來移除任何你不想要的預先安裝網頁應用程式。
 
-或者執行 _移除 > 預先安裝項目_，一次清掉所有預先安裝的額外項目 — Web App、TUI 以及選用的應用程式。啟動它們的快捷鍵會隨之一併消失，因此你會得到一片乾淨的綁定空白，可在 `~/.config/hypr/bindings.lua` 中填入你自己的綁定。
+或執行 _Remove > Preinstalls_，一次清掉所有預先安裝的額外內容——網頁應用程式、TUIs 和選用的應用程式。用來啟動它們的快速鍵也會隨之消失，所以你會留下一組乾淨的按鍵綁定，可以在 `~/.config/hypr/bindings.lua` 中填入你自己的設定。
 
 ---
 
-如需處理錯誤與損壞之處，請參閱[疑難排解章節](45-troubleshooting.md)。
+如需處理錯誤和故障，請參閱[疑難排解章節](45-troubleshooting.md)。

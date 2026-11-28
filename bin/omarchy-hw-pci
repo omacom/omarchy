@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# omarchy:summary=Match a PCI device in sysfs by vendor:device ID and optional class prefix.
+# omarchy:args=[--class <hex[,hex...]>] <vendor:device|vendor:*>...
+# omarchy:hidden=true
+
+# Read the cached sysfs IDs rather than lspci, which reads PCI config space and
+# resumes runtime-suspended devices.
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+classes=()
+if [[ ${1:-} == "--class" ]]; then
+  (( $# >= 2 )) || exit 2
+  IFS=, read -ra classes <<<"${2,,}"
+  shift 2
+fi
+
+(( $# > 0 )) || exit 2
+
+targets=()
+for spec in "$@"; do
+  targets+=("${spec,,}")
+done
+
+shopt -s nullglob
+
+for device in "$pci_devices_path"/*; do
+  [[ -r $device/vendor && -r $device/device ]] || continue
+
+  if (( ${#classes[@]} > 0 )); then
+    [[ -r $device/class ]] || continue
+    class=$(<"$device/class")
+    class=${class#0x}
+    class=${class,,}
+    class_match=0
+    for prefix in "${classes[@]}"; do
+      if [[ $class == "${prefix#0x}"* ]]; then
+        class_match=1
+        break
+      fi
+    done
+    (( class_match )) || continue
+  fi
+
+  vendor=$(<"$device/vendor")
+  dev_id=$(<"$device/device")
+  vendor=${vendor#0x}
+  dev_id=${dev_id#0x}
+  vendor=${vendor,,}
+  dev_id=${dev_id,,}
+
+  for spec in "${targets[@]}"; do
+    if [[ $spec == "$vendor:*" || $spec == "$vendor:$dev_id" ]]; then
+      exit 0
+    fi
+  done
+done
+
+exit 1
