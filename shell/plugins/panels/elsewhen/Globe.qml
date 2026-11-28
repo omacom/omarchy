@@ -549,9 +549,9 @@ Item {
     MouseArea {
       anchors.fill: parent
       hoverEnabled: true
-      readonly property bool hoveringCity: containsMouse && !pressed
-        && root.hitAt(mouseX - canvas.width / 2, mouseY - canvas.height / 2) >= 0
-      cursorShape: pressed ? Qt.ClosedHandCursor : (hoveringCity ? Qt.PointingHandCursor : Qt.OpenHandCursor)
+      cursorShape: pressed ? Qt.ClosedHandCursor
+        : (containsMouse && root.hitAt(mouseX - canvas.width / 2, mouseY - canvas.height / 2) >= 0
+          ? Qt.PointingHandCursor : Qt.OpenHandCursor)
       property real lastX: 0
       property real lastY: 0
       property bool moved: false

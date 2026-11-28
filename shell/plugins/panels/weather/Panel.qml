@@ -625,7 +625,7 @@ Panel {
 
         Column {
           id: heroRight
-          width: weatherStats.implicitWidth
+          width: Math.max(Style.space(190), weatherStats.implicitWidth)
           anchors.right: parent.right
           anchors.rightMargin: Style.space(20)
           anchors.verticalCenter: parent.verticalCenter
@@ -691,55 +691,47 @@ Panel {
             // Reset a saved city back to IP auto-detect or cancel editing
             // without changing it. While a committed location is loading, the
             // spinner occupies the same box.
-            Item {
+            Row {
               id: locationEditActions
+              visible: !root.savingLocation
               anchors.right: parent.right
               anchors.rightMargin: Style.space(4)
               anchors.verticalCenter: parent.verticalCenter
-              width: actionButtons.implicitWidth
-              height: actionButtons.implicitHeight
+              spacing: Style.space(2)
 
-              Row {
-                id: actionButtons
-                visible: !root.savingLocation
-                spacing: Style.space(2)
-
-                PanelActionButton {
-                  id: clearLocationBtn
-                  visible: root.configuredLocation !== ""
-                  iconText: "󰆤"
-                  tooltipText: Commons.I18n.t("weather.useAutoLocation")
-                  foreground: root.bar.foreground
-                  fontFamily: root.bar.fontFamily
-                  onClicked: root.clearLocation()
-                }
-
-                PanelActionButton {
-                  id: cancelLocationBtn
-                  iconText: "✕"
-                  fontSize: Style.font.bodySmall
-                  tooltipText: Commons.I18n.t("common.cancel")
-                  foreground: root.bar.foreground
-                  fontFamily: root.bar.fontFamily
-                  onClicked: root.cancelEditingLocation()
-                }
+              PanelActionButton {
+                visible: root.configuredLocation !== ""
+                iconText: "󰆤"
+                tooltipText: Commons.I18n.t("weather.useAutoLocation")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                onClicked: root.clearLocation()
               }
 
-              Text {
-                visible: root.savingLocation
-                textFormat: Text.PlainText
-                anchors.centerIn: parent
-                text: "󰦖"
-                font.family: root.bar.fontFamily
-                color: Qt.darker(root.bar.foreground, 1.4)
-                font.pixelSize: Style.font.bodySmall
+              PanelActionButton {
+                iconText: "✕"
+                fontSize: Style.font.bodySmall
+                tooltipText: Commons.I18n.t("common.cancel")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                onClicked: root.cancelEditingLocation()
+              }
+            }
 
-                RotationAnimator on rotation {
-                  running: root.savingLocation && !Style.reduceMotion
-                  from: 0; to: 360
-                  duration: Style.duration(800)
-                  loops: Animation.Infinite
-                }
+            Text {
+              visible: root.savingLocation
+              textFormat: Text.PlainText
+              anchors.centerIn: locationEditActions
+              text: "󰦖"
+              font.family: root.bar.fontFamily
+              color: Qt.darker(root.bar.foreground, 1.4)
+              font.pixelSize: Style.font.bodySmall
+
+              RotationAnimator on rotation {
+                running: root.savingLocation && !Style.reduceMotion
+                from: 0; to: 360
+                duration: Style.duration(800)
+                loops: Animation.Infinite
               }
             }
           }

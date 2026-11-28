@@ -972,6 +972,8 @@ Panel {
               parent: peerList
               width: Style.space(280)
               padding: 0
+              // Modal so clicking outside closes the menu without passing
+              // through to a peer row underneath and reopening it.
               modal: true
               dim: false
               focus: true

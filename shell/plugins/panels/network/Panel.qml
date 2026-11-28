@@ -2048,7 +2048,7 @@ Panel {
       height: rowBody.implicitHeight
       hoverEnabled: true
       acceptedButtons: Qt.LeftButton
-      cursorShape: Qt.PointingHandCursor
+      cursorShape: row.isPasswordOpen ? Qt.ArrowCursor : Qt.PointingHandCursor
       enabled: !root.busy
 
       // Move the cursor here when the mouse enters; mouse leaving doesn't
@@ -2227,7 +2227,7 @@ Panel {
         id: idField
         visible: row.isEnterprise && !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: revealPwBtn.left
+        anchors.right: pwActions.left
         anchors.top: parent.top
         anchors.rightMargin: Style.space(6)
         placeholderText: Commons.I18n.t("network.identity")
@@ -2251,7 +2251,7 @@ Panel {
         id: pwField
         visible: !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: revealPwBtn.left
+        anchors.right: pwActions.left
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
@@ -2297,45 +2297,39 @@ Panel {
         }
       }
 
-      // Not a focus target, so typing carries on in pwField after a click.
-      PanelActionButton {
-        id: revealPwBtn
+      // Not focus targets, so typing carries on in pwField after a click.
+      Row {
+        id: pwActions
         visible: !row.isBusy && !row.isFailed
-        anchors.right: connectPwBtn.left
-        anchors.rightMargin: Style.space(2)
-        anchors.verticalCenter: parent.verticalCenter
-        iconText: passwordPanel.revealed ? "󰈉" : "󰈈"
-        tooltipText: passwordPanel.revealed ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
-        foreground: root.bar.foreground
-        fontFamily: root.bar.fontFamily
-        onClicked: passwordPanel.revealed = !passwordPanel.revealed
-      }
-
-      PanelActionButton {
-        id: connectPwBtn
-        visible: revealPwBtn.visible
-        anchors.right: cancelPwBtn.left
-        anchors.rightMargin: Style.space(2)
-        anchors.verticalCenter: parent.verticalCenter
-        enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
-        iconText: "󰄬"
-        tooltipText: Commons.I18n.t("network.connect")
-        foreground: root.bar.foreground
-        fontFamily: root.bar.fontFamily
-        onClicked: row.submitCredentials()
-      }
-
-      PanelActionButton {
-        id: cancelPwBtn
-        visible: revealPwBtn.visible
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        iconText: "✕"
-        fontSize: Style.font.bodySmall
-        tooltipText: Commons.I18n.t("common.cancel")
-        foreground: root.bar.foreground
-        fontFamily: root.bar.fontFamily
-        onClicked: root.cancelPasswordPrompt()
+        spacing: Style.space(2)
+
+        PanelActionButton {
+          iconText: passwordPanel.revealed ? "󰈉" : "󰈈"
+          tooltipText: passwordPanel.revealed ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          onClicked: passwordPanel.revealed = !passwordPanel.revealed
+        }
+
+        PanelActionButton {
+          enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
+          iconText: "󰄬"
+          tooltipText: Commons.I18n.t("network.connect")
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          onClicked: row.submitCredentials()
+        }
+
+        PanelActionButton {
+          iconText: "✕"
+          fontSize: Style.font.bodySmall
+          tooltipText: Commons.I18n.t("common.cancel")
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          onClicked: root.cancelPasswordPrompt()
+        }
       }
     }
   }

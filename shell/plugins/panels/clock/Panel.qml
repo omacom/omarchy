@@ -561,13 +561,9 @@ Panel {
 
             WheelHandler {
               onWheel: function(event) {
-                // Horizontal wheels and touchpad side-scrolls report y === 0;
-                // ignore them so they neither step nor disturb vertical accumulation.
-                if (event.angleDelta.y === 0) return
                 var wheel = Util.wheelSteps(root.wheelAccumulator, event.angleDelta.y)
                 root.wheelAccumulator = wheel.remainder
-                if (wheel.steps === 0) return
-                root.moveMonth(-wheel.steps)
+                if (wheel.steps !== 0) root.moveMonth(-wheel.steps)
               }
             }
 
