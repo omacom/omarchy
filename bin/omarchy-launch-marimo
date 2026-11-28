@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Open a local marimo notebook in the active Python environment
+# omarchy:args=<notebook.py> [--port <1-65535>] [--no-browser]
+# omarchy:examples=omarchy launch marimo experiment.py | omarchy launch marimo 'notebooks/model study.py' --port 2719
+
+set -euo pipefail
+
+notebook=""
+port=2718
+browser=()
+while (( $# > 0 )); do
+  case "$1" in
+  --help | -h)
+    echo "Usage: omarchy launch marimo <notebook.py> [--port <1-65535>] [--no-browser]"
+    echo "Opens an existing local notebook, with token authentication. Uses the active environment without installing dependencies."
+    exit 0
+    ;;
+  --port)
+    (( $# >= 2 )) || { echo "--port needs a value" >&2; exit 2; }
+    port=$2
+    shift 2
+    ;;
+  --no-browser) browser=(--headless); shift ;;
+  --)
+    shift
+    (( $# == 1 )) && [[ -z $notebook ]] || { echo "Choose one notebook" >&2; exit 2; }
+    notebook=$1
+    shift
+    ;;
+  -*) echo "Unknown option: $1" >&2; exit 2 ;;
+  *)
+    [[ -z $notebook ]] || { echo "Choose one notebook" >&2; exit 2; }
+    notebook=$1
+    shift
+    ;;
+  esac
+done
+
+[[ $port =~ ^[0-9]{1,5}$ ]] && (( 10#$port >= 1 && 10#$port <= 65535 )) || { echo "Port must be between 1 and 65535" >&2; exit 2; }
+[[ $notebook == *.py && -f $notebook && -s $notebook ]] || { echo "Choose an existing, non-empty local .py notebook" >&2; exit 1; }
+notebook="$(CDPATH= cd -P -- "$(dirname -- "$notebook")" && pwd -P)/$(basename -- "$notebook")"
+if omarchy-cmd-missing marimo; then
+  echo "Activate a Python environment with marimo installed, then try again." >&2
+  exit 1
+fi
+
+exec marimo edit --host 127.0.0.1 --port "$port" --token --no-sandbox --skip-update-check "${browser[@]}" "$notebook"
