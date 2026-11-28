@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Lumulutang"
   },
-  "appearance.unlock": {
-    "label": "I-unlock"
-  },
   "trigger.toggle": {
     "label": "I-toggle"
   },
@@ -994,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1082,16 +1076,18 @@
     "label": "Laptop Display Naka-off"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Display Mirroring Naka-on"
+    "label": "Mirror Display: Naka-on"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Display Mirroring Naka-off"
+    "label": "Mirror Display: Naka-off"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Lumipat sa Hybrid GPU"
+    "label": "Lumipat sa dGPU",
+    "description": "Paganahin ang hybrid dedicated GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Lumipat sa Integrated GPU"
+    "label": "Lumipat sa iGPU",
+    "description": "Integrated GPU lamang ang gamitin"
   },
   "trigger.hardware.touchpad-on": {
     "label": "I-enable ang Touchpad"
@@ -1439,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Ibalik ang Snapshot na Ito"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Login na Walang Password"
   }
 }

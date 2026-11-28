@@ -107,7 +107,10 @@ per local coding model added.
   _Use pay as you go_ (Fireworks, OpenCode Zen and Go, and OpenRouter, all
   run in OpenCode, and More: DeepSeek, then OpenCode's own sign-in for any
   other provider; every key is checked like Fireworks'), each a
-  large mark four across, then _Use a network model_: a line for each coding model not added yet
+  large mark four across — on mainland China installs (`/etc/omarchy/region` is
+  `cn`), _Use a subscription_ offers MiniMax, Z.ai, and Kimi (signing in
+  through `kimi login` in a terminal) and _Use pay as you go_ offers DeepSeek,
+  without the More tiles — then _Use a network model_: a line for each coding model not added yet
   that a paired, online machine is running, then one for each a machine on
   the tailnet shares but isn't paired with yet, and _Use a local model_: the
   recommended coding model first (marked Recommended when more than one local

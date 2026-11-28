@@ -28,8 +28,8 @@ CONF
 # acpi=nospcr the kernel adopts it and the LUKS prompt and any initramfs
 # emergency shell go to a UART nobody is watching. The ISO installer gives
 # every aarch64 install console=tty0 acpi=nospcr (00-omarchy-console.conf). The
-# entry otherwise boots as quietly as on x86, so Plymouth stays up from the
-# LUKS prompt to the login screen.
+# entry otherwise boots as quietly as on x86, so the boot splash stays up from
+# the LUKS prompt to the login screen.
 
 # cppc_cpufreq leaves CPPC autonomous selection off, so the CPUs follow the
 # kernel governor and the energy performance preference that
@@ -123,7 +123,8 @@ CONF
   # is first written: its DPCD brightness registers read zero and nvidia_0
   # reports 100 regardless. systemd-backlight only writes it once the root
   # filesystem is unlocked, so the LUKS prompt is nearly black. An initramfs
-  # hook right after plymouth writes it first.
+  # hook right after the boot splash's (omarchy-splash, or plymouth) writes it
+  # first.
   mkdir -p /etc/initcpio/install /etc/initcpio/hooks
   cat > /etc/initcpio/install/omarchy-n1x-boot-brightness <<'HOOK'
 #!/bin/bash
@@ -134,7 +135,7 @@ build() {
 
 help() {
     cat <<HELPEOF
-Light the NVIDIA N1x panel for Plymouth's LUKS prompt.
+Light the NVIDIA N1x panel for the LUKS prompt.
 HELPEOF
 }
 HOOK
@@ -143,7 +144,7 @@ HOOK
 
 # The panel stays at its dim power-on backlight until the NVIDIA backlight is
 # first written, which systemd-backlight only does once the root filesystem is
-# unlocked. Write it here so Plymouth's LUKS prompt is readable;
+# unlocked. Write it here so the LUKS prompt is readable;
 # systemd-backlight restores the saved level after unlock.
 run_hook() {
     if [ -w /sys/class/backlight/nvidia_0/brightness ]; then
@@ -152,12 +153,13 @@ run_hook() {
 }
 HOOK
   cat > /etc/mkinitcpio.conf.d/zz-omarchy-n1x-boot-brightness.conf <<'CONF'
-# N1x: light the panel for Plymouth's LUKS prompt; see install/hardware/n1x.sh.
+# N1x: light the panel for the LUKS prompt; see install/hardware/n1x.sh.
 # Sorts after omarchy_hooks.conf so HOOKS is already set.
 _omarchy_n1x_hooks=()
 for _omarchy_n1x_hook in "${HOOKS[@]}"; do
   _omarchy_n1x_hooks+=("$_omarchy_n1x_hook")
-  [[ $_omarchy_n1x_hook == plymouth ]] && _omarchy_n1x_hooks+=(omarchy-n1x-boot-brightness)
+  [[ $_omarchy_n1x_hook == omarchy-splash || $_omarchy_n1x_hook == plymouth ]] &&
+    _omarchy_n1x_hooks+=(omarchy-n1x-boot-brightness)
 done
 HOOKS=("${_omarchy_n1x_hooks[@]}")
 unset _omarchy_n1x_hooks _omarchy_n1x_hook

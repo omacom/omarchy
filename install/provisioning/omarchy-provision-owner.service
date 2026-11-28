@@ -1,4 +1,5 @@
-# First-boot provisioning: asks for the user on tty1 before SDDM starts.
+# First-boot provisioning: asks for the user on tty1 before the login screen
+# starts.
 # Armed by /var/lib/omarchy/provisioning/pending (written by a deferred-provisioning ISO install or
 # omarchy-system-factory-reset); installed to /etc/systemd/system by whichever of
 # those staged it. Not shipped enabled — a normal install never runs it.

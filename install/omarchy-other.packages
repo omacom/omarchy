@@ -52,8 +52,6 @@ asusctl
 
 # Dell XPS
 dell-xps-touchpad-haptics
-dell-xps13-sidecar-amps
-linux-firmware-cirrus-dx13260
 
 # Framework 16
 qmk-hid

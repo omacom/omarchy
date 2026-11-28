@@ -55,6 +55,8 @@ fi
 # than via `sudo -E`, so styling survives even under an env_reset sudoers.
 # Always elevate the packaged copy, including when invoked from a dev checkout.
 if (( EUID != 0 )); then
+  echo "Preparing factory reset..."
+  echo ""
   mapfile -d '' -t gum_env < <(env -0 | grep -z '^GUM_[A-Za-z0-9_]*=' || true)
   exec sudo env -- "${gum_env[@]}" "$PACKAGED_PATH" "$@"
 fi
@@ -844,6 +846,16 @@ scrub_factory_accounts() {
   rm -f "$root/etc/"{shadow-,gshadow-,passwd-,group-,subuid-,subgid-}
 }
 
+# Who the login screen signs in, and its autologin: greetd's, or SDDM's on a
+# snapshot from before greetd.
+forget_login() {
+  local root="$1"
+  rm -f "$root/var/lib/sddm/state.conf" "$root/etc/sddm.conf.d/autologin.conf"
+  if [[ -f $root/etc/greetd/config.toml ]]; then
+    omarchy-system-login --root "$root" --reset
+  fi
+}
+
 # Remove the seller's account material and machine identity from the retained
 # @factory baseline so it can neither be mounted for recovery nor restore the
 # seller's account on a future reset. Idempotent (a scrubbed baseline has no
@@ -859,7 +871,7 @@ sanitize_factory_baseline() {
   rm -f "$factory"/etc/ssh/ssh_host_*
   rm -f "$factory"/etc/NetworkManager/system-connections/*
   rm -rf "$factory"/var/lib/NetworkManager/* "$factory/var/lib/tailscale" "$factory/var/lib/iwd"
-  rm -f "$factory/var/lib/sddm/state.conf" "$factory/etc/sddm.conf.d/autologin.conf"
+  forget_login "$factory"
   : >"$factory/etc/machine-id"
 
   btrfs property set -ts "$factory" ro true
@@ -881,7 +893,7 @@ stage_full_reset() {
   rm -f "$next"/etc/ssh/ssh_host_*
   rm -f "$next"/etc/NetworkManager/system-connections/*
   rm -rf "$next"/var/lib/NetworkManager/* "$next/var/lib/tailscale" "$next/var/lib/iwd"
-  rm -f "$next/var/lib/sddm/state.conf" "$next/etc/sddm.conf.d/autologin.conf"
+  forget_login "$next"
 
   # A factory snapshot from a normal install contains the original
   # user account; first-boot setup must start from none. A leftover account

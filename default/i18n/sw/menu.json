@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Kuelea"
   },
-  "appearance.unlock": {
-    "label": "Fungua"
-  },
   "trigger.toggle": {
     "label": "Badilisha"
   },
@@ -994,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1088,10 +1082,12 @@
     "label": "Zima Kuakisi Skrini"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Badili hadi GPU Mseto"
+    "label": "Badili hadi dGPU",
+    "description": "Washa GPU maalum ya mseto"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Badili hadi GPU Jumuishi"
+    "label": "Badili hadi iGPU",
+    "description": "Tumia GPU iliyounganishwa tu"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Washa Touchpad"
@@ -1439,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Rejesha Snapshot Hii"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Kuingia Bila Nenosiri"
   }
 }

@@ -1537,6 +1537,19 @@ ShellRoot {
         firstParty: !!manifest.__isFirstParty
       }
 
+      var placed = shell.pluginRegistry.inBar(pluginId)
+      if (!placed) {
+        // Keep metadata in the registry so the bar editor and plugin listings
+        // still see the widget, without compiling its QML tree until placed.
+        if (existing) {
+          if (existing.component && typeof existing.component.destroy === "function")
+            existing.component.destroy()
+          shell.setPluginWidgetComponent(registryKey, null)
+        }
+        shell.barWidgetRegistry.register(registryKey, null, meta)
+        continue
+      }
+
       // A load already in flight for this URL registers itself when it
       // finishes. Starting a second one produces a second Component for the
       // same widget, and swapping a slot's component rebuilds its item —
@@ -1555,24 +1568,40 @@ ShellRoot {
       loadPluginWidget(registryKey, url, meta)
     }
 
-    // Drop registrations and in-flight loads for plugins that are no longer present or enabled.
+    // Drop registrations and in-flight loads for plugins that are no longer present or enabled,
+    // including metadata-only registrations for unplaced widgets not tracked in pluginWidgetComponents.
     var trackedIds = Object.keys(pluginWidgetComponents)
+    var registered = shell.barWidgetRegistry.widgets || ({})
+    for (var rid in registered) {
+      if (registered[rid] && registered[rid].metadata && registered[rid].metadata.source === "plugin"
+          && trackedIds.indexOf(rid) === -1)
+        trackedIds.push(rid)
+    }
     var nextWidgets = null
     for (var i = 0; i < trackedIds.length; i++) {
       var id = trackedIds[i]
       if (seen[id]) continue
       if (shell.barWidgetRegistry.has(id)) shell.barWidgetRegistry.unregister(id)
-      if (!nextWidgets) {
-        nextWidgets = ({})
-        for (var k in pluginWidgetComponents) nextWidgets[k] = pluginWidgetComponents[k]
+      if (pluginWidgetComponents[id] !== undefined) {
+        if (!nextWidgets) {
+          nextWidgets = ({})
+          for (var k in pluginWidgetComponents) nextWidgets[k] = pluginWidgetComponents[k]
+        }
+        delete nextWidgets[id]
       }
-      delete nextWidgets[id]
     }
     if (nextWidgets) pluginWidgetComponents = nextWidgets
   }
 
   function unloadPluginWidgets() {
-    for (var id in pluginWidgetComponents) shell.barWidgetRegistry.unregister(id)
+    var registered = shell.barWidgetRegistry.widgets || ({})
+    var ids = Object.keys(pluginWidgetComponents)
+    for (var rid in registered) {
+      if (registered[rid] && registered[rid].metadata && registered[rid].metadata.source === "plugin"
+          && ids.indexOf(rid) === -1)
+        ids.push(rid)
+    }
+    for (var i = 0; i < ids.length; i++) shell.barWidgetRegistry.unregister(ids[i])
     pluginWidgetComponents = ({})
   }
 

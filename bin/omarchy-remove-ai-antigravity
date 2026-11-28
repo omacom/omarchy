@@ -10,6 +10,7 @@ set -euo pipefail
 # that leaves it running deletes the directory and watches it come straight back.
 pkill -x antigravity || true
 
+echo "Removing Antigravity Desktop..."
 omarchy-pkg-drop antigravity
 
 # Not ~/.gemini/antigravity, ~/.gemini/antigravity-cli, or ~/.gemini/config:

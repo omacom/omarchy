@@ -313,7 +313,7 @@ stage_installed_colors_from_alacritty() {
 }
 
 # Copies a directory without ever following a symlink: in an installed theme one
-# points wherever the theme author chose, which is how an unlock.png becomes a
+# points wherever the theme author chose, which is how a preview.png becomes a
 # copy of any file the session can read.
 stage_installed_dir() {
   local source="$1"
@@ -561,8 +561,8 @@ visible_theme_commands=(
 )
 
 # Configs other apps read on their next refresh or launch: GTK, the browser
-# policy, editors, agents and the keyboard backlight. Nothing on screen waits
-# for these.
+# policy, the boot splash and login screen, editors, agents and the keyboard
+# backlight. Nothing on screen waits for these.
 other_theme_commands=(
   omarchy-theme-set-gnome
   omarchy-theme-set-qt
@@ -572,6 +572,7 @@ other_theme_commands=(
   omarchy-theme-set-t3code
   omarchy-theme-set-herdr-app
   omarchy-theme-set-browser
+  omarchy-theme-set-login
   omarchy-theme-set-vscode
   omarchy-theme-set-obsidian
   omarchy-theme-set-keyboard

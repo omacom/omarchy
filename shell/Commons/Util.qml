@@ -77,16 +77,18 @@ QtObject {
   }
 
   function execDetached(command) {
-    Quickshell.execDetached(["bash", "-lc", command])
+    Quickshell.execDetached(["env", "-u", "MALLOC_CONF", "bash", "-lc", command])
   }
 
   // Run an argv vector without a shell interpreting it: the constant `exec "$@"`
   // means the args only ever land in positional parameters, which bash expands
   // without re-tokenizing — so untrusted data ($(id), a filename) stays literal.
   // The login shell (-l) keeps the PATH/session env GUI targets (omasnap, omaview,
-  // xdg-open) need. Prefer this over execDetached for anything built from input.
+  // xdg-open) need. Scrub MALLOC_CONF so Quickshell's jemalloc arena/THP cap
+  // does not propagate into launched apps. Prefer this over execDetached for
+  // anything built from input.
   function execArgv(argv) {
-    Quickshell.execDetached(["bash", "-lc", 'exec "$@"', "bash"].concat(argv))
+    Quickshell.execDetached(["env", "-u", "MALLOC_CONF", "bash", "-lc", 'exec "$@"', "bash"].concat(argv))
   }
 
   function isPlainObject(value) {

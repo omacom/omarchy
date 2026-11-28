@@ -13,6 +13,7 @@ set -euo pipefail
 agent=${1:-}
 package=$(omarchy-install-ai-cli --package "$agent") || exit 1
 
+echo "Removing $package..."
 omarchy-pkg-drop "$package"
 rm -f "$HOME/.local/share/applications/omarchy-agent-$agent.desktop"
 omarchy-agent-account-dispatch "$agent"

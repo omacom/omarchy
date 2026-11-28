@@ -90,6 +90,24 @@ hl.animation({ leaf = "layersOut", enabled = true, speed = 1.2, bezier = "linear
 hl.animation({ leaf = "fadeLayersIn", enabled = true, speed = 1.43, bezier = "almostLinear" })
 hl.animation({ leaf = "fadeLayersOut", enabled = true, speed = 1.11, bezier = "almostLinear" })
 hl.animation({ leaf = "workspaces", enabled = false })
+-- Off so a monitor's first frames aren't zoomed in over the boot splash's last
+-- one, which startup can hold on screen (below), and so off on hotplug too.
+hl.animation({ leaf = "monitorAdded", enabled = false })
+
+-- A monitor that took over the boot splash's last frame keeps it on screen
+-- until the startup cover (shell/startup-cover.qml) is opaque, for 5 seconds
+-- at most, instead of Hyprland's first frames ("The handoff to the desktop" in
+-- docs/boot-splash.md). A running Hyprland an update reloads can predate the
+-- option.
+if hl.get_config("misc.startup_hold_layer") ~= nil then
+  hl.config({ misc = { startup_hold_layer = "overlay:omarchy-background" } })
+end
+
+-- Nor does Hyprland's own cursor show over that frame or the cover: none until
+-- the client under the pointer sets one or the pointer moves.
+if hl.get_config("cursor.hide_at_startup") ~= nil then
+  hl.config({ cursor = { hide_at_startup = true } })
+end
 
 hl.config({
   dwindle = {

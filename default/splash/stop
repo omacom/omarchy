@@ -1,0 +1,76 @@
+#!/usr/bin/ash
+# Takes the splash down. In the initramfs (an emergency shell, or a passphrase
+# asked on the console), seatd hands the console back in text mode with its
+# keyboard on as sway goes. In the real root, whose omarchy-splash-stop.service
+# runs this with /bin/sh just before the login screen, seatd most likely can't:
+# its root is still the initramfs, whose /dev switch_root moved away, so the
+# console stays in graphics mode with its keyboard off ("The handoff to the
+# desktop" in docs/boot-splash.md).
+
+run=/run/omarchy-splash
+
+# Sends signal $1 to the splash's own processes among those named in the rest:
+# those systemd didn't start. The initramfs started them in the root cgroup,
+# and in the real root systemd has moved them into init.scope as it started.
+# What systemd starts, such as a seatd.service of the system's own, is in a
+# unit's cgroup.
+signal_splash() {
+  local signal=$1 pid
+  shift
+  for pid in $(pidof "$@"); do
+    case $(cat "/proc/$pid/cgroup" 2>/dev/null) in
+      "" | "0::/" | "0::/init.scope") kill "-$signal" "$pid" 2>/dev/null ;;
+    esac
+  done
+}
+
+# The session only once: a pid recorded at boot can belong to anything else by
+# the time this runs again (an emergency shell after the real root's stop, say).
+session=$(cat "$run/session.pid" 2>/dev/null)
+rm -f "$run/session.pid"
+if [ -n "$session" ] && [ "$(cat "/proc/$session/comm" 2>/dev/null)" = session ]; then
+  # Where the progress bar is, for the startup cover's bar to start there
+  # (shell/startup-cover.qml): its value, or "none" while it shows none. Only
+  # the splash's Quickshell is in $run's runtime directory to answer. In the
+  # initramfs, whose busybox has no timeout, nothing answers, and no cover
+  # follows there.
+  for ui in $(pidof quickshell); do
+    progress=$(XDG_RUNTIME_DIR=$run/runtime timeout 1 quickshell ipc --pid "$ui" call splash progress 2>/dev/null) && break
+  done
+  case $progress in
+    none | [0-9]*) echo "$progress" >/run/omarchy-splash-progress ;;
+  esac
+  # Tells the session not to start the splash again (see session).
+  touch "$run/stopping"
+  signal_splash TERM sway
+  i=0
+  while kill -0 "$session" 2>/dev/null && [ "$i" -lt 30 ]; do
+    sleep 0.1
+    i=$((i + 1))
+  done
+  if kill -0 "$session" 2>/dev/null; then
+    signal_splash KILL quickshell sway seatd seatd-launch
+    kill -9 "$session" 2>/dev/null
+    # A killed seatd leaves the console keyboard off. Turn it back on in the
+    # mode the keymap hook chose, so a prompt there can be typed into, even
+    # though the screen can stay dark.
+    if [ -e /keymap.bin ] && [ ! -e /keymap.utf8 ]; then
+      kbd_mode -a -C /dev/console
+    else
+      kbd_mode -u -C /dev/console
+    fi
+  fi
+fi
+# Whatever of the splash outlived its session.
+signal_splash KILL quickshell sway seatd seatd-launch
+if [ -e "$run/shm" ]; then
+  umount /dev/shm && rmdir /dev/shm
+  rm -f "$run/shm"
+fi
+if [ -e "$run/awake" ]; then
+  while read -r control; do
+    echo auto >"$control"
+  done <"$run/awake"
+  rm -f "$run/awake"
+fi
+exit 0

@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:summary=Wait for the DRM device to settle before starting the login screen
+# omarchy:group=system
+# omarchy:hidden=true
+
+set -euo pipefail
+shopt -s nullglob
+
+SIMPLEFB_DIR=/sys/bus/platform/drivers/simple-framebuffer
+DRI_DIR=/dev/dri
+
+# If simpledrm is still holding the framebuffer, wait for the real GPU driver
+# to unbind it (bounded for nomodeset/simpledrm-only systems).
+for fb in "$SIMPLEFB_DIR"/simple-framebuffer.*; do
+  udevadm wait --timeout=5 --removed "$fb" || true
+done
+
+# Wait for the DRM card to exist and finish udev initialization (instant on
+# normal early-KMS boots; waits out mid-handoff probing otherwise).
+cards=("$DRI_DIR"/card[0-9]*)
+if (( ${#cards[@]} == 0 )); then
+  exec {drm_events}< <(exec timeout 10 udevadm monitor --udev --subsystem-match=drm)
+  monitor_pid=$!
+  while IFS= read -r -u "$drm_events" event; do
+    # The UDEV header follows subscription setup; rescan then and on events.
+    [[ $event == UDEV* ]] || continue
+    cards=("$DRI_DIR"/card[0-9]*)
+    (( ${#cards[@]} > 0 )) && break
+  done
+  kill "$monitor_pid" 2>/dev/null || true
+  wait "$monitor_pid" 2>/dev/null || true
+  exec {drm_events}<&-
+fi
+if (( ${#cards[@]} > 0 )); then
+  udevadm wait --timeout=10 --initialized=true "${cards[@]}" || true
+fi

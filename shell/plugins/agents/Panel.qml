@@ -446,11 +446,35 @@ Panel {
     { providerId: "minimax", providerName: "MiniMax", group: "moreSubscriptions" },
     { providerId: "synthetic", providerName: "Synthetic", group: "moreSubscriptions" },
     { providerId: "zai", providerName: "Z.ai", group: "moreSubscriptions" },
-    { providerId: "deepseek", providerName: "DeepSeek", group: "moreProviders" }
+    { providerId: "deepseek", providerName: "DeepSeek", group: "moreProviders" },
+    { providerId: "kimi", providerName: "Kimi", group: "", terminalLogin: true, limitsElsewhere: true }
   ]
   readonly property int addColumns: 4
   // The More list's last row, which hands any other provider to OpenCode.
   readonly property string otherInOpenCode: "opencode-other"
+
+  // China installs only offer providers reachable in mainland China in the
+  // add picker; signInProviders keeps the full set so existing sign-ins and
+  // re-authentication continue to work.
+  property string region: "global"
+  readonly property bool isChinaRegion: region === "cn"
+
+  FileView {
+    id: regionFile
+    path: Quickshell.env("OMARCHY_REGION_FILE") || "/etc/omarchy/region"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.region = String(text() || "").trim() || "global"
+    onLoadFailed: root.region = "global"
+    onFileChanged: reload()
+  }
+
+  readonly property var cnGroupIds: ({
+    subscription: ["minimax", "zai", "kimi"],
+    provider: ["deepseek"],
+    moreSubscriptions: [],
+    moreProviders: []
+  })
 
   // The More list a More tile opened: its group's providers, and for pay as
   // you go, OpenCode's own sign-in for the rest.
@@ -459,6 +483,15 @@ Panel {
     ? [{ providerId: otherInOpenCode, providerName: Commons.I18n.t("agents.moreInOpenCode"), opencode: true }] : [])
 
   function addGroup(group) {
+    if (isChinaRegion) {
+      var ids = cnGroupIds[group] || []
+      var out = []
+      for (var i = 0; i < ids.length; i++) {
+        var match = signInProviders.find(function(p) { return p.providerId === ids[i] })
+        if (match) out.push(match)
+      }
+      return out
+    }
     return signInProviders.filter(function(p) { return p.group === group })
   }
 
@@ -743,6 +776,25 @@ Panel {
     return 0.05 * share(seconds(startedMs), 10)
   }
 
+  // How far a CLI package install is, as one monotonic bar from connecting
+  // through downloading, verifying, and extracting/hooks. Creeps gently while
+  // waiting for the first event, so the bar never sits empty.
+  function cliInstallProgress(stage, done, total, startedMs, nowMs) {
+    var fraction = total > 0 ? clamp(done / total, 0, 1) : 0
+    if (stage === "downloading") return 0.05 + 0.70 * fraction
+    if (stage === "verifying") return 0.75 + 0.07 * fraction
+    if (stage === "installing") return 0.82 + 0.16 * fraction
+    if (total > 0) return clamp(fraction, 0, 0.98)
+    var elapsed = Math.max(0, (nowMs - (startedMs || nowMs)) / 1000)
+    return 0.03 + 0.09 * phaseProgress(elapsed, 10) / 0.98
+  }
+
+  function cliInstallTitle(stage) {
+    if (stage === "downloading") return Commons.I18n.t("agents.downloadingMeter")
+    if (stage === "verifying") return Commons.I18n.t("agents.verifyingMeter")
+    return Commons.I18n.t("agents.installingMeter")
+  }
+
   // How long a start or stop took last time, or a guess where none has run.
   function expectedLoadSeconds(model) {
     return Number(model && model.expected_load_seconds) || 60
@@ -757,11 +809,16 @@ Panel {
     var model = localModelState(line.localModel)
     return !!model && (["installing", "activating", "deactivating", "removing"].indexOf(model.unit) >= 0 || model.updating === true)
   })
+  readonly property bool cliInstalling: addStage === "running" && addPhase === "get" && !addFetched
   Timer {
     interval: 250
-    running: root.opened && root.localBusy
+    running: root.opened && (root.localBusy || (root.cliInstalling && root.addInstallStage === ""))
     repeat: true
-    onTriggered: root.nowMs = Date.now()
+    onTriggered: {
+      root.nowMs = Date.now()
+      if (root.cliInstalling && root.addInstallStage === "")
+        root.addInstallFill = Math.max(root.addInstallFill, root.cliInstallProgress("", 0, 0, root.addInstallStartedMs, root.nowMs))
+    }
   }
 
   // What a model on this machine offers on its line. One the catalog has
@@ -937,9 +994,10 @@ Panel {
   // The CLI's own download, when it isn't installed yet: the first sign-in
   // installs it before the browser opens.
   property bool addDownloading: false
-  property real addDoneBytes: 0
-  property real addTotalBytes: 0
   property real addRateBytes: 0
+  property string addInstallStage: ""
+  property double addInstallStartedMs: 0
+  property real addInstallFill: 0
   // Where a sign-in is, as a setup flow: getting the CLI, then signing in.
   property string addPhase: ""
   // When the download ends its bar fills to the end before the sign-in takes
@@ -957,6 +1015,9 @@ Panel {
     addFetched = false
     addStatus = status
     addDownloading = false
+    addRateBytes = 0
+    addInstallStage = ""
+    addInstallFill = 0
     addPhase = "signin"
   }
   property bool addReauth: false
@@ -997,6 +1058,10 @@ Panel {
       openOpenCodeLogin()
       return
     }
+    if (tile && tile.terminalLogin) {
+      openTerminalLogin(tile.providerId)
+      return
+    }
     if (tile && tile.signsInAs) id = tile.signsInAs
     var state = addChecks[id] || ""
     if (state === "") return
@@ -1019,6 +1084,10 @@ Panel {
     addKeyEntry = false
     addCheckingCode = false
     addDownloading = false
+    addRateBytes = 0
+    addInstallStage = ""
+    addInstallStartedMs = 0
+    addInstallFill = 0
     addPhase = ""
     addFetched = false
     addFetchTimer.stop()
@@ -1057,6 +1126,14 @@ Panel {
                    'omarchy-install-ai-cli opencode && opencode auth login && { [[ -n $(omarchy-default-agent) ]] || omarchy-default-agent --select opencode; }'])
   }
 
+  function openTerminalLogin(id) {
+    root.close()
+    if (id === "kimi") {
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation",
+                     'omarchy-install-ai-cli kimi && kimi login && { omarchy-shell omarchy.agents showAgent kimi true >/dev/null 2>&1 || true; } && { omarchy-agent-launcher kimi || true; } && { omarchy-agent-usage-update --force kimi || true; } && { [[ -n $(omarchy-default-agent) ]] || omarchy-default-agent --select kimi; }'])
+    }
+  }
+
   function submitPaste(code) {
     if (!addProcess.running || code.trim() === "") return
     addProcess.write(code.trim() + "\n")
@@ -1078,12 +1155,21 @@ Panel {
         addKeyEntry = tagged[1] === "key"
         addCheckingCode = false
       } else if (tagged[1] === "progress") {
-        var bytes = tagged[2].split(" ")
-        addDoneBytes = Number(bytes[0]) || 0
-        addTotalBytes = Number(bytes[1]) || 0
-        addRateBytes = Number(bytes[2]) || 0
+        var parts = tagged[2].split(" ")
+        var done = Number(parts[0]) || 0
+        var total = Number(parts[1]) || 0
+        var stage = parts[3] || ""
+        var now = Date.now()
+        if (addPhase !== "get") {
+          addInstallStartedMs = now
+          addInstallFill = 0
+          nowMs = now
+        }
+        addInstallStage = stage
+        addRateBytes = Number(parts[2]) || 0
         addDownloading = true
         addPhase = "get"
+        addInstallFill = Math.max(addInstallFill, cliInstallProgress(stage, done, total, addInstallStartedMs, now))
       } else if (tagged[1] === "status") {
         // A download's progress follows its status at once; any other
         // status is the sign-in's, held while a finished download's bar fills.
@@ -1897,7 +1983,11 @@ Panel {
     pointerActive = false
     keyRow = 0
     keyColumn = 0
-    Qt.callLater(function() { if (picking) pointAt("choice", "claude") })
+    Qt.callLater(function() {
+      if (!picking) return
+      var first = addGroup("subscription")[0] || addGroup("provider")[0]
+      if (first) pointAt("choice", first.providerId)
+    })
   }
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -2328,8 +2418,8 @@ Panel {
   component AddChoice: Item {
     id: choice
     property var entry: ({})
-    readonly property string state: root.addChecks[entry.providerId] || ""
-    readonly property bool available: !!entry.more || state === "first" || state === "additional"
+    readonly property string state: root.addChecks[entry.signsInAs || entry.providerId] || ""
+    readonly property bool available: !!entry.more || !!entry.terminalLogin || state === "first" || state === "additional"
     readonly property bool hasCursor: root.hasKey("choice", entry.providerId)
     implicitHeight: choiceBody.implicitHeight + Style.space(16)
     onHasCursorChanged: if (hasCursor) root.revealItem(choice)
@@ -2406,7 +2496,7 @@ Panel {
         model: root.picking ? [
           { group: "subscription", label: Commons.I18n.t("agents.blockSubscriptions") },
           { group: "provider", label: Commons.I18n.t("agents.blockProviders") }
-        ] : []
+        ].filter(function(b) { return root.addGroup(b.group).length > 0 }) : []
 
         Column {
           id: block
@@ -2749,18 +2839,19 @@ Panel {
           width: parent.width * root.labelColumnRatio
           anchors.verticalCenter: parent.verticalCenter
           textFormat: Text.PlainText
-          text: Commons.I18n.t("agents.installingMeter")
+          text: root.cliInstallTitle(root.addInstallStage)
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall
+          elide: Text.ElideRight
         }
 
         Meter {
           anchors.left: installTitle.right
-          anchors.right: installRate.left
-          anchors.rightMargin: Style.space(20)
+          anchors.right: installRate.text !== "" ? installRate.left : parent.right
+          anchors.rightMargin: installRate.text !== "" ? Style.space(20) : 0
           anchors.verticalCenter: parent.verticalCenter
-          value: root.addFetched ? 1 : root.addTotalBytes > 0 ? root.addDoneBytes / root.addTotalBytes : 0
+          value: root.addFetched ? 1 : root.addInstallFill
         }
 
         Text {
@@ -2769,7 +2860,7 @@ Panel {
           anchors.verticalCenter: parent.verticalCenter
           textFormat: Text.PlainText
           horizontalAlignment: Text.AlignRight
-          text: root.downloadRate(root.addRateBytes)
+          text: root.addFetched ? "" : root.downloadRate(root.addRateBytes)
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall

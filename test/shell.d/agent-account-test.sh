@@ -321,23 +321,26 @@ pass "use moves the chosen login into ~/.claude, so running sessions follow"
 # A dispatcher exists only while its CLI is installed: no claude command before
 # Claude Code is.
 dispatchers="$HOME/.local/share/omarchy/agent-accounts/bin"
-# Only the mocks, never a real agent the machine running the test has.
-cli_only_path="$mock_bin:$ROOT/bin:/usr/bin"
-if [[ ! -e /usr/bin/grok ]]; then
-  mv "$mock_bin/grok" "$test_tmp/grok-aside"
-  PATH=$cli_only_path omarchy-agent-account-dispatch
-  [[ -x $dispatchers/claude && -x $dispatchers/codex && ! -e $dispatchers/grok ]] ||
-    fail "only an installed CLI gets a dispatcher" "$(ls "$dispatchers")"
-  # One left by a CLI removed outside Omarchy goes the first time it runs.
-  printf '#!/bin/bash\nexec omarchy-agent-account-exec grok "$@"\n' >"$dispatchers/grok"
-  chmod +x "$dispatchers/grok"
-  if PATH="$dispatchers:$cli_only_path" "$dispatchers/grok" 2>"$test_tmp/grok-missing"; then
-    fail "a dispatcher without its CLI fails"
-  fi
-  [[ ! -e $dispatchers/grok && $(<"$test_tmp/grok-missing") == "grok: command not found" ]] ||
-    fail "a dispatcher without its CLI removes itself and answers as a shell would" "$(<"$test_tmp/grok-missing")"
-  mv "$test_tmp/grok-aside" "$mock_bin/grok"
+# Only the mocks, never a real agent CLI the machine running the test has: its
+# own commands come from a copy of /usr/bin without them.
+system_bin="$test_tmp/system-bin"
+mkdir -p "$system_bin"
+ln -s /usr/bin/* "$system_bin/"
+rm -f "$system_bin/claude" "$system_bin/codex" "$system_bin/grok"
+cli_only_path="$mock_bin:$ROOT/bin:$system_bin"
+mv "$mock_bin/grok" "$test_tmp/grok-aside"
+PATH=$cli_only_path omarchy-agent-account-dispatch
+[[ -x $dispatchers/claude && -x $dispatchers/codex && ! -e $dispatchers/grok ]] ||
+  fail "only an installed CLI gets a dispatcher" "$(ls "$dispatchers")"
+# One left by a CLI removed outside Omarchy goes the first time it runs.
+printf '#!/bin/bash\nexec omarchy-agent-account-exec grok "$@"\n' >"$dispatchers/grok"
+chmod +x "$dispatchers/grok"
+if PATH="$dispatchers:$cli_only_path" "$dispatchers/grok" 2>"$test_tmp/grok-missing"; then
+  fail "a dispatcher without its CLI fails"
 fi
+[[ ! -e $dispatchers/grok && $(<"$test_tmp/grok-missing") == "grok: command not found" ]] ||
+  fail "a dispatcher without its CLI removes itself and answers as a shell would" "$(<"$test_tmp/grok-missing")"
+mv "$test_tmp/grok-aside" "$mock_bin/grok"
 PATH=$cli_only_path omarchy-agent-account-dispatch grok
 [[ -x $dispatchers/grok ]] || fail "installing a CLI gives it a dispatcher"
 pass "a dispatcher exists only while its CLI is installed"
@@ -716,7 +719,7 @@ pass "an added account that can't be selected says so"
 lazy_data="$test_tmp/lazy-mise"
 lazy_bin="$test_tmp/lazy-bin"
 lazy_pkexec="$test_tmp/lazy-pkexec"
-lazy_path="$lazy_pkexec:$pkg_bin:$HOME/.local/share/omarchy/agent-accounts/bin:$lazy_bin:$ROOT/bin:/usr/bin"
+lazy_path="$lazy_pkexec:$pkg_bin:$HOME/.local/share/omarchy/agent-accounts/bin:$lazy_bin:$ROOT/bin:$system_bin"
 mkdir -p "$lazy_bin" "$lazy_pkexec"
 for helper in omarchy-notification-send omarchy-agent-usage-update omarchy-default-agent omarchy-launch-browser; do
   ln -s "$mock_bin/$helper" "$lazy_bin/$helper"
@@ -787,6 +790,55 @@ OMARCHY_TEST_LOGIN_UUID=u-lazy OMARCHY_TEST_LOGIN_EMAIL=lazy@example.com add_laz
   fail "the CLI's package is installed before its login runs" "$(cat "$test_tmp/lazy-log")"
 grep -qx "@@omarchy done Added Lazy (lazy@example.com)." "$test_tmp/lazy-output" ||
   fail "a sign-in after an install finishes as usual" "$(cat "$test_tmp/lazy-output")"
+
+# When pacman draws progress bars on the stdout PTY, install_cli translates
+# downloading, verification, extraction, and hooks into monotonic progress
+# events while keeping stdin off the terminal for graphical polkit.
+rm -f "$lazy_bin/codex"
+cat >"$lazy_pkexec/pkexec" <<SH
+#!/bin/bash
+if [[ -t 0 || ! -t 1 ]]; then
+  echo "expected stdin non-tty and stdout tty" >&2
+  exit 2
+fi
+printf ':: Retrieving packages...\r\n'
+printf ' openai-codex-0.172.0-1-x86_64.pkg.tar.zst.sig   119.0 B   1.2 KiB/s 00:00 [######] 100%%\r\n'
+printf ' openai-codex-0.172.0-1-x86_64   45.0 MiB  18.0 MiB/s 00:05 [---C      ]  25%%\r'
+sleep 0.1
+printf ' openai-codex-0.172.0-1-x86_64  180.0 MiB  20.0 MiB/s 00:00 [##########] 100%%\r\n'
+printf 'checking keys in keyring          [##########] 100%%\r\n'
+printf 'checking package integrity        [#####-----]  50%%\r'
+sleep 0.1
+printf 'checking package integrity        [##########] 100%%\r\n'
+printf ':: Processing package changes...\r\n'
+printf '(1/1) installing openai-codex     [#####-----]  50%%\r'
+sleep 0.1
+printf '(1/1) installing openai-codex     [##########] 100%%\r\n'
+printf ':: Running post-transaction hooks...\r\n'
+printf '(1/2) Updating desktop file MIME type database...\r\n'
+printf '(2/2) Updating icon theme caches...\r\n'
+ln -s "$lazy_bin/mise" "$lazy_bin/codex"
+SH
+chmod +x "$lazy_pkexec/pkexec"
+OMARCHY_TEST_LOGIN_UUID=u-prog OMARCHY_TEST_LOGIN_EMAIL=prog@example.com add_lazy Prog >"$test_tmp/lazy-progress" 2>&1 ||
+  fail "a CLI install streams pacman progress over a stdout PTY" "$(cat "$test_tmp/lazy-progress")"
+python3 - "$test_tmp/lazy-progress" <<'PY' || fail "pacman progress lines map to downloading, verifying, and installing events" "$(cat "$test_tmp/lazy-progress")"
+import sys
+events = []
+for line in open(sys.argv[1]):
+  if line.startswith("@@omarchy progress "):
+    parts = line.strip().split()
+    events.append((int(parts[2]), int(parts[3]), int(parts[4]), parts[5] if len(parts) > 5 else ""))
+dl = [e for e in events if e[3] == "downloading"]
+ver = [e for e in events if e[3] == "verifying"]
+inst = [e for e in events if e[3] == "installing"]
+assert len(dl) >= 2, f"expected download updates: {events}"
+assert dl[0][0] < dl[0][1] and dl[0][2] > 15_000_000, f"expected partial download with rate (ignoring .sig): {dl}"
+assert dl[-1][0] == dl[-1][1] and dl[-1][0] > dl[0][0], f"expected download completion: {dl}"
+assert ver and ver[-1][0] > ver[0][0] and ver[-1][2] == 0, f"expected verifying progress: {ver}"
+assert inst and inst[-1][0] > inst[0][0] and inst[-1][0] >= 95, f"expected extraction + hooks progress: {inst}"
+PY
+pass "a CLI install streams real download, verification, and install progress"
 
 # Installed, by Omarchy or some other way: it signs in directly.
 : >"$test_tmp/lazy-log"

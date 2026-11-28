@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Melayang"
   },
-  "appearance.unlock": {
-    "label": "Buka Kunci"
-  },
   "trigger.toggle": {
     "label": "Alihkan"
   },
@@ -994,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1025,16 +1019,18 @@
     "label": "Layar Laptop Nonaktif"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Pencerminan Layar Aktif"
+    "label": "Aktifkan Cermin Layar"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Pencerminan Layar Nonaktif"
+    "label": "Matikan Cermin Layar"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Beralih ke GPU Hybrid"
+    "label": "Beralih ke dGPU",
+    "description": "Aktifkan GPU khusus hybrid"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Beralih ke GPU Terintegrasi"
+    "label": "Beralih ke iGPU",
+    "description": "Gunakan hanya GPU terintegrasi"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Aktifkan Touchpad"
@@ -1439,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Pulihkan Snapshot Ini"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Login Tanpa Kata Sandi"
   }
 }

@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Nổi"
   },
-  "appearance.unlock": {
-    "label": "Mở khóa"
-  },
   "trigger.toggle": {
     "label": "Bật/tắt"
   },
@@ -994,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1088,10 +1082,12 @@
     "label": "Tắt phản chiếu màn hình"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Chuyển sang GPU lai"
+    "label": "Chuyển sang dGPU",
+    "description": "Bật GPU rời hybrid"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Chuyển sang GPU tích hợp"
+    "label": "Chuyển sang iGPU",
+    "description": "Chỉ dùng GPU tích hợp"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Bật bàn di chuột"
@@ -1439,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Khôi phục bản chụp này"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Đăng nhập không mật khẩu"
   }
 }

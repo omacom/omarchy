@@ -31,3 +31,9 @@
 # etc/sysctl.d/99-omarchy-nmi-watchdog.conf
 #   Uses a leading "-" so systemd-sysctl ignores it cleanly on architectures
 #   without CONFIG_HARDLOCKUP_DETECTOR (/proc/sys/kernel/nmi_watchdog).
+# etc/tmpfiles.d/omarchy-power-profiles.conf
+#   Seeds battery_aware=false before power-profiles-daemon starts; applies on
+#   every platform that ships power-profiles-daemon.
+# etc/tmpfiles.d/omarchy-thp.conf
+#   Writes only when /sys/kernel/mm/transparent_hugepage/enabled exists;
+#   systemd-tmpfiles ignores it cleanly on kernels built without THP.

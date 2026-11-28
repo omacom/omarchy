@@ -278,8 +278,8 @@ literal_head() {
 
 # The literal value a name is assigned, when that value is knowable. A value
 # read out of a command substitution is not: resolving it would treat the
-# slashes in the command itself as a path, which made $autologin_user (an awk
-# over /etc/sddm.conf.d) look like a path when it holds a username.
+# slashes in the command itself as a path, so a username read with awk from a
+# file under /etc would look like a path.
 literal_value() {
   local name="$1"
 

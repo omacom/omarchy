@@ -36,8 +36,8 @@ done
 unset firmware directory suffix
 CONF
 
-  # console=tty0 keeps Plymouth and the keyboard hooks on the laptop console,
-  # not the serial port.
+  # console=tty0 keeps the boot splash and the keyboard hooks on the laptop
+  # console, not the serial port.
   OMARCHY_BOOT_LIMINE_DROPINS=$limine_config_dir omarchy-boot-cmdline set yoga-slim7x \
     initcall_blacklist=simpledrm_platform_driver_init console=tty0
 

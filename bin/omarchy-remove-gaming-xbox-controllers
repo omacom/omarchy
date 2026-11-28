@@ -7,6 +7,7 @@
 
 set -e
 
+echo "Removing Xbox controller Bluetooth support..."
 omarchy-pkg-drop xpadneo-dkms
 
 sudo rm -f /etc/modprobe.d/blacklist-xpad.conf /etc/modules-load.d/xpadneo.conf

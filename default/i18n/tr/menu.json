@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Yüzen"
   },
-  "appearance.unlock": {
-    "label": "Kilidi Aç"
-  },
   "trigger.toggle": {
     "label": "Aç/Kapat"
   },
@@ -994,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1088,10 +1082,12 @@
     "label": "Ekran Yansıtmayı Kapat"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Hibrit GPU'ya Geç"
+    "label": "dGPU'ya Geç",
+    "description": "Hibrit ayrılmış GPU'yu etkinleştir"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Tümleşik GPU'ya Geç"
+    "label": "iGPU'ya Geç",
+    "description": "Yalnızca tümleşik GPU kullan"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Touchpad'i Etkinleştir"
@@ -1439,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Bu Anlık Görüntüyü Geri Yükle"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Parolasız Giriş"
   }
 }

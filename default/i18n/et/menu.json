@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Ujuv"
   },
-  "appearance.unlock": {
-    "label": "Ava lukk"
-  },
   "trigger.toggle": {
     "label": "Lülita"
   },
@@ -994,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1082,16 +1076,18 @@
     "label": "Sülearvuti ekraan väljas"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Ekraani peegeldus sees"
+    "label": "Peegelkuva sees"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Ekraani peegeldus väljas"
+    "label": "Peegelkuva väljas"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Lülitu hübriid-GPU-le"
+    "label": "Lülitu dGPU-le",
+    "description": "Luba hübriidne eraldiseisev GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Lülitu integreeritud GPU-le"
+    "label": "Lülitu iGPU-le",
+    "description": "Kasuta ainult integreeritud GPU-d"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Luba puuteplaat"
@@ -1439,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Taasta see hetktõmmis"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Paroolita sisselogimine"
   }
 }

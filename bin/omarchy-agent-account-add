@@ -208,10 +208,11 @@ interruptible() {
 
 # Each agent's CLI is a package installed the first time it's needed. Signing
 # in is often that time, so the install happens here, where the panel can show
-# it, rather than looking like the login hanging. pacman prints no progress
-# without a terminal, so the panel's progress row has no measure. The install
-# runs in the background behind a `wait`, like a login, so Cancel stops it at
-# once; with no terminal, polkit asks for the password.
+# it, rather than looking like the login hanging. pacman only draws progress
+# bars on a terminal, so the installer runs with a PTY on stdout while stdin
+# stays on /dev/null (keeping polkit graphical and non-terminal). The runner
+# sits behind a `wait`, like a login, so Cancel ends the add at once without
+# waiting on a privileged pacman transaction.
 install_cli() {
   if [[ $events != "true" ]]; then
     "$@"
@@ -219,7 +220,101 @@ install_cli() {
   fi
 
   printf '@@omarchy progress 0 0 0\n'
-  "$@" >/dev/null 2>&1 </dev/null &
+  python3 - "$@" <<'PY' &
+import errno, fcntl, os, pty, re, signal, struct, subprocess, sys, termios
+
+UNITS = {"B": 1, "KB": 1000, "KIB": 1024, "MB": 1000**2, "MIB": 1024**2, "GB": 1000**3, "GIB": 1024**3}
+SPLIT = re.compile(r"\r+|\n+|\x1b\[\d*[EFGH]")
+ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+BAR_END = re.compile(r"\[[^\]]*\]\s+\d+%$")
+DL_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*([KMG]?i?B)/s\s+(?:\d+(?::\d+)+|--:--)\s+\[[^\]]*\]\s+(\d+)%")
+TOTAL_RE = re.compile(r"^\s*\S+\s+\(\d+/\d+\)\s+")
+INST_RE = re.compile(r"^\s*\((\d+)/(\d+)\)\s+.*\[[^\]]*\]\s+(\d+)%")
+BAR_RE = re.compile(r"\[[^\]]*\]\s+(\d+)%")
+
+master_fd, slave_fd = pty.openpty()
+fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 120, 0, 0))
+attrs = termios.tcgetattr(slave_fd)
+attrs[3] &= ~termios.ECHO
+termios.tcsetattr(slave_fd, termios.TCSANOW, attrs)
+
+proc = subprocess.Popen(sys.argv[1:], stdin=subprocess.DEVNULL, stdout=slave_fd, stderr=slave_fd)
+os.close(slave_fd)
+
+def stop(_sig, _frame):
+  for fn in (proc.terminate, lambda: os.close(master_fd)):
+    try: fn()
+    except OSError: pass
+  os._exit(130)
+
+signal.signal(signal.SIGTERM, stop)
+signal.signal(signal.SIGINT, stop)
+
+last = None
+seen_total = False
+stage = 0
+verify_step = 0
+
+def emit(pct, rate, name):
+  global last
+  state = (pct, rate, name)
+  if state != last:
+    sys.stdout.write(f"@@omarchy progress {pct} 100 {rate} {name}\n")
+    sys.stdout.flush()
+    last = state
+
+def handle(raw):
+  global seen_total, stage, verify_step
+  line = ANSI.sub("", raw).strip()
+  if not line:
+    return
+  if m := DL_RE.search(line):
+    if stage > 1 or ".sig" in line:
+      return
+    if TOTAL_RE.match(line):
+      seen_total = True
+    elif seen_total:
+      return
+    stage = 1
+    rate = int(float(m.group(1).replace(",", ".")) * UNITS.get(m.group(2).upper(), 1))
+    emit(min(100, int(m.group(3))), rate, "downloading")
+  elif m := INST_RE.match(line):
+    stage = 3
+    i, n, p = int(m.group(1)), max(1, int(m.group(2))), int(m.group(3))
+    emit(min(95, int(((i - 1) * 100 + p) * 95 / (n * 100))), 0, "installing")
+  elif stage <= 2 and (m := BAR_RE.search(line)):
+    stage = 2
+    p = int(m.group(1))
+    emit(min(100, verify_step * 25 + p // 4), 0, "verifying")
+    if p >= 100:
+      verify_step = min(3, verify_step + 1)
+  elif stage >= 3 and line.startswith("::"):
+    emit(98, 0, "installing")
+
+buf = ""
+while True:
+  try:
+    chunk = os.read(master_fd, 4096)
+  except OSError as exc:
+    if exc.errno == errno.EIO:
+      break
+    raise
+  if not chunk:
+    break
+  buf += chunk.decode("utf-8", errors="replace")
+  parts = SPLIT.split(buf)
+  for part in parts[:-1]:
+    handle(part)
+  buf = parts[-1]
+  if BAR_END.search(ANSI.sub("", buf).rstrip()):
+    handle(buf)
+    buf = ""
+
+if buf:
+  handle(buf)
+os.close(master_fd)
+sys.exit(proc.wait())
+PY
   wait $!
 }
 

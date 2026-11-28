@@ -246,9 +246,6 @@
   "appearance.workspace-layout.floating": {
     "label": "Плаваючі"
   },
-  "appearance.unlock": {
-    "label": "Розблокувати"
-  },
   "trigger.toggle": {
     "label": "Перемикати"
   },
@@ -994,9 +991,6 @@
   "update.config.hyprsunset": {
     "label": "Hyprsunset"
   },
-  "update.config.plymouth": {
-    "label": "Plymouth"
-  },
   "update.config.tmux": {
     "label": "Tmux"
   },
@@ -1082,16 +1076,18 @@
     "label": "Вимкнути дисплей ноутбука"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Увімкнути дублювання дисплея"
+    "label": "Увімкнути дублювання"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Вимкнути дублювання дисплея"
+    "label": "Вимкнути дублювання"
   },
   "trigger.hardware.hybrid-gpu-on": {
-    "label": "Перейти на гібридний GPU"
+    "label": "Перемкнути на dGPU",
+    "description": "Увімкнути гібридний дискретний GPU"
   },
   "trigger.hardware.hybrid-gpu-off": {
-    "label": "Перейти на інтегрований GPU"
+    "label": "Перемкнути на iGPU",
+    "description": "Використовувати лише інтегрований GPU"
   },
   "trigger.hardware.touchpad-on": {
     "label": "Увімкнути тачпад"
@@ -1439,5 +1435,8 @@
   },
   "system.snapshots.restore": {
     "label": "Відновити цей знімок"
+  },
+  "setup.security.passwordless-login": {
+    "label": "Вхід без пароля"
   }
 }

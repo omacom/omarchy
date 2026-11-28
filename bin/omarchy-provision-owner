@@ -10,7 +10,8 @@
 # language, the keyboard, then the account), then for the OEM's agreement where
 # the install laid one down (install/provisioning/oem.sh), creates the user
 # with the groups system setup recorded, finalizes it offline, re-keys LUKS from
-# the throwaway install passphrase to the user's password, and hands off to SDDM.
+# the throwaway install passphrase to the user's password, and hands off to the
+# login screen.
 # A platform whose boot package owns its boot chain prepares it, drops the
 # install key's unlock from it and records the kept key slot through
 # omarchy-lifecycle-dispatch.
@@ -729,11 +730,13 @@ record_eula() {
 }
 
 # Load the layout on the live VT and persist it for the installed system, or
-# fail. systemd-firstboot writes both the console KEYMAP and the XKB layout
-# Hyprland reads, matching what the ISO's configure_keyboard does at install
-# time. The boot files ask for the disk password in the layout vconsole.conf
-# names, so a keymap localectl doesn't know, a failed loadkeys, or a file that
-# does not read back as the chosen keymap with an XKB layout is a failure.
+# fail. systemd-firstboot writes the console KEYMAP and, for a keymap in
+# kbd-model-map, the XKB layout Hyprland reads; omarchy_keymap_xkb_settings's
+# lines stand in for one it writes none for, as the ISO's configure_keyboard
+# does at install time. The boot files ask for the disk password in the layout
+# vconsole.conf names, so a keymap localectl doesn't know, a failed loadkeys,
+# or a file that does not read back as the chosen keymap with an XKB layout is
+# a failure.
 apply_keyboard() {
   local keymap=$1 keymaps saved
 
@@ -895,19 +898,12 @@ install_authorized_keys() {
 }
 
 configure_login() {
-  mkdir -p /var/lib/sddm
-  printf '[Last]\nSession=omarchy.desktop\nUser=%s\n' "$username" >/var/lib/sddm/state.conf
-  chown -R sddm:sddm /var/lib/sddm 2>/dev/null || true
-
-  # Autologin straight into the desktop after first-boot setup — the owner just
-  # authenticated in the form, so we don't make them retype at SDDM.
-  mkdir -p /etc/sddm.conf.d
-  printf '[Autologin]\nUser=%s\nSession=omarchy.desktop\n' "$username" >/etc/sddm.conf.d/autologin.conf
-
   # Encrypted installs keep autologin permanently (the LUKS prompt is the auth
-  # boundary). Unencrypted installs autologin only this first boot, then a
-  # one-shot service removes the drop-in so later boots use the normal SDDM
-  # login and the disk isn't left permanently open.
+  # boundary). Unencrypted installs autologin only this first boot -- the owner
+  # just authenticated in the form, so we don't make them retype at the login
+  # screen -- then a one-shot service drops it so later boots show the login
+  # screen and the disk isn't left permanently open.
+  omarchy-system-login "$username" --autologin
   encrypted_install || install_autologin_once_cleanup
 }
 
@@ -915,21 +911,21 @@ configure_login() {
 # boot — this one, where the owner just authenticated in the wizard. The unit is
 # created now, but graphical.target's job for THIS boot is already computed, so
 # it won't run this boot (this boot autologins). On the NEXT boot it's in the
-# fresh transaction, ordered Before the display manager, so it runs before SDDM
-# reads its config: it removes the autologin drop-in (that boot shows the normal
-# login) and deletes its own unit and enablement symlink. Ordering Before= (not
-# After=) is what makes it deterministic — no sleep/race against SDDM's startup.
+# fresh transaction, ordered Before the display manager, so it runs before
+# greetd reads its config: it drops the autologin (that boot shows the login
+# screen) and deletes its own unit and enablement symlink. Ordering Before= (not
+# After=) is what makes it deterministic — no sleep/race against greetd's
+# startup.
 install_autologin_once_cleanup() {
   local unit=omarchy-provision-autologin-once.service
   sed "s|@UNIT@|$unit|g" >"/etc/systemd/system/$unit" <<'UNIT'
 [Unit]
 Description=Drop the first-boot autologin before the next login
 Before=display-manager.service
-ConditionPathExists=/etc/sddm.conf.d/autologin.conf
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/rm -f /etc/sddm.conf.d/autologin.conf
+ExecStart=/usr/bin/omarchy-system-login --no-autologin
 ExecStartPost=/usr/bin/rm -f /etc/systemd/system/graphical.target.wants/@UNIT@ /etc/systemd/system/@UNIT@
 
 [Install]
@@ -1451,7 +1447,7 @@ run_setup() {
     sleep 3
   fi
 
-  # Deferred first boot hands straight off to the display manager: SDDM starts
+  # Deferred first boot hands straight off to the display manager: greetd starts
   # the moment this oneshot exits (Before=display-manager.service) and autologs
   # in on encrypted installs. No timed celebration screen and no "start" button
   # here — that send-off belongs to a direct install, not first-boot setup. The
@@ -1472,8 +1468,8 @@ main() {
   local status keymap
 
   # The whole of setup runs in kmscon on this VT, started again for as long as
-  # setup is not done: an attempt asks for that with KMSCON_RESUME, and SDDM
-  # must not start on a machine that still has no owner. Leaving for the root
+  # setup is not done: an attempt asks for that with KMSCON_RESUME, and the
+  # login screen must not start on a machine that still has no owner. Leaving for the root
   # shell or a reboot ends it.
   if [[ ${OMARCHY_KMSCON:-} != 1 ]]; then
     # A dark, empty console behind kmscon, for the moments it is not drawing.
@@ -1510,7 +1506,7 @@ main() {
       # Give an actual usable console: this service owns tty1 (and Conflicts the
       # getty), and on a failed deferred setup there's no user account and root
       # is locked — so exiting would strand the machine with no way in. Exec a
-      # root shell on tty1; SDDM starts once it exits.
+      # root shell on tty1; greetd starts once it exits.
       say "Dropping to a root shell. Run 'omarchy-provision-owner' to retry setup."
       touch "$KMSCON_STATE/shell"
       exec /bin/bash
