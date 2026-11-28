@@ -39,6 +39,18 @@ PanelWindow {
     return mode
   }
   readonly property bool floating: !!dock && dock.isFloating(workspaceId)
+  // Whether the dock comes out over windows: tiles run to the screen edges,
+  // and so does a maximized window. A floating workspace's windows go where
+  // they are put, mostly clear of it, and an empty one has only the wallpaper.
+  readonly property bool overWindows: {
+    if (fullscreenMode === 1) return true
+    if (floating) return false
+    var toplevels = Hyprland.toplevels.values
+    for (var i = 0; i < toplevels.length; i++) {
+      if (toplevels[i].workspace && toplevels[i].workspace.id === workspaceId) return true
+    }
+    return false
+  }
   readonly property bool shown: !!dock && (floating || (dock.tiling && !!workspace)) && fullscreenMode < 2
   // With auto-hide on, the dock waits off screen until the pointer reaches its
   // edge, and stays while the pointer, a menu, or a drag still needs it. A
@@ -339,17 +351,22 @@ PanelWindow {
   }
 
   // The dock slides out over windows, where bare icons land on their content
-  // and borders. A mist of the theme's background stands behind them: a shade
-  // at half strength along the screen edge, easing out to nothing just past
-  // the icons and toward both ends, with no outline. Any stronger and it is a
-  // slab over the wallpaper, not a mist. It stays put and clears as the dock
-  // tucks away.
+  // and borders. A mist of the theme's background stands behind them, easing
+  // out to nothing just past the icons and toward both ends, with no outline.
+  // It does only what is needed: over windows it is close to solid through
+  // the icons, so nothing beneath tangles with them; over the wallpaper, where
+  // that would be a slab, it is a shade at half strength. Which one comes from
+  // what the dock already knows, so it costs nothing to decide. It stays put
+  // and clears as the dock tucks away.
   Canvas {
     id: mist
 
     // How far past the dock's ends it runs, dissolving, and how far inward.
     readonly property real reach: window.slotSize * 2.5
     readonly property real depth: window.gap + window.slotSize * 1.9
+    // The share of the depth, from the screen edge, the icons stand in.
+    readonly property real ground: (window.gap + window.slotSize * 0.8) / depth
+    readonly property bool dense: window.overWindows
     property color tint: Commons.Color.background
 
     visible: window.shown && opacity > 0
@@ -363,6 +380,7 @@ PanelWindow {
     onWidthChanged: requestPaint()
     onHeightChanged: requestPaint()
     onTintChanged: requestPaint()
+    onDenseChanged: requestPaint()
     onVisibleChanged: if (visible) requestPaint()
     Connections {
       target: window
@@ -388,7 +406,7 @@ PanelWindow {
         : ctx.createLinearGradient(0, near ? 0 : height, 0, near ? height : 0)
       for (var i = 0; i <= stops; i++) {
         var t = i / stops
-        var cover = 0.5 * (1 - ease(t))
+        var cover = mist.dense ? 0.9 * (1 - ease((t - mist.ground) / (1 - mist.ground))) : 0.5 * (1 - ease(t))
         across.addColorStop(t, rgb + cover.toFixed(4) + ")")
       }
       ctx.fillStyle = across
