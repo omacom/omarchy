@@ -494,3 +494,78 @@ jq -e '
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 [[ -f $TMPDIR/home/.local/state/omarchy/restart-shell-called ]] || fail "shell refresh restarts shell"
 pass "shell refresh places optional service widgets when services are available"
+
+# ── UWSM NVIDIA EGL external platform workaround ─────────────────────────────
+
+egl_tmp="$TMPDIR/uwsm-egl"
+mkdir -p "$egl_tmp/egl" "$egl_tmp/admin-egl" "$egl_tmp/runtime" "$egl_tmp/home/.config/uwsm" \
+  "$egl_tmp/pci-nvidia/0000:01:00.0" "$egl_tmp/pci-intel/0000:00:02.0"
+printf '0x10de\n' >"$egl_tmp/pci-nvidia/0000:01:00.0/vendor"
+printf '0x030000\n' >"$egl_tmp/pci-nvidia/0000:01:00.0/class"
+printf '0x8086\n' >"$egl_tmp/pci-intel/0000:00:02.0/vendor"
+printf '0x030000\n' >"$egl_tmp/pci-intel/0000:00:02.0/class"
+touch "$egl_tmp/egl/09_nvidia_wayland2.json" "$egl_tmp/egl/10_nvidia_wayland.json" "$egl_tmp/egl/15_nvidia_gbm.json"
+
+sh -n "$ROOT/default/uwsm/env.d/10-omarchy" || fail "default/uwsm/env.d/10-omarchy passes POSIX sh syntax check"
+
+printf 'export OMARCHY_PATH="%s"\n' "$ROOT" >"$egl_tmp/omarchy.conf"
+sed "s#/etc/omarchy.conf#$egl_tmp/omarchy.conf#g" "$ROOT/default/bash/env-bootstrap" >"$egl_tmp/env-bootstrap"
+sed "s#/usr/share/omarchy/default/bash/env-bootstrap#$egl_tmp/env-bootstrap#g" \
+  "$ROOT/default/uwsm/env.d/10-omarchy" >"$egl_tmp/10-omarchy"
+
+mkdir -p "$egl_tmp/runtime/omarchy/egl_external_platform.d"
+touch "$egl_tmp/runtime/omarchy/egl_external_platform.d/stale_old.json"
+
+run_uwsm_egl() {
+  local pci_dir="$1"
+  local admin_dir="$2"
+  env -i HOME="$egl_tmp/home" PATH="$ROOT/bin:/usr/bin:/bin" XDG_RUNTIME_DIR="$egl_tmp/runtime" \
+    OMARCHY_PCI_DEVICES_PATH="$pci_dir" \
+    OMARCHY_EGL_EXTERNAL_PLATFORM_DIR="$egl_tmp/egl" \
+    OMARCHY_EGL_EXTERNAL_PLATFORM_ADMIN_DIR="$admin_dir" \
+    sh -euc '. "$1"; printf "%s|%s\n" "${__EGL_EXTERNAL_PLATFORM_CONFIG_DIRS:-}" "${__EGL_EXTERNAL_PLATFORM_CONFIG_FILENAMES:-}"' \
+    sh "$egl_tmp/10-omarchy"
+}
+
+expected_runtime_dir="$egl_tmp/runtime/omarchy/egl_external_platform.d"
+
+egl_nvidia=$(run_uwsm_egl "$egl_tmp/pci-nvidia" "$egl_tmp/no-admin-egl")
+[[ $egl_nvidia == "$expected_runtime_dir|" ]] ||
+  fail "10-omarchy exports __EGL_EXTERNAL_PLATFORM_CONFIG_DIRS and leaves FILENAMES unset on NVIDIA" "$egl_nvidia"
+[[ ! -e $expected_runtime_dir/09_nvidia_wayland2.json ]] || fail "10-omarchy excludes 09_nvidia_wayland2.json from runtime EGL symlinks"
+[[ ! -e $expected_runtime_dir/stale_old.json ]] || fail "10-omarchy removes stale JSON symlinks from runtime EGL dir"
+[[ -L $expected_runtime_dir/10_nvidia_wayland.json && -L $expected_runtime_dir/15_nvidia_gbm.json ]] ||
+  fail "10-omarchy symlinks classic EGL platform JSONs into runtime EGL dir"
+
+egl_admin=$(run_uwsm_egl "$egl_tmp/pci-nvidia" "$egl_tmp/admin-egl")
+[[ $egl_admin == "$egl_tmp/admin-egl:$expected_runtime_dir|" ]] ||
+  fail "10-omarchy keeps admin /etc/egl overrides ahead of runtime EGL symlinks" "$egl_admin"
+
+egl_intel=$(run_uwsm_egl "$egl_tmp/pci-intel" "$egl_tmp/no-admin-egl")
+[[ $egl_intel == "|" ]] || fail "10-omarchy leaves EGL platform variables unset without an NVIDIA GPU" "$egl_intel"
+
+printf 'export __EGL_EXTERNAL_PLATFORM_CONFIG_DIRS="/custom/egl"\n' >"$egl_tmp/home/.config/uwsm/default"
+egl_user_dirs=$(run_uwsm_egl "$egl_tmp/pci-nvidia" "$egl_tmp/no-admin-egl")
+[[ $egl_user_dirs == "/custom/egl|" ]] ||
+  fail "10-omarchy preserves __EGL_EXTERNAL_PLATFORM_CONFIG_DIRS from ~/.config/uwsm/default without setting FILENAMES" "$egl_user_dirs"
+
+printf 'export __EGL_EXTERNAL_PLATFORM_CONFIG_FILENAMES="/custom/09_nvidia_wayland2.json"\n' >"$egl_tmp/home/.config/uwsm/default"
+egl_user_filenames=$(run_uwsm_egl "$egl_tmp/pci-nvidia" "$egl_tmp/no-admin-egl")
+[[ $egl_user_filenames == "|/custom/09_nvidia_wayland2.json" ]] ||
+  fail "10-omarchy preserves __EGL_EXTERNAL_PLATFORM_CONFIG_FILENAMES from ~/.config/uwsm/default" "$egl_user_filenames"
+
+rm -f "$egl_tmp/home/.config/uwsm/default"
+egl_later_dirs=$(env -i HOME="$egl_tmp/home" PATH="$ROOT/bin:/usr/bin:/bin" XDG_RUNTIME_DIR="$egl_tmp/runtime" \
+  OMARCHY_PCI_DEVICES_PATH="$egl_tmp/pci-nvidia" \
+  OMARCHY_EGL_EXTERNAL_PLATFORM_DIR="$egl_tmp/egl" \
+  OMARCHY_EGL_EXTERNAL_PLATFORM_ADMIN_DIR="$egl_tmp/no-admin-egl" \
+  sh -euc '. "$1"; export __EGL_EXTERNAL_PLATFORM_CONFIG_DIRS="/later/egl"; printf "%s|%s\n" "${__EGL_EXTERNAL_PLATFORM_CONFIG_DIRS:-}" "${__EGL_EXTERNAL_PLATFORM_CONFIG_FILENAMES:-}"' \
+  sh "$egl_tmp/10-omarchy")
+[[ $egl_later_dirs == "/later/egl|" ]] ||
+  fail "env.d overrides after 10-omarchy can replace __EGL_EXTERNAL_PLATFORM_CONFIG_DIRS without FILENAMES shadowing them" "$egl_later_dirs"
+
+rm -f "$egl_tmp/egl/10_nvidia_wayland.json"
+egl_no_fallback=$(run_uwsm_egl "$egl_tmp/pci-nvidia" "$egl_tmp/no-admin-egl")
+[[ $egl_no_fallback == "|" ]] ||
+  fail "10-omarchy leaves EGL platform variables unset when 10_nvidia_wayland.json is absent" "$egl_no_fallback"
+pass "10-omarchy prefers 10_nvidia_wayland.json via DIRS on NVIDIA while preserving all user overrides"
