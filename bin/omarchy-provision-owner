@@ -1013,6 +1013,16 @@ configure_region() {
   if [[ -n $channel && -x $OMARCHY_PATH/bin/omarchy-apply-pacman ]]; then
     "$OMARCHY_PATH/bin/omarchy-apply-pacman" "$channel" "${OMARCHY_REGION_TARGET:-/}" 2>&1 || true
   fi
+  # create_user set browser policy for the media's region; recommend the
+  # settled region's defaults instead, such as its search engine.
+  (
+    source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+    PATH="$OMARCHY_PATH/bin:$PATH"
+    for dir in "${BROWSER_POLICY_MANAGED_DIRS[@]}"; do
+      [[ -d $dir && ! -L $dir ]] || continue
+      browser_policy_setup_recommended "${dir%/managed}/recommended"
+    done
+  ) 2>&1 || true
 }
 
 # The install's hardware step found only the UTC placeholder, which names no

@@ -1,6 +1,7 @@
 [Desktop Entry]
 Version=1.0
 Name=Weibo
+Name[zh_CN]=微博
 Exec=omarchy-launch-webapp https://weibo.com/
 StartupWMClass=chrome-weibo.com__-Default
 Terminal=false

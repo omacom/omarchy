@@ -120,6 +120,22 @@ browser_policy_install_defaults() {
   fi
 }
 
+# The region's recommended policies, such as China's default search engine, go
+# in the sibling recommended directory: defaults the user can still change.
+browser_policy_setup_recommended() {
+  local dir=$1
+  local recommended=$OMARCHY_PATH/default/regions/$(omarchy-region)/chromium/policies/recommended.json
+
+  if [[ -f $recommended ]]; then
+    browser_policy_setup_parents_for "$dir"
+    browser_policy_setup_parent "$dir"
+    browser_policy_purge_dir "$dir"
+    as_root install -m 644 -o root -g root -T "$recommended" "$dir/omarchy-region.json"
+  elif [[ -d $dir && ! -L $dir ]]; then
+    as_root rm -f -- "$dir/omarchy-region.json"
+  fi
+}
+
 browser_policy_setup_dir() {
   local dir=$1
 
@@ -127,6 +143,9 @@ browser_policy_setup_dir() {
   browser_policy_setup_parent "$dir"
   browser_policy_purge_dir "$dir"
   browser_policy_install_defaults "$dir"
+  if [[ $dir == */managed ]]; then
+    browser_policy_setup_recommended "${dir%/managed}/recommended"
+  fi
 }
 
 # Themes are user-installed. Accept only three 0-255 components.

@@ -346,6 +346,21 @@ browser_policy_firefox_disable_app_update "$fx_merge"
   fail "Firefox's updater is turned off in a file with no policies yet" "$(cat "$fx_merge/policies.json")"
 pass "Firefox's updater is turned off in existing policies"
 
+# A region's recommended policies sit beside the managed ones, where the user
+# can still change them, and leave with the region.
+region_policies=$test_tmp/region-policies
+export PATH="$ROOT/bin:$PATH" OMARCHY_REGION_FILE=$test_tmp/region
+as_root() { unprivileged_as_root "$@"; }
+printf 'cn\n' >"$OMARCHY_REGION_FILE"
+browser_policy_setup_dir "$region_policies/managed"
+[[ $(jq -r '.DefaultSearchProviderSearchURL' "$region_policies/recommended/omarchy-region.json") == "https://cn.bing.com/search?q={searchTerms}" ]] ||
+  fail "China recommends Bing China as the search engine"
+[[ ! -e $region_policies/managed/omarchy-region.json ]] || fail "the search engine is not a mandatory policy"
+rm "$OMARCHY_REGION_FILE"
+browser_policy_setup_dir "$region_policies/managed"
+[[ ! -e $region_policies/recommended/omarchy-region.json ]] || fail "a global machine drops the regional recommendations"
+pass "region recommended policies follow the region"
+
 low_mem_dir=$test_tmp/low-mem-policy
 low_mem_info=$test_tmp/meminfo
 fake_image_root=$test_tmp/image-root

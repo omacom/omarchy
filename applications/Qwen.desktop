@@ -1,6 +1,7 @@
 [Desktop Entry]
 Version=1.0
 Name=Qwen
+Name[zh_CN]=千问
 Exec=omarchy-launch-webapp https://www.qianwen.com/
 StartupWMClass=chrome-www.qianwen.com__-Default
 Terminal=false

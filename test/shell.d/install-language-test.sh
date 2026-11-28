@@ -71,6 +71,11 @@ ln -s "$ROOT/default" "$region_root/omarchy/default"
 printf '#!/bin/bash\necho "apply $*" >>"$REGION_LOG"\n' >"$region_root/omarchy/bin/omarchy-apply-pacman"
 chmod +x "$region_root/omarchy/bin/omarchy-apply-pacman"
 printf 'echo region >>"$REGION_LOG"\n' >"$region_root/omarchy/install/config/region.sh"
+mkdir -p "$region_root/omarchy/install/helpers" "$region_root/chrome/managed"
+cat >"$region_root/omarchy/install/helpers/browser-policy.sh" <<SH
+BROWSER_POLICY_MANAGED_DIRS=("$region_root/chrome/managed" "$region_root/absent/managed")
+browser_policy_setup_recommended() { echo "recommended \$1" >>"\$REGION_LOG"; }
+SH
 export OMARCHY_PATH=$region_root/omarchy OMARCHY_FORM_DEFAULTS=$region_root/etc/omarchy/form-defaults \
   OMARCHY_REGION_FILE=$region_root/etc/omarchy/region OMARCHY_PACMAN_CONF=$region_root/etc/pacman.conf \
   OMARCHY_REGION_TARGET=$region_root REGION_LOG=$region_root/log
@@ -95,6 +100,8 @@ media_settles() {
     else
       grep -qx "apply stable $region_root" "$REGION_LOG" || fail "a new region re-renders pacman for the installed channel" "$(cat "$REGION_LOG")"
       grep -qx "region" "$REGION_LOG" || fail "a new region re-applies its mirrors" "$(cat "$REGION_LOG")"
+      grep -qx "recommended $region_root/chrome/recommended" "$REGION_LOG" || fail "a new region re-applies the browser's regional defaults" "$(cat "$REGION_LOG")"
+      ! grep -q "absent" "$REGION_LOG" || fail "browser defaults go only where a browser has policies"
     fi
   done
 }

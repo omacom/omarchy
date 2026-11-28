@@ -1,6 +1,7 @@
 [Desktop Entry]
 Version=1.0
 Name=Bilibili
+Name[zh_CN]=哔哩哔哩
 Exec=omarchy-launch-webapp https://www.bilibili.com/
 StartupWMClass=chrome-www.bilibili.com__-Default
 Terminal=false

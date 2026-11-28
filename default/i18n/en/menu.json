@@ -764,6 +764,9 @@
   "install.service.dingtalk": {
     "label": "DingTalk"
   },
+  "install.service.feishu": {
+    "label": "Feishu"
+  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -776,6 +779,9 @@
   "install.service.wechat": {
     "label": "WeChat"
   },
+  "install.service.wps": {
+    "label": "WPS Office"
+  },
   "install.service.nordvpn": {
     "label": "NordVPN"
   },
@@ -784,6 +790,9 @@
   },
   "install.service.once": {
     "label": "ONCE"
+  },
+  "install.service.qq": {
+    "label": "QQ"
   },
   "install.service.bitwarden": {
     "label": "Bitwarden"

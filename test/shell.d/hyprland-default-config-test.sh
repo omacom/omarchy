@@ -164,6 +164,17 @@ grep -Fq $'SUPER + SHIFT + Y	Bilibili' <<<"$region_output" || fail "China binds 
 for binding in $'SUPER + SHIFT + A	ChatGPT' $'SUPER + SHIFT + E	Email' $'SUPER + SHIFT + Y	YouTube' $'SUPER + SHIFT + M	Music' $'SUPER + SHIFT + G	Signal'; do
   if grep -Fq "$binding" <<<"$region_output"; then fail "China binds none of the global web app hotkeys" "$binding"; fi
 done
+# region_bindings_on <machine>: China's bindings with uname reporting <machine>.
+region_bindings_on() {
+  mkdir -p "$tmpdir/uname-$1"
+  printf '#!/bin/bash\necho %s\n' "$1" >"$tmpdir/uname-$1/uname"
+  chmod +x "$tmpdir/uname-$1/uname"
+  PATH="$tmpdir/uname-$1:$PATH" OMARCHY_REGION_FILE="$tmpdir/region-cn" run_application_bindings "$fresh_home"
+}
+grep -Fq $'SUPER + SHIFT + G	WeChat' <<<"$(region_bindings_on x86_64)" || fail "China binds WeChat on x86"
+arm_output=$(region_bindings_on aarch64)
+grep -Fq $'SUPER + SHIFT + Y	Bilibili' <<<"$arm_output" || fail "China binds its web apps on ARM too"
+if grep -Fq $'	WeChat' <<<"$arm_output"; then fail "ARM gets no WeChat key, since WeChat is x86 only"; fi
 pass "the region picks its web app hotkeys file"
 
 no_bindings_home="$tmpdir/no-bindings-home"

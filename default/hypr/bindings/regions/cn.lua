@@ -5,3 +5,10 @@ o.bind("SUPER + SHIFT + ALT + A", "Qwen", { webapp = "https://www.qianwen.com/" 
 o.bind("SUPER + SHIFT + Y", "Bilibili", { webapp = "https://www.bilibili.com/" })
 o.bind("SUPER + SHIFT + S", "Amap", { webapp = "https://www.amap.com/", focus = true })
 o.bind("SUPER + SHIFT + X", "Weibo", { webapp = "https://weibo.com/" })
+o.bind("SUPER + SHIFT + M", "NetEase Cloud Music", { webapp = "https://music.163.com/", focus = true })
+-- WeChat is x86 only, so ARM gets no key that would offer an install that
+-- can't succeed, as Install > Service leaves its row out there.
+local paths = require("default.hypr.paths")
+if o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-x86")) then
+  o.bind("SUPER + SHIFT + G", "WeChat", { omarchy = "wechat" })
+end
