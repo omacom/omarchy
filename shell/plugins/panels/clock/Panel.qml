@@ -1,5 +1,4 @@
 import QtQuick
-import Quickshell
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
