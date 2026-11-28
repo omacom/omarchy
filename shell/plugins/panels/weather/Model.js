@@ -208,6 +208,13 @@ function provisionalCurrentIcon(current, resolvedIcon) {
   return resolvedIcon || currentIcon(current, "")
 }
 
+// The bar icon after a response from either source. Open-Meteo is day/night
+// aware and always wins; wttr.in only fills an empty icon, so the bar shows
+// whichever source answers first, coordinates configured or not.
+function barIconAfterResponse(source, current, icon) {
+  return source === "open-meteo" ? currentIcon(current, icon) : provisionalCurrentIcon(current, icon)
+}
+
 function weatherResponseCompletesSave(hasConfiguredCoordinates, source) {
   return hasConfiguredCoordinates ? source === "open-meteo" : source === "wttr"
 }
@@ -306,6 +313,7 @@ if (typeof module !== "undefined") {
     openMeteoCurrentCondition: openMeteoCurrentCondition,
     currentIcon: currentIcon,
     provisionalCurrentIcon: provisionalCurrentIcon,
+    barIconAfterResponse: barIconAfterResponse,
     weatherResponseCompletesSave: weatherResponseCompletesSave,
     wttrNextForecastDays: wttrNextForecastDays,
     buildForecastDays: buildForecastDays,

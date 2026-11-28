@@ -369,8 +369,7 @@ Panel {
         try {
           var parsed = JSON.parse(raw)
           root.report = parsed
-          if (!root.hasConfiguredCoordinates)
-            root.label = Model.provisionalCurrentIcon(parsed.current_condition && parsed.current_condition[0], root.label)
+          root.label = Model.barIconAfterResponse("wttr", parsed.current_condition && parsed.current_condition[0], root.label)
           root.forecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "wttr"))
             root.finishSavingLocation()
@@ -401,9 +400,8 @@ Panel {
     onTriggered: if (!forecastProc.running) forecastProc.running = true
   }
 
-  // With configured coordinates this fetch is the only thing that updates the
-  // bar icon, so a dropped response (e.g. waking before the network is back)
-  // must retry rather than wait out the refresh timer with a stale icon.
+  // Only this fetch replaces a resolved bar icon. Retry dropped responses
+  // rather than leave a stale icon until the next refresh.
   function scheduleDailyForecastRetry() {
     if (dailyForecastRetries >= 3) return
     dailyForecastRetries++
@@ -430,7 +428,7 @@ Panel {
           var parsed = JSON.parse(raw)
           var parsedCurrent = Model.openMeteoCurrentCondition(parsed)
           root.dailyForecastReport = parsed
-          root.label = Model.currentIcon(parsedCurrent, root.label)
+          root.label = Model.barIconAfterResponse("open-meteo", parsedCurrent, root.label)
           root.dailyForecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "open-meteo"))
             root.finishSavingLocation()
