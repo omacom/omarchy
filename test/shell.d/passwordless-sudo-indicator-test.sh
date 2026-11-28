@@ -74,3 +74,34 @@ assert_disable_refreshes
 grant_args=(--disable)
 assert_disable_refreshes
 pass "disabling access refreshes the indicator"
+
+# --yes is for a caller that already asked: a timed grant is enabled without
+# opening a confirmation prompt. It must not invent a duration, and it must
+# never bypass the permanent-grant confirmation.
+run_grant_flow_status() {
+  : >"$test_tmp/commands"
+  local status=0
+  env "$@" /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" "${grant_args[@]}" \
+    >"$test_tmp/public.log" 2>&1 || status=$?
+  printf '%s' "$status"
+}
+
+grant_args=(--yes 15)
+run_grant_flow TEST_STATUS=3
+grep -q '^gum' "$test_tmp/commands" && fail "--yes must not open a confirmation prompt"
+refresh_follows ' __enable [0-9]* 15$' || fail "--yes enable must refresh the indicator"
+(( $(user_timers) == 1 )) || fail "--yes timed enable must schedule an expiry refresh"
+pass "--yes enables a timed grant without prompting"
+
+grant_args=(--yes)
+status=$(run_grant_flow_status TEST_STATUS=3)
+[[ $status == 1 ]] || fail "--yes without a duration must be a usage error (got $status)"
+grep -q -- '--yes' "$test_tmp/public.log" || fail "the usage message must mention --yes"
+grep -q '^sudo' "$test_tmp/commands" && fail "--yes without a duration must not call sudo"
+pass "--yes refuses to invent a duration"
+
+grant_args=(--yes permanent)
+status=$(run_grant_flow_status TEST_STATUS=3)
+[[ $status == 1 ]] || fail "--yes permanent must be refused (got $status)"
+grep -q '^sudo' "$test_tmp/commands" && fail "--yes permanent must not call sudo"
+pass "--yes does not bypass permanent-grant confirmation"
