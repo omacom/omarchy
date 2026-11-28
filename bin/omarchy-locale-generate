@@ -38,10 +38,12 @@ fi
 # The code only selects a locale from the registries; nothing the caller
 # passes reaches locale.gen or localedef itself. An installed package older
 # than the region registry, under a dev checkout's helper, has only languages.
+# The country part is optional because Esperanto has no country: glibc ships it
+# as plain eo.UTF-8.
 [[ -e $regions ]] || regions=/dev/null
 locale=$(jq -nr --arg code "$code" --slurpfile languages "$registry" --slurpfile regions "$regions" \
   '($languages[0] + ($regions[0] // {}))[$code].locale // empty')
-if [[ ! $locale =~ ^[a-z]{2,3}_[A-Z]{2}\.UTF-8$ ]]; then
+if [[ ! $locale =~ ^[a-z]{2,3}(_[A-Z]{2})?\.UTF-8$ ]]; then
   echo "Unknown language or region code: $code" >&2
   exit 1
 fi

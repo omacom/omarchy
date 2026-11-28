@@ -28,7 +28,7 @@ exit "${LOCALEDEF_STATUS:-0}"
 STUB
 chmod +x "$work/bin/localedef"
 export LOCALE_GEN_LOG=$work/locale-gen.log LOCALEDEF_ARCHIVE=$work/locale-archive OMARCHY_LOCALE_GEN=$work/locale.gen OMARCHY_LOCALE_REGISTRY=$registry OMARCHY_REGION_REGISTRY=$ROOT/default/i18n/regions.json
-printf '#sv_SE.UTF-8 UTF-8\n#hi_IN UTF-8\n' >"$OMARCHY_LOCALE_GEN"
+printf '#sv_SE.UTF-8 UTF-8\n#hi_IN UTF-8\n#eo UTF-8\n' >"$OMARCHY_LOCALE_GEN"
 run() { PATH="$work/bin:$PATH" bash "$generator" "$@"; }
 
 # The source lookup is the host's, so a /usr/local override here is a right answer.
@@ -42,6 +42,11 @@ run hi || fail "omarchy-locale-generate generates a locale locale.gen spells wit
 grep -qx 'hi_IN UTF-8' "$OMARCHY_LOCALE_GEN" || fail "a codeset-less entry is enabled in place" "$(cat "$OMARCHY_LOCALE_GEN")"
 [[ $(cat "$LOCALE_GEN_LOG") == "-i "?(/usr/local/share/i18n/locales/)hi_IN?(.UTF-8)" -c -f UTF-8 -A /usr/share/locale/locale.alias hi_IN.UTF-8" ]] ||
   fail "localedef names a codeset-less entry with its codeset" "$(cat "$LOCALE_GEN_LOG")"
+: >"$LOCALE_GEN_LOG"
+run eo || fail "omarchy-locale-generate generates a country-less locale"
+grep -qx 'eo UTF-8' "$OMARCHY_LOCALE_GEN" || fail "a country-less entry is enabled in place" "$(cat "$OMARCHY_LOCALE_GEN")"
+[[ $(cat "$LOCALE_GEN_LOG") == "-i "?(/usr/local/share/i18n/locales/)eo?(.UTF-8)" -c -f UTF-8 -A /usr/share/locale/locale.alias eo.UTF-8" ]] ||
+  fail "localedef names a country-less entry with its codeset" "$(cat "$LOCALE_GEN_LOG")"
 run fil || fail "omarchy-locale-generate adds a locale locale.gen doesn't list"
 grep -qx 'fil_PH.UTF-8 UTF-8' "$OMARCHY_LOCALE_GEN" || fail "a missing locale is appended to locale.gen" "$(cat "$OMARCHY_LOCALE_GEN")"
 run en-GB || fail "omarchy-locale-generate generates a registry region"
